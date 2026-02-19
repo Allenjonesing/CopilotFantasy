@@ -1,0 +1,72 @@
+{
+  "enemies": [
+    {
+      "id": "slime",
+      "name": "Slime",
+      "color": 4447556,
+      "stats": {
+        "hp": 80,
+        "mp": 0,
+        "strength": 8,
+        "magic": 2,
+        "defense": 4,
+        "magicDefense": 4,
+        "agility": 8,
+        "luck": 4
+      },
+      "skills": ["attack"],
+      "rewards": { "exp": 20, "gil": 15, "items": [] }
+    },
+    {
+      "id": "goblin",
+      "name": "Goblin",
+      "color": 13404211,
+      "stats": {
+        "hp": 120,
+        "mp": 10,
+        "strength": 12,
+        "magic": 4,
+        "defense": 6,
+        "magicDefense": 4,
+        "agility": 11,
+        "luck": 6
+      },
+      "skills": ["attack", "powerBreak"],
+      "rewards": { "exp": 35, "gil": 25, "items": ["potion"] }
+    },
+    {
+      "id": "ironGolem",
+      "name": "Iron Golem",
+      "color": 8947848,
+      "stats": {
+        "hp": 400,
+        "mp": 0,
+        "strength": 20,
+        "magic": 0,
+        "defense": 22,
+        "magicDefense": 8,
+        "agility": 5,
+        "luck": 4
+      },
+      "skills": ["attack", "smash"],
+      "rewards": { "exp": 120, "gil": 80, "items": ["ether"] }
+    },
+    {
+      "id": "shadowWisp",
+      "name": "Shadow Wisp",
+      "color": 4456516,
+      "stats": {
+        "hp": 160,
+        "mp": 80,
+        "strength": 6,
+        "magic": 18,
+        "defense": 4,
+        "magicDefense": 20,
+        "agility": 18,
+        "luck": 10
+      },
+      "skills": ["attack", "fire", "drain"],
+      "rewards": { "exp": 55, "gil": 40, "items": [] }
+    }
+  ]
+}

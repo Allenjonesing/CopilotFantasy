@@ -1,0 +1,54 @@
+{
+  "items": [
+    {
+      "id": "potion",
+      "name": "Potion",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "hp": 100 },
+      "description": "Restores 100 HP.",
+      "buyPrice": 50,
+      "sellPrice": 25
+    },
+    {
+      "id": "hiPotion",
+      "name": "Hi-Potion",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "hp": 300 },
+      "description": "Restores 300 HP.",
+      "buyPrice": 150,
+      "sellPrice": 75
+    },
+    {
+      "id": "ether",
+      "name": "Ether",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "mp": 50 },
+      "description": "Restores 50 MP.",
+      "buyPrice": 100,
+      "sellPrice": 50
+    },
+    {
+      "id": "phoenix",
+      "name": "Phoenix Down",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "revive": true, "hp": 1 },
+      "description": "Revives a KO'd ally with 1 HP.",
+      "buyPrice": 200,
+      "sellPrice": 100
+    },
+    {
+      "id": "antidote",
+      "name": "Antidote",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "removePoison": true },
+      "description": "Cures Poison.",
+      "buyPrice": 50,
+      "sellPrice": 25
+    }
+  ]
+}

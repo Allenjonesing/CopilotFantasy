@@ -1,0 +1,58 @@
+{
+  "statusEffects": [
+    {
+      "id": "poison",
+      "name": "Poison",
+      "color": 4433476,
+      "type": "debuff",
+      "dotPercent": 0.05,
+      "duration": -1,
+      "description": "Deals 5% max HP per turn."
+    },
+    {
+      "id": "slow",
+      "name": "Slow",
+      "color": 4474060,
+      "type": "debuff",
+      "agilityMod": 0.5,
+      "duration": 3,
+      "description": "Halves Agility for 3 turns."
+    },
+    {
+      "id": "haste",
+      "name": "Haste",
+      "color": 16768324,
+      "type": "buff",
+      "agilityMod": 2.0,
+      "duration": 3,
+      "description": "Doubles Agility for 3 turns."
+    },
+    {
+      "id": "reraise",
+      "name": "Reraise",
+      "color": 11184895,
+      "type": "buff",
+      "autoRevive": true,
+      "duration": -1,
+      "description": "Auto-revives once upon KO."
+    },
+    {
+      "id": "powerDown",
+      "name": "Power Down",
+      "color": 4474060,
+      "type": "debuff",
+      "strengthMod": 0.5,
+      "duration": 3,
+      "description": "Halves Strength for 3 turns."
+    },
+    {
+      "id": "provoked",
+      "name": "Provoked",
+      "color": 16768324,
+      "type": "debuff",
+      "forcedTarget": true,
+      "duration": 2,
+      "description": "Forces targeting of the provoker."
+    }
+  ]
+}
