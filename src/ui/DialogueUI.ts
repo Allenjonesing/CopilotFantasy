@@ -17,6 +17,9 @@ export class DialogueUI {
   private choiceTexts: Phaser.GameObjects.Text[] = [];
   private selectedChoice = 0;
   visible = false;
+  private onDialogueOpened!: (line: unknown) => void;
+  private onDialogueLine!: (line: unknown) => void;
+  private onDialogueClosed!: () => void;
 
   constructor(scene: Phaser.Scene, dialogue: DialogueSystem) {
     this.scene = scene;
@@ -46,13 +49,16 @@ export class DialogueUI {
   }
 
   private registerEvents(): void {
-    this.bus.on('dialogue:opened', (line) => {
+    this.onDialogueOpened = (line) => {
       this.show(line as Parameters<typeof this.show>[0]);
-    });
-    this.bus.on('dialogue:line', (line) => {
+    };
+    this.onDialogueLine = (line) => {
       this.show(line as Parameters<typeof this.show>[0]);
-    });
-    this.bus.on('dialogue:closed', () => this.hide());
+    };
+    this.onDialogueClosed = () => this.hide();
+    this.bus.on('dialogue:opened', this.onDialogueOpened);
+    this.bus.on('dialogue:line', this.onDialogueLine);
+    this.bus.on('dialogue:closed', this.onDialogueClosed);
   }
 
   private show(line: { speaker: string; text: string; choices?: { text: string }[] } | null): void {
@@ -120,6 +126,9 @@ export class DialogueUI {
   }
 
   destroy(): void {
+    this.bus.off('dialogue:opened', this.onDialogueOpened);
+    this.bus.off('dialogue:line', this.onDialogueLine);
+    this.bus.off('dialogue:closed', this.onDialogueClosed);
     this.container.destroy();
   }
 }
