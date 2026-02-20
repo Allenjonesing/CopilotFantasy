@@ -51,7 +51,7 @@ const MAPS: Record<string, MapData> = {
       { id: 'merchant', name: 'Merchant', x: 12, y: 8, dialogueId: 'merchant_intro', color: 0x44ccff },
     ],
     encounters: [{ rate: 0, enemies: [] }],
-    exits: [{ x: 10, y: 14, targetMap: 'overworld', targetX: 10, targetY: 1 }],
+    exits: [{ x: 10, y: 13, targetMap: 'overworld', targetX: 10, targetY: 1 }],
   },
   overworld: {
     id: 'overworld',
@@ -71,7 +71,7 @@ const MAPS: Record<string, MapData> = {
     })(),
     npcs: [],
     encounters: [{ rate: 0.15, enemies: ['slime', 'goblin'] }],
-    exits: [{ x: 10, y: 0, targetMap: 'town', targetX: 10, targetY: 13 }],
+    exits: [{ x: 10, y: 1, targetMap: 'town', targetX: 10, targetY: 13 }],
   },
 };
 
