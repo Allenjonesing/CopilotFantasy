@@ -1,0 +1,58 @@
+{
+  "characters": [
+    {
+      "id": "aria",
+      "name": "Aria",
+      "class": "Warrior",
+      "color": 4493567,
+      "baseStats": {
+        "hp": 320,
+        "mp": 60,
+        "strength": 18,
+        "magic": 6,
+        "defense": 14,
+        "magicDefense": 8,
+        "agility": 12,
+        "luck": 10
+      },
+      "skills": ["attack", "powerBreak", "sentinel", "provoke"],
+      "startingItems": []
+    },
+    {
+      "id": "kael",
+      "name": "Kael",
+      "class": "Mage",
+      "color": 11157759,
+      "baseStats": {
+        "hp": 200,
+        "mp": 180,
+        "strength": 8,
+        "magic": 22,
+        "defense": 6,
+        "magicDefense": 16,
+        "agility": 14,
+        "luck": 12
+      },
+      "skills": ["attack", "fire", "blizzard", "thunder", "dualcast"],
+      "startingItems": []
+    },
+    {
+      "id": "lyra",
+      "name": "Lyra",
+      "class": "Healer",
+      "color": 4521864,
+      "baseStats": {
+        "hp": 240,
+        "mp": 160,
+        "strength": 10,
+        "magic": 18,
+        "defense": 10,
+        "magicDefense": 18,
+        "agility": 16,
+        "luck": 14
+      },
+      "skills": ["attack", "cure", "cura", "esuna", "reraise"],
+      "startingItems": ["potion", "potion", "ether"]
+    }
+  ]
+}

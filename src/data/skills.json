@@ -1,0 +1,136 @@
+{
+  "skills": [
+    {
+      "id": "attack",
+      "name": "Attack",
+      "type": "physical",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "power": 1.0,
+      "description": "A basic physical attack."
+    },
+    {
+      "id": "fire",
+      "name": "Fire",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.2,
+      "element": "fire",
+      "description": "A small burst of flame."
+    },
+    {
+      "id": "blizzard",
+      "name": "Blizzard",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.2,
+      "element": "ice",
+      "description": "A shard of ice."
+    },
+    {
+      "id": "thunder",
+      "name": "Thunder",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.2,
+      "element": "lightning",
+      "description": "A bolt of lightning."
+    },
+    {
+      "id": "cure",
+      "name": "Cure",
+      "type": "heal",
+      "target": "single_ally",
+      "mpCost": 10,
+      "power": 1.0,
+      "description": "Restores a small amount of HP."
+    },
+    {
+      "id": "cura",
+      "name": "Cura",
+      "type": "heal",
+      "target": "single_ally",
+      "mpCost": 22,
+      "power": 2.0,
+      "description": "Restores a moderate amount of HP."
+    },
+    {
+      "id": "esuna",
+      "name": "Esuna",
+      "type": "status_remove",
+      "target": "single_ally",
+      "mpCost": 12,
+      "power": 0,
+      "description": "Removes a debuff from one ally."
+    },
+    {
+      "id": "reraise",
+      "name": "Reraise",
+      "type": "status_apply",
+      "target": "single_ally",
+      "mpCost": 40,
+      "power": 0,
+      "statusEffect": "reraise",
+      "description": "Target will auto-revive once after KO."
+    },
+    {
+      "id": "powerBreak",
+      "name": "Power Break",
+      "type": "physical",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "power": 0.8,
+      "statusEffect": "powerDown",
+      "description": "Reduces enemy Strength."
+    },
+    {
+      "id": "sentinel",
+      "name": "Sentinel",
+      "type": "stance",
+      "target": "self",
+      "mpCost": 0,
+      "power": 0,
+      "description": "Halves damage taken until next turn."
+    },
+    {
+      "id": "provoke",
+      "name": "Provoke",
+      "type": "status_apply",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "power": 0,
+      "statusEffect": "provoked",
+      "description": "Forces an enemy to target the user."
+    },
+    {
+      "id": "dualcast",
+      "name": "Dualcast",
+      "type": "special",
+      "target": "self",
+      "mpCost": 0,
+      "power": 0,
+      "description": "Next magic spell is cast twice."
+    },
+    {
+      "id": "smash",
+      "name": "Smash",
+      "type": "physical",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "power": 1.8,
+      "description": "A powerful slam."
+    },
+    {
+      "id": "drain",
+      "name": "Drain",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 14,
+      "power": 0.8,
+      "description": "Drains HP from the target."
+    }
+  ]
+}
