@@ -33,6 +33,11 @@ export class CombatUI {
   private currentActor: CombatEntity | null = null;
   private selectedEnemy = 0;
   private bus: EventBus;
+  // Stored listener references for cleanup
+  private onCombatLog!: (msg: unknown) => void;
+  private onCombatDamage!: (entity: unknown) => void;
+  private onCombatHeal!: (entity: unknown) => void;
+  private onCombatTurnStart!: (actor: unknown) => void;
 
   constructor(scene: Phaser.Scene, system: CombatSystem) {
     this.scene = scene;
@@ -106,14 +111,18 @@ export class CombatUI {
   }
 
   private registerEvents(): void {
-    this.bus.on('combat:log', (msg) => this.appendLog(msg as string));
-    this.bus.on('combat:damage', (entity) => this.refreshEntityDisplay(entity as CombatEntity));
-    this.bus.on('combat:heal', (entity) => this.refreshEntityDisplay(entity as CombatEntity));
-    this.bus.on('combat:turnStart', (actor) => {
+    this.onCombatLog = (msg) => this.appendLog(msg as string);
+    this.onCombatDamage = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
+    this.onCombatHeal = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
+    this.onCombatTurnStart = (actor) => {
       this.currentActor = actor as CombatEntity;
       this.refreshTimeline();
       this.menuContainer.setVisible(actor instanceof PlayerCombatant);
-    });
+    };
+    this.bus.on('combat:log', this.onCombatLog);
+    this.bus.on('combat:damage', this.onCombatDamage);
+    this.bus.on('combat:heal', this.onCombatHeal);
+    this.bus.on('combat:turnStart', this.onCombatTurnStart);
   }
 
   private refreshEntityDisplay(entity: CombatEntity): void {
@@ -166,6 +175,10 @@ export class CombatUI {
   }
 
   destroy(): void {
+    this.bus.off('combat:log', this.onCombatLog);
+    this.bus.off('combat:damage', this.onCombatDamage);
+    this.bus.off('combat:heal', this.onCombatHeal);
+    this.bus.off('combat:turnStart', this.onCombatTurnStart);
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
     this.logBg.destroy();

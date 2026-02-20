@@ -24,10 +24,10 @@ export class ExplorationScene extends Phaser.Scene {
   create(): void {
     this.bus = EventBus.getInstance();
     this.exploration = new ExplorationSystem(this);
-    this.exploration.init();
     this.dialogue = new DialogueSystem();
     this._dialogueUI = new DialogueUI(this, this.dialogue);
     this.explorationUI = new ExplorationUI(this);
+    this.exploration.init();
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.interactKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 

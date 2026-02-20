@@ -9,6 +9,7 @@ export class ExplorationUI {
   private mapNameText!: Phaser.GameObjects.Text;
   private partyStatusBg!: Phaser.GameObjects.Rectangle;
   private partyTexts: Phaser.GameObjects.Text[] = [];
+  private onMapLoaded!: (mapData: unknown) => void;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -43,10 +44,11 @@ export class ExplorationUI {
   }
 
   private registerEvents(): void {
-    this.bus.on('map:loaded', (mapData) => {
+    this.onMapLoaded = (mapData) => {
       const md = mapData as { name: string };
       this.mapNameText.setText(md.name);
-    });
+    };
+    this.bus.on('map:loaded', this.onMapLoaded);
   }
 
   refresh(): void {
@@ -57,6 +59,7 @@ export class ExplorationUI {
   }
 
   destroy(): void {
+    this.bus.off('map:loaded', this.onMapLoaded);
     this.mapNameText.destroy();
     this.partyStatusBg.destroy();
     this.partyTexts.forEach((t) => t.destroy());
