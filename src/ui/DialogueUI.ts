@@ -15,6 +15,7 @@ export class DialogueUI {
   private speakerText!: Phaser.GameObjects.Text;
   private lineText!: Phaser.GameObjects.Text;
   private choiceTexts: Phaser.GameObjects.Text[] = [];
+  private selectedChoice = 0;
   visible = false;
 
   constructor(scene: Phaser.Scene, dialogue: DialogueSystem) {
@@ -62,6 +63,7 @@ export class DialogueUI {
     this.lineText.setText(line.text);
     this.clearChoices();
     if (line.choices) {
+      this.selectedChoice = 0;
       line.choices.forEach((c, i) => {
         const t = this.scene.add.text(40, BOX_Y + 80 + i * 20, `> ${c.text}`, {
           fontSize: '13px',
@@ -71,7 +73,14 @@ export class DialogueUI {
         this.container.add(t);
         this.choiceTexts.push(t);
       });
+      this.updateChoiceHighlight();
     }
+  }
+
+  private updateChoiceHighlight(): void {
+    this.choiceTexts.forEach((t, i) => {
+      t.setColor(i === this.selectedChoice ? '#ffffff' : '#ffff88');
+    });
   }
 
   private clearChoices(): void {
@@ -87,8 +96,22 @@ export class DialogueUI {
 
   handleInput(key: string): void {
     if (!this.visible) return;
-    if (key === 'interact') {
-      this.dialogue.advance();
+    if (key === 'up') {
+      if (this.choiceTexts.length > 0) {
+        this.selectedChoice = Math.max(0, this.selectedChoice - 1);
+        this.updateChoiceHighlight();
+      }
+    } else if (key === 'down') {
+      if (this.choiceTexts.length > 0) {
+        this.selectedChoice = Math.min(this.choiceTexts.length - 1, this.selectedChoice + 1);
+        this.updateChoiceHighlight();
+      }
+    } else if (key === 'interact') {
+      if (this.choiceTexts.length > 0) {
+        this.dialogue.choose(this.selectedChoice);
+      } else {
+        this.dialogue.advance();
+      }
     } else if (key === 'choice0') {
       this.dialogue.choose(0);
     } else if (key === 'choice1') {

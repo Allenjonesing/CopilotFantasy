@@ -51,6 +51,10 @@ export class ExplorationScene extends Phaser.Scene {
     if (this._dialogueUI.visible) {
       if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
         this._dialogueUI.handleInput('interact');
+      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
+        this._dialogueUI.handleInput('up');
+      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.down)) {
+        this._dialogueUI.handleInput('down');
       }
       return;
     }
