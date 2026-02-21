@@ -44,7 +44,9 @@ export class CombatScene extends Phaser.Scene {
 
     this.bus.on('combat:fled', () => this.endCombat('fled'));
 
-    this.advanceTurn();
+    // Defer the first turn until after the first render frame so Phaser's
+    // WebGL text objects are fully initialised before any setText calls.
+    this.time.delayedCall(50, () => this.advanceTurn());
   }
 
   private advanceTurn(): void {
