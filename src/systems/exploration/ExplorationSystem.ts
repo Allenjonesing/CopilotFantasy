@@ -83,6 +83,7 @@ export class ExplorationSystem {
   }
 
   destroy(): void {
+    this.mapManager.destroy();
     this.playerSprite?.destroy();
     this.npcSprites.forEach((s) => s.destroy());
     this.npcSprites = [];

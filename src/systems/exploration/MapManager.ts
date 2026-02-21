@@ -117,6 +117,11 @@ export class MapManager {
     this.tileSprites = [];
   }
 
+  destroy(): void {
+    this.clearMap();
+    this.currentMap = null;
+  }
+
   getTile(x: number, y: number): Tile | undefined {
     return this.currentMap?.tiles.find((t) => t.x === x && t.y === y);
   }
