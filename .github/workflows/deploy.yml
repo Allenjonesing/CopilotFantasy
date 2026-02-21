@@ -25,6 +25,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Verify GitHub Pages base path
+        run: |
+          if grep -q '/src/main.ts' dist/index.html; then
+            echo "ERROR: dist/index.html still references /src/main.ts — vite.config.ts base is missing"
+            exit 1
+          fi
+          if ! grep -q '/CopilotFantasy/' dist/index.html; then
+            echo "ERROR: dist/index.html does not reference /CopilotFantasy/ — vite.config.ts base is missing"
+            exit 1
+          fi
+          echo "✓ dist/index.html correctly references /CopilotFantasy/ assets"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
