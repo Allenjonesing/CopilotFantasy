@@ -11,6 +11,11 @@ const LOG_W = 280;
 const LOG_H = 160;
 const TIMELINE_W = W;
 const TIMELINE_H = 36;
+const TIMELINE_SLOT_W = 72;
+const DAMAGE_FLASH_MS = 200;
+const ENEMY_FLASH_MS = 80;
+const ENEMY_FLASH_REPEAT = 2;
+const TIMELINE_NAME_LEN = 7;
 
 export class CombatUI {
   private scene: Phaser.Scene;
@@ -25,7 +30,7 @@ export class CombatUI {
   private selectedMenuIndex = 0;
   // Timeline display
   private timelineContainer!: Phaser.GameObjects.Container;
-  private timelineIcons: Phaser.GameObjects.Rectangle[] = [];
+  private timelineIcons: Phaser.GameObjects.GameObject[] = [];
   // Log
   private logBg!: Phaser.GameObjects.Rectangle;
   private logTexts: Phaser.GameObjects.Text[] = [];
@@ -35,7 +40,7 @@ export class CombatUI {
   private bus: EventBus;
   // Stored listener references for cleanup
   private onCombatLog!: (msg: unknown) => void;
-  private onCombatDamage!: (entity: unknown) => void;
+  private onCombatDamage!: (entity: unknown, dmg: unknown) => void;
   private onCombatHeal!: (entity: unknown) => void;
   private onCombatTurnStart!: (actor: unknown) => void;
 
@@ -89,10 +94,11 @@ export class CombatUI {
       this.playerBars.set(p.id, { bg, bar, text });
     });
 
-    // Action menu
+    // Action menu — background rect is added to the container so it moves/hides with it
     this.menuContainer = this.scene.add.container(20, H - 160);
     this.menuContainer.setDepth(30);
-    this.scene.add.rectangle(100, 65, 180, 120, 0x111133, 0.9).setStrokeStyle(1, 0x6666aa);
+    const menuBg = this.scene.add.rectangle(100, 60, 180, 120, 0x111133, 0.9).setStrokeStyle(1, 0x6666aa);
+    this.menuContainer.add(menuBg);
     this.buildMenu(['Attack', 'Skill', 'Item', 'Defend', 'Flee']);
   }
 
@@ -112,7 +118,10 @@ export class CombatUI {
 
   private registerEvents(): void {
     this.onCombatLog = (msg) => this.appendLog(msg as string);
-    this.onCombatDamage = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
+    this.onCombatDamage = (entity, dmg) => {
+      this.refreshEntityDisplay(entity as CombatEntity);
+      this.playDamageAnimation(entity as CombatEntity, dmg as number);
+    };
     this.onCombatHeal = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
     this.onCombatTurnStart = (actor) => {
       this.currentActor = actor as CombatEntity;
@@ -132,7 +141,10 @@ export class CombatUI {
         const ratio = entity.stats.hp / entity.stats.maxHp;
         bars.bar.setScale(ratio, 1);
         bars.bar.setPosition(bars.bg.x - 60 * (1 - ratio), bars.bg.y);
-        bars.text.setText(`${entity.stats.hp}/${entity.stats.maxHp}`);
+        // Guard against the text object being destroyed or not yet fully initialised
+        if (bars.text.active) {
+          bars.text.setText(`${entity.stats.hp}/${entity.stats.maxHp}`);
+        }
       }
     } else {
       const rect = this.enemyRects.get(entity.id);
@@ -142,9 +154,89 @@ export class CombatUI {
     }
   }
 
+  /** Flash the damaged game object and show a floating damage number. */
+  private playDamageAnimation(entity: CombatEntity, dmg: number): void {
+    const isPlayer = entity instanceof PlayerCombatant;
+    if (isPlayer) {
+      const bars = this.playerBars.get(entity.id);
+      if (!bars || !bars.bar.active) return;
+      // Flash the HP bar red
+      bars.bar.setFillStyle(0xff4444);
+      this.scene.time.delayedCall(DAMAGE_FLASH_MS, () => {
+        if (bars.bar.active) bars.bar.setFillStyle(0x44aa44);
+      });
+    } else {
+      const rect = this.enemyRects.get(entity.id);
+      if (!rect || !rect.active || entity.isDefeated) return;
+      // Flash enemy white then back
+      rect.setFillStyle(0xffffff);
+      this.scene.tweens.add({
+        targets: rect,
+        alpha: { from: 1, to: 0.4 },
+        duration: ENEMY_FLASH_MS,
+        yoyo: true,
+        repeat: ENEMY_FLASH_REPEAT,
+        onComplete: () => {
+          if (rect.active) {
+            rect.setAlpha(1);
+            rect.setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
+          }
+        },
+      });
+    }
+
+    // Floating damage number
+    const pos = this.entityScreenPos(entity);
+    const dmgText = this.scene.add.text(pos.x, pos.y, `-${dmg}`, {
+      fontSize: '16px',
+      color: isPlayer ? '#ff8888' : '#ffff44',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(50);
+    this.scene.tweens.add({
+      targets: dmgText,
+      y: pos.y - 50,
+      alpha: 0,
+      duration: 900,
+      ease: 'Power1',
+      onComplete: () => dmgText.destroy(),
+    });
+  }
+
+  /** Return the approximate screen position for an entity. */
+  private entityScreenPos(entity: CombatEntity): { x: number; y: number } {
+    if (entity instanceof PlayerCombatant) {
+      const bars = this.playerBars.get(entity.id);
+      return bars ? { x: bars.bg.x, y: bars.bg.y - 20 } : { x: 100, y: 400 };
+    }
+    const rect = this.enemyRects.get(entity.id);
+    return rect ? { x: rect.x, y: rect.y - 50 } : { x: 200, y: 150 };
+  }
+
+  /** Rebuild the CTB turn-order bar from the timeline preview. */
   private refreshTimeline(): void {
-    this.timelineIcons.forEach((ic) => ic.destroy());
+    this.timelineContainer.removeAll(true);
     this.timelineIcons = [];
+
+    const order = this.system.getTimelinePreview(10);
+    order.forEach((entity, idx) => {
+      const isPlayer = this.system.players.includes(entity as PlayerCombatant);
+      const color = isPlayer ? 0x4466ff : 0xcc4444;
+      const cx = 6 + idx * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
+      const cy = TIMELINE_H / 2;
+
+      const icon = this.scene.add.rectangle(cx, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, color);
+      icon.setStrokeStyle(1, isPlayer ? 0x88aaff : 0xff8888);
+      const label = this.scene.add.text(cx, cy, entity.name.substring(0, TIMELINE_NAME_LEN), {
+        fontSize: '9px',
+        color: '#ffffff',
+        fontFamily: 'monospace',
+      }).setOrigin(0.5);
+
+      this.timelineContainer.add([icon, label]);
+      this.timelineIcons.push(icon, label);
+    });
   }
 
   private appendLog(_msg: string): void {

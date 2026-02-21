@@ -186,6 +186,11 @@ export class CombatSystem {
     this.bus.emit('combat:log', msg);
   }
 
+  /** Return the upcoming turn order for UI display. */
+  getTimelinePreview(count = 10): CombatEntity[] {
+    return this.timeline.preview(count);
+  }
+
   checkResult(): CombatResult | null {
     const allEnemiesDead = this.enemies.every((e) => e.isDefeated);
     const allPlayersDead = this.players.every((p) => p.isDefeated);
