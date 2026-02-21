@@ -46,7 +46,9 @@ export class ExplorationUI {
   private registerEvents(): void {
     this.onMapLoaded = (mapData) => {
       const md = mapData as { name: string };
-      this.mapNameText.setText(md.name);
+      if (this.mapNameText?.active) {
+        this.mapNameText.setText(md.name);
+      }
     };
     this.bus.on('map:loaded', this.onMapLoaded);
   }
