@@ -13,6 +13,7 @@ export class CombatScene extends Phaser.Scene {
   private upKey!: Phaser.Input.Keyboard.Key;
   private downKey!: Phaser.Input.Keyboard.Key;
   private confirmKey!: Phaser.Input.Keyboard.Key;
+  private backKey!: Phaser.Input.Keyboard.Key;
   private waitingForInput = false;
 
   constructor() {
@@ -41,6 +42,7 @@ export class CombatScene extends Phaser.Scene {
     this.upKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     this.downKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
     this.confirmKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.backKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
 
     this.bus.on('combat:fled', () => this.endCombat('fled'));
 
@@ -80,6 +82,8 @@ export class CombatScene extends Phaser.Scene {
       this.ui.navigateMenu('up');
     } else if (Phaser.Input.Keyboard.JustDown(this.downKey)) {
       this.ui.navigateMenu('down');
+    } else if (Phaser.Input.Keyboard.JustDown(this.backKey)) {
+      this.ui.backMenu();
     } else if (Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
       const action = this.ui.confirmAction();
       if (action && this.system.currentActor) {

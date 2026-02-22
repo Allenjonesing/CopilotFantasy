@@ -1,7 +1,10 @@
-import { CombatSystem, CombatAction, ActionType } from '../systems/combat/CombatSystem';
+import { CombatSystem, CombatAction } from '../systems/combat/CombatSystem';
 import { CombatEntity } from '../systems/combat/CombatEntity';
 import { PlayerCombatant } from '../systems/combat/PlayerCombatant';
 import { EventBus } from '../core/events/EventBus';
+import { GameState } from '../core/state/GameState';
+import skillsData from '../data/skills.json';
+import itemsData from '../data/items.json';
 
 const W = 800;
 const H = 600;
@@ -16,27 +19,48 @@ const DAMAGE_FLASH_MS = 200;
 const ENEMY_FLASH_MS = 80;
 const ENEMY_FLASH_REPEAT = 2;
 const TIMELINE_NAME_LEN = 7;
+// Menu placed at screen centre, away from health bars (bottom-left)
+const MENU_X = W / 2 - 100;
+const MENU_Y = H / 2 - 90;
+const MENU_W = 200;
+
+type MenuState = 'main' | 'skill' | 'item' | 'target';
 
 export class CombatUI {
   private scene: Phaser.Scene;
   private system: CombatSystem;
   // Enemy sprites
   private enemyRects: Map<string, Phaser.GameObjects.Rectangle> = new Map();
+  private enemyNameTexts: Phaser.GameObjects.Text[] = [];
   // Player HP bars
   private playerBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
+  private playerNameTexts: Phaser.GameObjects.Text[] = [];
   // Action menu
   private menuContainer!: Phaser.GameObjects.Container;
+  private menuBg!: Phaser.GameObjects.Rectangle;
+  private menuTitle!: Phaser.GameObjects.Text;
   private menuItems: Phaser.GameObjects.Text[] = [];
+  private menuDisabled: boolean[] = [];
   private selectedMenuIndex = 0;
+  // Menu state machine
+  private menuState: MenuState = 'main';
+  private menuStateBeforeTarget: MenuState = 'main';
+  private pendingActionType: 'attack' | 'skill' | 'item' | null = null;
+  private pendingSkillId: string | null = null;
+  private pendingItemId: string | null = null;
+  // Target selection
+  private targetList: CombatEntity[] = [];
+  private targetCursor!: Phaser.GameObjects.Rectangle;
   // Timeline display
   private timelineContainer!: Phaser.GameObjects.Container;
   private timelineIcons: Phaser.GameObjects.GameObject[] = [];
   // Log
   private logBg!: Phaser.GameObjects.Rectangle;
   private logTexts: Phaser.GameObjects.Text[] = [];
+  // Help text
+  private helpText!: Phaser.GameObjects.Text;
   // State
   private currentActor: CombatEntity | null = null;
-  private selectedEnemy = 0;
   private bus: EventBus;
   // Stored listener references for cleanup
   private onCombatLog!: (msg: unknown) => void;
@@ -79,41 +103,168 @@ export class CombatUI {
       const y = 200;
       const rect = this.scene.add.rectangle(x, y, 80, 80, 0xcc4444);
       rect.setDepth(5);
-      this.scene.add.text(x, y + 50, e.name, { fontSize: '12px', color: '#ffffff', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(6);
+      const nameText = this.scene.add
+        .text(x, y + 50, e.name, { fontSize: '12px', color: '#ffffff', fontFamily: 'monospace' })
+        .setOrigin(0.5)
+        .setDepth(6);
       this.enemyRects.set(e.id, rect);
+      this.enemyNameTexts.push(nameText);
     });
 
     // Player HP bars
     this.system.players.forEach((p, idx) => {
       const x = 20;
       const y = H - 180 + idx * 45;
-      this.scene.add.text(x, y, p.name, { fontSize: '12px', color: '#aaaaff', fontFamily: 'monospace' }).setDepth(21);
+      const nameText = this.scene.add
+        .text(x, y, p.name, { fontSize: '12px', color: '#aaaaff', fontFamily: 'monospace' })
+        .setDepth(21);
+      this.playerNameTexts.push(nameText);
       const bg = this.scene.add.rectangle(x + 80, y + 6, 120, 12, 0x333333).setDepth(21);
       const bar = this.scene.add.rectangle(x + 80, y + 6, 120, 12, 0x44aa44).setDepth(22);
-      const text = this.scene.add.text(x + 145, y, `${p.stats.hp}/${p.stats.maxHp}`, { fontSize: '10px', color: '#ffffff', fontFamily: 'monospace' }).setDepth(22);
+      const text = this.scene.add
+        .text(x + 145, y, `${p.stats.hp}/${p.stats.maxHp}`, {
+          fontSize: '10px',
+          color: '#ffffff',
+          fontFamily: 'monospace',
+        })
+        .setDepth(22);
       this.playerBars.set(p.id, { bg, bar, text });
     });
 
-    // Action menu — background rect is added to the container so it moves/hides with it
-    this.menuContainer = this.scene.add.container(20, H - 160);
+    // Target cursor (hidden initially)
+    this.targetCursor = this.scene.add.rectangle(0, 0, 92, 92, 0x000000, 0);
+    this.targetCursor.setStrokeStyle(3, 0xffff00);
+    this.targetCursor.setDepth(15);
+    this.targetCursor.setVisible(false);
+
+    // Action menu container — centred on screen, away from health bars
+    this.menuContainer = this.scene.add.container(MENU_X, MENU_Y);
     this.menuContainer.setDepth(30);
-    const menuBg = this.scene.add.rectangle(100, 60, 180, 120, 0x111133, 0.9).setStrokeStyle(1, 0x6666aa);
-    this.menuContainer.add(menuBg);
-    this.buildMenu(['Attack', 'Skill', 'Item', 'Defend', 'Flee']);
+    this.menuBg = this.scene.add.rectangle(MENU_W / 2, 60, MENU_W, 120, 0x111133, 0.9);
+    this.menuBg.setStrokeStyle(1, 0x6666aa);
+    this.menuContainer.add(this.menuBg);
+    this.menuTitle = this.scene.add.text(10, 8, 'ACTION', {
+      fontSize: '11px',
+      color: '#aaaaff',
+      fontFamily: 'monospace',
+    });
+    this.menuContainer.add(this.menuTitle);
+    this.buildMainMenu();
+
+    // Help text
+    this.helpText = this.scene.add
+      .text(W / 2, H - 6, '↑↓ Navigate   Enter Confirm   X Cancel', {
+        fontSize: '10px',
+        color: '#888888',
+        fontFamily: 'monospace',
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(25);
   }
 
-  private buildMenu(items: string[]): void {
+  /** Rebuild the visible menu items inside the container. */
+  private buildMenuItems(items: string[], disabled: boolean[] = []): void {
     this.menuItems.forEach((t) => t.destroy());
     this.menuItems = [];
+    this.menuDisabled = disabled.length === items.length ? [...disabled] : items.map(() => false);
+    this.selectedMenuIndex = 0;
     items.forEach((label, i) => {
-      const t = this.scene.add.text(20, 20 + i * 20, label, {
+      const isDisabled = this.menuDisabled[i];
+      const color = isDisabled ? '#555555' : i === 0 ? '#ffff00' : '#ffffff';
+      const t = this.scene.add.text(12, 26 + i * 22, label, {
         fontSize: '13px',
-        color: i === this.selectedMenuIndex ? '#ffff00' : '#ffffff',
+        color,
         fontFamily: 'monospace',
       });
       this.menuContainer.add(t);
       this.menuItems.push(t);
     });
+    // Resize background to fit items
+    const h = Math.max(60, 26 + items.length * 22 + 14);
+    this.menuBg.setSize(MENU_W, h);
+    this.menuBg.setPosition(MENU_W / 2, h / 2);
+  }
+
+  private buildMainMenu(): void {
+    this.menuTitle.setText('ACTION');
+    const actor = this.currentActor;
+    const specialSkills = actor ? actor.skills.filter((s) => s !== 'attack') : [];
+    const hasSkills = specialSkills.length > 0;
+    const hasItems = GameState.getInstance().data.inventory.length > 0;
+    this.buildMenuItems(
+      ['Attack', 'Skill', 'Item', 'Defend', 'Flee'],
+      [false, !hasSkills, !hasItems, false, false],
+    );
+  }
+
+  private buildSkillMenu(): void {
+    this.menuTitle.setText('SKILL  [X:back]');
+    const actor = this.currentActor;
+    const skillIds = actor ? actor.skills.filter((s) => s !== 'attack') : [];
+    const items = skillIds.map((id) => {
+      const def = skillsData.skills.find((s) => s.id === id);
+      return def ? `${def.name} MP:${def.mpCost}` : id;
+    });
+    this.buildMenuItems(items);
+  }
+
+  private buildItemMenu(): void {
+    this.menuTitle.setText('ITEM   [X:back]');
+    const inv = GameState.getInstance().data.inventory;
+    const items = inv.map((i) => {
+      const def = itemsData.items.find((it) => it.id === i.id);
+      return def ? `${def.name} x${i.quantity}` : `${i.id} x${i.quantity}`;
+    });
+    this.buildMenuItems(items);
+  }
+
+  private enterTargetMode(actionType: 'attack' | 'skill' | 'item'): void {
+    this.menuStateBeforeTarget = this.menuState;
+    this.menuState = 'target';
+    this.pendingActionType = actionType;
+    this.targetList = [
+      ...this.system.enemies.filter((e) => !e.isDefeated),
+      ...this.system.players.filter((p) => !p.isDefeated),
+    ];
+    this.menuTitle.setText('TARGET [X:back]');
+    const labels = this.targetList.map((t) => {
+      const isEnemy = !this.system.players.some((p) => p === t);
+      return `${t.name} ${isEnemy ? '(foe)' : '(ally)'}`;
+    });
+    this.buildMenuItems(labels);
+    this.updateTargetCursor();
+  }
+
+  private resetToMain(): void {
+    this.menuState = 'main';
+    this.menuStateBeforeTarget = 'main';
+    this.pendingActionType = null;
+    this.pendingSkillId = null;
+    this.pendingItemId = null;
+    this.hideTargetCursor();
+    this.buildMainMenu();
+  }
+
+  private updateMenuHighlight(): void {
+    this.menuItems.forEach((t, i) => {
+      const disabled = this.menuDisabled[i];
+      t.setColor(disabled ? '#555555' : i === this.selectedMenuIndex ? '#ffff00' : '#ffffff');
+    });
+  }
+
+  private updateTargetCursor(): void {
+    const target = this.targetList[this.selectedMenuIndex];
+    if (!target) {
+      this.targetCursor.setVisible(false);
+      return;
+    }
+    const pos = this.entityCenter(target);
+    this.targetCursor.setPosition(pos.x, pos.y);
+    this.targetCursor.setVisible(true);
+  }
+
+  private hideTargetCursor(): void {
+    this.targetCursor.setVisible(false);
   }
 
   private registerEvents(): void {
@@ -126,7 +277,9 @@ export class CombatUI {
     this.onCombatTurnStart = (actor) => {
       this.currentActor = actor as CombatEntity;
       this.refreshTimeline();
-      this.menuContainer.setVisible(actor instanceof PlayerCombatant);
+      const isPlayer = actor instanceof PlayerCombatant;
+      if (isPlayer) this.resetToMain();
+      this.menuContainer.setVisible(isPlayer);
     };
     this.bus.on('combat:log', this.onCombatLog);
     this.bus.on('combat:damage', this.onCombatDamage);
@@ -204,7 +357,7 @@ export class CombatUI {
     });
   }
 
-  /** Return the approximate screen position for an entity. */
+  /** Return the approximate screen position for an entity (used for floating damage numbers). */
   private entityScreenPos(entity: CombatEntity): { x: number; y: number } {
     if (entity instanceof PlayerCombatant) {
       const bars = this.playerBars.get(entity.id);
@@ -212,6 +365,16 @@ export class CombatUI {
     }
     const rect = this.enemyRects.get(entity.id);
     return rect ? { x: rect.x, y: rect.y - 50 } : { x: 200, y: 150 };
+  }
+
+  /** Return the screen center of an entity (used to place the target cursor). */
+  private entityCenter(entity: CombatEntity): { x: number; y: number } {
+    if (entity instanceof PlayerCombatant) {
+      const bars = this.playerBars.get(entity.id);
+      return bars ? { x: bars.bg.x, y: bars.bg.y } : { x: 100, y: 420 };
+    }
+    const rect = this.enemyRects.get(entity.id);
+    return rect ? { x: rect.x, y: rect.y } : { x: 200, y: 200 };
   }
 
   /** Rebuild the CTB turn-order bar from the timeline preview. */
@@ -249,17 +412,103 @@ export class CombatUI {
 
   navigateMenu(direction: 'up' | 'down'): void {
     const count = this.menuItems.length;
-    this.selectedMenuIndex = (this.selectedMenuIndex + (direction === 'down' ? 1 : -1) + count) % count;
-    this.menuItems.forEach((t, i) => t.setColor(i === this.selectedMenuIndex ? '#ffff00' : '#ffffff'));
+    if (count === 0) return;
+    let newIdx = this.selectedMenuIndex;
+    let iterations = 0;
+    do {
+      newIdx = direction === 'down' ? (newIdx + 1) % count : (newIdx - 1 + count) % count;
+      iterations++;
+    } while (this.menuDisabled[newIdx] && iterations < count);
+
+    if (!this.menuDisabled[newIdx]) {
+      this.selectedMenuIndex = newIdx;
+      this.updateMenuHighlight();
+      if (this.menuState === 'target') this.updateTargetCursor();
+    }
   }
 
   confirmAction(): CombatAction | null {
     if (!this.currentActor) return null;
-    const menuLabels: ActionType[] = ['attack', 'skill', 'item', 'defend', 'flee'];
-    const actionType = menuLabels[this.selectedMenuIndex];
-    const enemies = this.system.enemies.filter((e) => !e.isDefeated);
-    const target = enemies[this.selectedEnemy] ?? null;
-    return { type: actionType, target: target ?? undefined };
+    const idx = this.selectedMenuIndex;
+
+    if (this.menuState === 'main') {
+      if (this.menuDisabled[idx]) return null;
+      const mainOptions = ['attack', 'skill', 'item', 'defend', 'flee'] as const;
+      const choice = mainOptions[idx];
+      if (choice === 'attack') {
+        this.enterTargetMode('attack');
+        return null;
+      } else if (choice === 'skill') {
+        this.menuState = 'skill';
+        this.buildSkillMenu();
+        return null;
+      } else if (choice === 'item') {
+        this.menuState = 'item';
+        this.buildItemMenu();
+        return null;
+      } else if (choice === 'defend') {
+        return { type: 'defend' };
+      } else if (choice === 'flee') {
+        return { type: 'flee' };
+      }
+    }
+
+    if (this.menuState === 'skill') {
+      const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
+      const skillId = skillIds[idx];
+      if (!skillId) return null;
+      this.pendingSkillId = skillId;
+      this.enterTargetMode('skill');
+      return null;
+    }
+
+    if (this.menuState === 'item') {
+      const inv = GameState.getInstance().data.inventory;
+      const item = inv[idx];
+      if (!item) return null;
+      this.pendingItemId = item.id;
+      this.enterTargetMode('item');
+      return null;
+    }
+
+    if (this.menuState === 'target') {
+      const target = this.targetList[idx];
+      if (!target) return null;
+      const actionType = this.pendingActionType!;
+      if (actionType === 'attack') {
+        this.resetToMain();
+        return { type: 'attack', target };
+      } else if (actionType === 'skill') {
+        const skillId = this.pendingSkillId!;
+        this.resetToMain();
+        return { type: 'skill', skillId, target };
+      } else if (actionType === 'item') {
+        const itemId = this.pendingItemId!;
+        this.resetToMain();
+        return { type: 'item', itemId, target };
+      }
+    }
+
+    return null;
+  }
+
+  backMenu(): void {
+    if (this.menuState === 'main') return;
+    if (this.menuState === 'target') {
+      this.hideTargetCursor();
+      const prev = this.menuStateBeforeTarget;
+      this.menuState = prev;
+      if (prev === 'skill') {
+        this.buildSkillMenu();
+      } else if (prev === 'item') {
+        this.buildItemMenu();
+      } else {
+        this.buildMainMenu();
+      }
+    } else {
+      this.menuState = 'main';
+      this.buildMainMenu();
+    }
   }
 
   get isMenuVisible(): boolean {
@@ -275,5 +524,16 @@ export class CombatUI {
     this.timelineContainer.destroy();
     this.logBg.destroy();
     this.logTexts.forEach((t) => t.destroy());
+    this.targetCursor.destroy();
+    this.helpText.destroy();
+    // Explicitly destroy all tracked game objects to prevent accumulation
+    this.enemyNameTexts.forEach((t) => t.destroy());
+    this.playerNameTexts.forEach((t) => t.destroy());
+    this.enemyRects.forEach((r) => r.destroy());
+    this.playerBars.forEach(({ bg, bar, text }) => {
+      bg.destroy();
+      bar.destroy();
+      text.destroy();
+    });
   }
 }

@@ -2,6 +2,7 @@ import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
 
 const W = 800;
+const H = 600;
 
 export class ExplorationUI {
   private scene: Phaser.Scene;
@@ -9,6 +10,7 @@ export class ExplorationUI {
   private mapNameText!: Phaser.GameObjects.Text;
   private partyStatusBg!: Phaser.GameObjects.Rectangle;
   private partyTexts: Phaser.GameObjects.Text[] = [];
+  private helpText!: Phaser.GameObjects.Text;
   private onMapLoaded!: (mapData: unknown) => void;
 
   constructor(scene: Phaser.Scene) {
@@ -41,6 +43,12 @@ export class ExplorationUI {
       this.partyTexts.push(t);
     });
     this.refresh();
+
+    this.helpText = this.scene.add.text(W / 2, H - 6, '↑↓←→ Move   Space Interact   (Yellow tile = EXIT)', {
+      fontSize: '10px',
+      color: '#888888',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 1).setDepth(51);
   }
 
   private registerEvents(): void {
@@ -65,5 +73,6 @@ export class ExplorationUI {
     this.mapNameText.destroy();
     this.partyStatusBg.destroy();
     this.partyTexts.forEach((t) => t.destroy());
+    this.helpText.destroy();
   }
 }

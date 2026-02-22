@@ -8,6 +8,7 @@ export class ExplorationSystem {
   private bus: EventBus;
   private playerSprite!: Phaser.GameObjects.Rectangle;
   private npcSprites: Phaser.GameObjects.Rectangle[] = [];
+  private exitMarkers: Phaser.GameObjects.GameObject[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -40,6 +41,21 @@ export class ExplorationSystem {
       );
       s.setDepth(9);
       this.npcSprites.push(s);
+    });
+
+    // Exit markers
+    mapData.exits.forEach((exit) => {
+      const ex = exit.x * tileSize + tileSize / 2;
+      const ey = exit.y * tileSize + tileSize / 2;
+      const marker = this.scene.add.rectangle(ex, ey, tileSize - 4, tileSize - 4, 0xffdd00);
+      marker.setDepth(8);
+      marker.setAlpha(0.7);
+      const label = this.scene.add.text(ex, ey - tileSize, '⬆ EXIT', {
+        fontSize: '9px',
+        color: '#ffdd00',
+        fontFamily: 'monospace',
+      }).setOrigin(0.5, 1).setDepth(12);
+      this.exitMarkers.push(marker, label);
     });
   }
 
@@ -87,5 +103,7 @@ export class ExplorationSystem {
     this.playerSprite?.destroy();
     this.npcSprites.forEach((s) => s.destroy());
     this.npcSprites = [];
+    this.exitMarkers.forEach((m) => m.destroy());
+    this.exitMarkers = [];
   }
 }
