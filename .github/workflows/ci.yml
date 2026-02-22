@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Verify GitHub Pages base path
+        run: |
+          if grep -q '/src/main.ts' dist/index.html; then
+            echo "ERROR: dist/index.html still references /src/main.ts — vite.config.ts base is missing"
+            exit 1
+          fi
+          if ! grep -q '/CopilotFantasy/' dist/index.html; then
+            echo "ERROR: dist/index.html does not reference /CopilotFantasy/ — vite.config.ts base is missing"
+            exit 1
+          fi
+          echo "✓ dist/index.html correctly references /CopilotFantasy/ assets"
