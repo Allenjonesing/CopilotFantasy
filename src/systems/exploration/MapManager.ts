@@ -70,7 +70,7 @@ const MAPS: Record<string, MapData> = {
       return tiles;
     })(),
     npcs: [],
-    encounters: [{ rate: 0.15, enemies: ['slime', 'goblin'] }],
+    encounters: [{ rate: 0.04, enemies: ['slime', 'goblin'] }],
     exits: [{ x: 10, y: 1, targetMap: 'town', targetX: 10, targetY: 13 }],
   },
 };
