@@ -181,8 +181,10 @@ export class CombatUI {
     });
     // Resize background to fit items
     const h = Math.max(60, 26 + items.length * 22 + 14);
-    this.menuBg.setSize(MENU_W, h);
-    this.menuBg.setPosition(MENU_W / 2, h / 2);
+    if (this.menuBg.active) {
+      this.menuBg.setSize(MENU_W, h);
+      this.menuBg.setPosition(MENU_W / 2, h / 2);
+    }
   }
 
   private buildMainMenu(): void {
@@ -275,6 +277,7 @@ export class CombatUI {
     };
     this.onCombatHeal = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
     this.onCombatTurnStart = (actor) => {
+      if (!this.menuContainer.active) return;
       this.currentActor = actor as CombatEntity;
       this.refreshTimeline();
       const isPlayer = actor instanceof PlayerCombatant;
