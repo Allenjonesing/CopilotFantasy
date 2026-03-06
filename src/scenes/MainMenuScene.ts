@@ -16,7 +16,7 @@ export class MainMenuScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, height / 2, 'Press ENTER to start', {
+    this.add.text(width / 2, height / 2, 'Press ENTER or Tap to Start', {
       fontSize: '20px',
       color: '#aaaaff',
       fontFamily: 'monospace',
@@ -29,6 +29,11 @@ export class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.startKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+
+    // Touch / mouse: tap anywhere on the title screen to start.
+    this.input.once('pointerdown', () => {
+      this.scene.start('ExplorationScene');
+    });
   }
 
   update(): void {

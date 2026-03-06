@@ -44,6 +44,17 @@ export class CombatScene extends Phaser.Scene {
     this.confirmKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.backKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
 
+    // Touch / mouse: tapping a menu item selects and confirms it.
+    this.ui.onMenuTap = () => {
+      if (!this.waitingForInput) return;
+      const action = this.ui.confirmAction();
+      if (action && this.system.currentActor) {
+        this.waitingForInput = false;
+        this.system.executeAction(this.system.currentActor, action);
+        this.time.delayedCall(400, () => this.advanceTurn());
+      }
+    };
+
     this.bus.on('combat:fled', () => this.endCombat('fled'));
 
     // Defer the first turn until after the first render frame so Phaser's
