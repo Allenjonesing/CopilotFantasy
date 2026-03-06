@@ -68,6 +68,9 @@ export class CombatUI {
   private onCombatHeal!: (entity: unknown) => void;
   private onCombatTurnStart!: (actor: unknown) => void;
 
+  /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
+  onMenuTap?: () => void;
+
   constructor(scene: Phaser.Scene, system: CombatSystem) {
     this.scene = scene;
     this.system = system;
@@ -153,7 +156,7 @@ export class CombatUI {
 
     // Help text
     this.helpText = this.scene.add
-      .text(W / 2, H - 6, '↑↓ Navigate   Enter Confirm   X Cancel', {
+      .text(W / 2, H - 6, '↑↓/Tap Navigate   Enter/Tap Confirm   X Cancel', {
         fontSize: '10px',
         color: '#888888',
         fontFamily: 'monospace',
@@ -176,6 +179,24 @@ export class CombatUI {
         color,
         fontFamily: 'monospace',
       });
+      if (!isDisabled) {
+        t.setInteractive({ useHandCursor: true });
+        t.on('pointerover', () => {
+          if (!this.menuDisabled[i] && this.menuContainer.visible) {
+            this.selectedMenuIndex = i;
+            this.updateMenuHighlight();
+            if (this.menuState === 'target') this.updateTargetCursor();
+          }
+        });
+        t.on('pointerdown', () => {
+          if (!this.menuDisabled[i] && this.menuContainer.visible) {
+            this.selectedMenuIndex = i;
+            this.updateMenuHighlight();
+            if (this.menuState === 'target') this.updateTargetCursor();
+            this.onMenuTap?.();
+          }
+        });
+      }
       this.menuContainer.add(t);
       this.menuItems.push(t);
     });

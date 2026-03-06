@@ -44,7 +44,7 @@ export class ExplorationUI {
     });
     this.refresh();
 
-    this.helpText = this.scene.add.text(W / 2, H - 6, '↑↓←→ Move   Space Interact   (Yellow tile = EXIT)', {
+    this.helpText = this.scene.add.text(W / 2, H - 6, '↑↓←→/D-Pad Move   Space/OK Interact   (Yellow = EXIT)', {
       fontSize: '10px',
       color: '#888888',
       fontFamily: 'monospace',

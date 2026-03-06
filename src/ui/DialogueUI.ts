@@ -32,6 +32,9 @@ export class DialogueUI {
   private buildUI(): void {
     this.bg = this.scene.add.rectangle(W / 2, BOX_Y + BOX_H / 2, W - 20, BOX_H, 0x111122, 0.9);
     this.bg.setStrokeStyle(2, 0x8888ff);
+    // Tap anywhere on the dialogue box to advance or confirm.
+    this.bg.setInteractive();
+    this.bg.on('pointerdown', () => this.handleInput('interact'));
     this.speakerText = this.scene.add.text(20, BOX_Y + 10, '', {
       fontSize: '16px',
       color: '#aaaaff',
@@ -75,6 +78,13 @@ export class DialogueUI {
           fontSize: '13px',
           color: '#ffff88',
           fontFamily: 'monospace',
+        });
+        // Tap a choice text to select and confirm it immediately.
+        t.setInteractive({ useHandCursor: true });
+        t.on('pointerdown', () => {
+          this.selectedChoice = i;
+          this.updateChoiceHighlight();
+          this.dialogue.choose(i);
         });
         this.container.add(t);
         this.choiceTexts.push(t);
