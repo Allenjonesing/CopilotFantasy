@@ -42,11 +42,33 @@ export interface GameStateData {
   playerX: number;
   playerY: number;
   flags: Record<string, boolean>;
+  /** Stable RNG seed for the current floor's map layout. */
+  mapSeed: number;
+  /** Player tile position saved just before entering combat (null = new floor). */
+  preCombatX: number | null;
+  preCombatY: number | null;
+  /** Enemies still alive on the current floor; null means "generate fresh". */
+  pendingMapEnemies: PersistentMapEnemy[] | null;
+}
+
+export interface SkillGain {
+  charName: string;
+  skillId: string;
 }
 
 export interface LevelUpResult {
   leveledUp: boolean;
   newLevel: number;
+  skillsGained: SkillGain[];
+}
+
+export interface PersistentMapEnemy {
+  id: string;
+  typeId: string;
+  displayName: string;
+  variantScale: number;
+  x: number;
+  y: number;
 }
 
 export class GameState {
@@ -99,6 +121,10 @@ export class GameState {
       playerX: 2,
       playerY: 2,
       flags: {},
+      mapSeed: Date.now(),
+      preCombatX: null,
+      preCombatY: null,
+      pendingMapEnemies: null,
     };
   }
 
@@ -152,6 +178,11 @@ export class GameState {
 
   increaseDifficulty(): void {
     this.state.difficultyLevel++;
+    // New floor → generate a fresh map seed and clear per-floor state.
+    this.state.mapSeed = Date.now() ^ (this.state.difficultyLevel * 0x9e3779b9);
+    this.state.pendingMapEnemies = null;
+    this.state.preCombatX = null;
+    this.state.preCombatY = null;
   }
 
   /** Scale factor applied to enemy stats based on current difficulty. */
@@ -165,14 +196,15 @@ export class GameState {
       this.state.exp -= this.state.expToNext;
       this.state.level++;
       this.state.expToNext = Math.floor(this.state.expToNext * 1.6 + 20);
-      this.applyLevelUp();
-      return { leveledUp: true, newLevel: this.state.level };
+      const skillsGained = this.applyLevelUp();
+      return { leveledUp: true, newLevel: this.state.level, skillsGained };
     }
-    return { leveledUp: false, newLevel: this.state.level };
+    return { leveledUp: false, newLevel: this.state.level, skillsGained: [] };
   }
 
-  private applyLevelUp(): void {
+  private applyLevelUp(): SkillGain[] {
     const level = this.state.level;
+    const skillsGained: SkillGain[] = [];
     this.state.party.forEach((p) => {
       const charDef = charactersData.characters.find((c) => c.id === p.id);
       if (!charDef) return;
@@ -194,8 +226,10 @@ export class GameState {
       const newSkill = levelSkills[String(level)];
       if (newSkill && !p.skills.includes(newSkill)) {
         p.skills.push(newSkill);
+        skillsGained.push({ charName: p.name, skillId: newSkill });
       }
     });
+    return skillsGained;
   }
 
   private saveHighScore(): void {

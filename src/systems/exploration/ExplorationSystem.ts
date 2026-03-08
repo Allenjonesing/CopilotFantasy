@@ -1,11 +1,19 @@
 import Phaser from 'phaser';
 import { MapManager } from './MapManager';
 import { EventBus } from '../../core/events/EventBus';
-import { GameState } from '../../core/state/GameState';
+import { GameState, PersistentMapEnemy } from '../../core/state/GameState';
+
+export interface CombatEnemySpec {
+  typeId: string;
+  displayName: string;
+  variantScale: number;
+}
 
 interface MapEnemy {
   id: string;
   typeId: string;
+  displayName: string;
+  variantScale: number;
   x: number;
   y: number;
   moveTimer: number;
@@ -84,58 +92,108 @@ export class ExplorationSystem {
     const mapData = this.mapManager.getCurrentMap()!;
     const tileSize = mapData.tileSize;
     const types = enemyTypesForDifficulty(difficulty);
-    const count = Math.min(3 + Math.floor(difficulty / 2), 8);
 
-    for (let i = 0; i < count; i++) {
-      const typeId = types[Math.floor(Math.random() * types.length)];
-      let ex = 0;
-      let ey = 0;
-      let placed = false;
-      for (let attempt = 0; attempt < 150; attempt++) {
-        const tx = 1 + Math.floor(Math.random() * (mapData.width - 2));
-        const ty = 1 + Math.floor(Math.random() * (mapData.height - 2));
-        const tile = this.mapManager.getTile(tx, ty);
-        if (!tile?.passable) continue;
-        if (Math.abs(tx - state.data.playerX) + Math.abs(ty - state.data.playerY) < 5) continue;
-        if (this.mapEnemies.some((e) => e.x === tx && e.y === ty)) continue;
-        ex = tx;
-        ey = ty;
-        placed = true;
-        break;
+    // Determine the set of enemies to place.
+    // If we're returning from a mid-floor combat, reuse the saved list.
+    let enemiesToSpawn: PersistentMapEnemy[];
+
+    if (state.data.pendingMapEnemies !== null) {
+      enemiesToSpawn = state.data.pendingMapEnemies;
+    } else {
+      // Fresh floor – generate new enemies with random variant scaling.
+      const count = Math.min(3 + Math.floor(difficulty / 2), 8);
+      const generated: PersistentMapEnemy[] = [];
+
+      for (let i = 0; i < count; i++) {
+        const typeId = types[Math.floor(Math.random() * types.length)];
+        const { scale: variantScale, prefix } = this.rollVariant();
+        const baseName = typeId
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, (s) => s.toUpperCase())
+          .trim();
+        const displayName = prefix + baseName;
+
+        let ex = 0;
+        let ey = 0;
+        let placed = false;
+        for (let attempt = 0; attempt < 150; attempt++) {
+          const tx = 1 + Math.floor(Math.random() * (mapData.width - 2));
+          const ty = 1 + Math.floor(Math.random() * (mapData.height - 2));
+          const tile = this.mapManager.getTile(tx, ty);
+          if (!tile?.passable) continue;
+          if (Math.abs(tx - state.data.playerX) + Math.abs(ty - state.data.playerY) < 5) continue;
+          if (generated.some((e) => e.x === tx && e.y === ty)) continue;
+          ex = tx;
+          ey = ty;
+          placed = true;
+          break;
+        }
+        if (!placed) continue;
+
+        generated.push({ id: `enemy_${i}`, typeId, displayName, variantScale, x: ex, y: ey });
       }
-      if (!placed) continue;
 
-      const color = this.enemyColor(typeId);
+      state.data.pendingMapEnemies = generated;
+      enemiesToSpawn = generated;
+    }
+
+    // Render each enemy.
+    for (const eData of enemiesToSpawn) {
+      const color = this.enemyColor(eData.typeId);
       const sprite = this.scene.add
         .rectangle(
-          ex * tileSize + tileSize / 2,
-          ey * tileSize + tileSize / 2,
+          eData.x * tileSize + tileSize / 2,
+          eData.y * tileSize + tileSize / 2,
           tileSize - 6,
           tileSize - 6,
           color,
         )
         .setDepth(10);
 
+      // Variant visual cues: weak = faded, buff = brighter
+      if (eData.variantScale < 0.82) {
+        sprite.setAlpha(0.65);
+      } else if (eData.variantScale > 1.18) {
+        sprite.setAlpha(1.0);
+        sprite.setFillStyle(Phaser.Display.Color.ValueToColor(color).brighten(20).color);
+      }
+
+      // Label: show variant indicator so the player has a heads-up.
+      const labelText = eData.variantScale < 0.82 ? 'W!' : eData.variantScale > 1.18 ? 'B!' : '!';
+      const labelColor = eData.variantScale < 0.82 ? '#aaaaaa' : eData.variantScale > 1.18 ? '#ff8844' : '#ffaaaa';
+
       const label = this.scene.add
-        .text(ex * tileSize + tileSize / 2, ey * tileSize, '!', {
+        .text(eData.x * tileSize + tileSize / 2, eData.y * tileSize, labelText, {
           fontSize: '10px',
-          color: '#ffaaaa',
+          color: labelColor,
           fontFamily: 'monospace',
         })
         .setOrigin(0.5, 1)
         .setDepth(11);
 
       this.mapEnemies.push({
-        id: `enemy_${i}`,
-        typeId,
-        x: ex,
-        y: ey,
+        ...eData,
         moveTimer: Math.random() * 600,
         state: 'wander',
         sprite,
         label,
       });
     }
+  }
+
+  /** Returns a variant scale and optional name prefix for a spawned enemy. */
+  private rollVariant(): { scale: number; prefix: string } {
+    const roll = Math.random();
+    if (roll < 0.2) {
+      // Weak variant: 60–80% of base stats.
+      return { scale: 0.60 + Math.random() * 0.21, prefix: 'Weak ' };
+    }
+    if (roll >= 0.80) {
+      // Buff variant: 120–140% of base stats.
+      return { scale: 1.20 + Math.random() * 0.21, prefix: 'Buff ' };
+    }
+    // Normal variant: slight random variance, no prefix.
+    return { scale: 0.85 + Math.random() * 0.31, prefix: '' };
   }
 
   private enemyColor(typeId: string): number {
@@ -240,19 +298,39 @@ export class ExplorationSystem {
     if (this.combatActive) return;
     this.combatActive = true;
 
-    // Remove the enemy from the map.
+    // Remove the enemy from the map display.
     enemy.sprite.destroy();
     enemy.label.destroy();
     this.mapEnemies = this.mapEnemies.filter((e) => e !== enemy);
 
     const state = GameState.getInstance();
     const difficulty = state.data.difficultyLevel;
-    const enemies = [enemy.typeId];
+
+    // Save player position so ExplorationScene can restore it after combat.
+    state.data.preCombatX = state.data.playerX;
+    state.data.preCombatY = state.data.playerY;
+
+    // Remove this enemy from the persistent list so it doesn't respawn.
+    if (state.data.pendingMapEnemies) {
+      state.data.pendingMapEnemies = state.data.pendingMapEnemies.filter(
+        (e) => e.id !== enemy.id,
+      );
+    }
+
+    const enemies: CombatEnemySpec[] = [
+      { typeId: enemy.typeId, displayName: enemy.displayName, variantScale: enemy.variantScale },
+    ];
 
     // Chance to add a second enemy at higher difficulty.
     if (difficulty >= 4 && Math.random() < 0.35) {
       const types = enemyTypesForDifficulty(difficulty);
-      enemies.push(types[Math.floor(Math.random() * types.length)]);
+      const extraTypeId = types[Math.floor(Math.random() * types.length)];
+      const { scale, prefix } = this.rollVariant();
+      const baseName = extraTypeId
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (s) => s.toUpperCase())
+        .trim();
+      enemies.push({ typeId: extraTypeId, displayName: prefix + baseName, variantScale: scale });
     }
 
     this.bus.emit('combat:start', { enemies, difficultyLevel: difficulty });

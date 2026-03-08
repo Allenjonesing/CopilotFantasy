@@ -21,10 +21,18 @@ export class ExplorationScene extends Phaser.Scene {
   create(): void {
     this.bus = EventBus.getInstance();
 
-    // Reset player position to spawn on each new map.
+    // Restore player to pre-combat position if returning from a mid-floor
+    // battle; otherwise reset to spawn for a fresh floor.
     const state = GameState.getInstance();
-    state.data.playerX = 2;
-    state.data.playerY = 2;
+    if (state.data.preCombatX !== null && state.data.preCombatY !== null) {
+      state.data.playerX = state.data.preCombatX;
+      state.data.playerY = state.data.preCombatY;
+      state.data.preCombatX = null;
+      state.data.preCombatY = null;
+    } else {
+      state.data.playerX = 2;
+      state.data.playerY = 2;
+    }
 
     this.exploration = new ExplorationSystem(this);
     this.explorationUI = new ExplorationUI(this);

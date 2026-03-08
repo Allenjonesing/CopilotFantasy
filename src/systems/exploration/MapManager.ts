@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { EventBus } from '../../core/events/EventBus';
+import { GameState } from '../../core/state/GameState';
 
 export type TileType = 'floor' | 'wall' | 'tree' | 'rock';
 
@@ -41,11 +42,9 @@ function makeRng(seed: number): () => number {
   };
 }
 
-export function generateOverworldMap(floorNumber: number): MapData {
-  // XOR Date.now() with the floor number so each *run* gets a unique layout
-  // while the floor number still influences obstacle density.  This gives the
-  // typical roguelike feel of never repeating the same floor layout.
-  const seed = Date.now() ^ (floorNumber * 0x9e3779b9);
+export function generateOverworldMap(seed: number, floorNumber: number): MapData {
+  // Use the provided seed (stored per-floor in GameState) so the layout is
+  // stable for the duration of a floor, even across combat restarts.
   const rng = makeRng(seed);
 
   // Player always spawns at (2,2), exit is near bottom-right.
@@ -115,8 +114,9 @@ export class MapManager {
   }
 
   loadMap(floorNumber: number): MapData {
+    const seed = GameState.getInstance().data.mapSeed;
     this.clearMap();
-    this.currentMap = generateOverworldMap(floorNumber);
+    this.currentMap = generateOverworldMap(seed, floorNumber);
     this.renderMap();
     return this.currentMap;
   }
