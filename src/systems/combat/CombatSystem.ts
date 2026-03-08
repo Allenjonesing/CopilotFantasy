@@ -76,6 +76,7 @@ export class CombatSystem {
   }
 
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
+    this.bus.emit('combat:attackStart', actor, target);
     const raw = actor.stats.strength * 2;
     const reduction = target.hasStatus('sentinel') ? 0.5 : 1.0;
     const dmg = Math.max(1, Math.floor((raw - target.stats.defense) * reduction));
@@ -102,6 +103,7 @@ export class CombatSystem {
     target: CombatEntity,
   ): void {
     if (skill.type === 'physical' || skill.type === 'magic') {
+      this.bus.emit('combat:attackStart', actor, target);
       const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
       const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
       const dmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
