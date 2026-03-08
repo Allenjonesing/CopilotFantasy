@@ -1,20 +1,21 @@
+import Phaser from 'phaser';
 import { EventBus } from '../../core/events/EventBus';
+
+export type TileType = 'floor' | 'wall' | 'tree' | 'rock';
 
 export interface Tile {
   x: number;
   y: number;
-  type: 'floor' | 'wall' | 'door' | 'trigger';
+  type: TileType;
   passable: boolean;
-  triggerId?: string;
 }
 
-export interface NPC {
-  id: string;
-  name: string;
+export interface MapExit {
   x: number;
   y: number;
-  dialogueId: string;
-  color: number;
+  targetMap: string;
+  targetX: number;
+  targetY: number;
 }
 
 export interface MapData {
@@ -24,55 +25,82 @@ export interface MapData {
   height: number;
   tileSize: number;
   tiles: Tile[];
-  npcs: NPC[];
-  encounters: { rate: number; enemies: string[] }[];
-  exits: { x: number; y: number; targetMap: string; targetX: number; targetY: number }[];
+  exits: MapExit[];
 }
 
-const MAPS: Record<string, MapData> = {
-  town: {
-    id: 'town',
-    name: 'Town of Arlia',
-    width: 20,
-    height: 15,
-    tileSize: 32,
-    tiles: (() => {
-      const tiles: Tile[] = [];
-      for (let y = 0; y < 15; y++) {
-        for (let x = 0; x < 20; x++) {
-          const isWall = x === 0 || y === 0 || x === 19 || y === 14;
-          tiles.push({ x, y, type: isWall ? 'wall' : 'floor', passable: !isWall });
-        }
+const MAP_W = 24;
+const MAP_H = 17;
+const TILE_SIZE = 32;
+
+/** Very simple 32-bit linear congruential RNG. */
+function makeRng(seed: number): () => number {
+  let s = seed >>> 0;
+  return (): number => {
+    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+}
+
+export function generateOverworldMap(floorNumber: number): MapData {
+  // XOR Date.now() with the floor number so each *run* gets a unique layout
+  // while the floor number still influences obstacle density.  This gives the
+  // typical roguelike feel of never repeating the same floor layout.
+  const seed = Date.now() ^ (floorNumber * 0x9e3779b9);
+  const rng = makeRng(seed);
+
+  // Player always spawns at (2,2), exit is near bottom-right.
+  const SPAWN_X = 2;
+  const SPAWN_Y = 2;
+  const EXIT_X = MAP_W - 3;
+  const EXIT_Y = MAP_H - 3;
+
+  const tiles: Tile[] = [];
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      const isBorder = x === 0 || x === MAP_W - 1 || y === 0 || y === MAP_H - 1;
+
+      if (isBorder) {
+        tiles.push({ x, y, type: 'wall', passable: false });
+        continue;
       }
-      return tiles;
-    })(),
-    npcs: [
-      { id: 'elder', name: 'Elder', x: 5, y: 5, dialogueId: 'elder_intro', color: 0xffcc44 },
-      { id: 'merchant', name: 'Merchant', x: 12, y: 8, dialogueId: 'merchant_intro', color: 0x44ccff },
-    ],
-    encounters: [{ rate: 0, enemies: [] }],
-    exits: [{ x: 10, y: 13, targetMap: 'overworld', targetX: 10, targetY: 1 }],
-  },
-  overworld: {
+
+      // Keep a clear zone around spawn and exit.
+      const nearSpawn = Math.abs(x - SPAWN_X) + Math.abs(y - SPAWN_Y) <= 2;
+      const nearExit = Math.abs(x - EXIT_X) + Math.abs(y - EXIT_Y) <= 2;
+
+      if (nearSpawn || nearExit) {
+        tiles.push({ x, y, type: 'floor', passable: true });
+        continue;
+      }
+
+      const roll = rng();
+      let type: TileType = 'floor';
+      if (roll < 0.14) {
+        type = 'tree';
+      } else if (roll < 0.22) {
+        type = 'rock';
+      }
+      tiles.push({ x, y, type, passable: type === 'floor' });
+    }
+  }
+
+  return {
     id: 'overworld',
-    name: 'Overworld',
-    width: 30,
-    height: 20,
-    tileSize: 32,
-    tiles: (() => {
-      const tiles: Tile[] = [];
-      for (let y = 0; y < 20; y++) {
-        for (let x = 0; x < 30; x++) {
-          const isWall = x === 0 || y === 0 || x === 29 || y === 19;
-          tiles.push({ x, y, type: isWall ? 'wall' : 'floor', passable: !isWall });
-        }
-      }
-      return tiles;
-    })(),
-    npcs: [],
-    encounters: [{ rate: 0.04, enemies: ['slime', 'goblin'] }],
-    exits: [{ x: 10, y: 1, targetMap: 'town', targetX: 10, targetY: 13 }],
-  },
+    name: `Floor ${floorNumber}`,
+    width: MAP_W,
+    height: MAP_H,
+    tileSize: TILE_SIZE,
+    tiles,
+    exits: [{ x: EXIT_X, y: EXIT_Y, targetMap: 'overworld', targetX: SPAWN_X, targetY: SPAWN_Y }],
+  };
+}
+
+// Tile colours
+const TILE_COLORS: Record<TileType, number> = {
+  floor: 0x2a3a4a,
+  wall: 0x1a2030,
+  tree: 0x1a5c1a,
+  rock: 0x4a4a5c,
 };
 
 export class MapManager {
@@ -86,20 +114,18 @@ export class MapManager {
     this.bus = EventBus.getInstance();
   }
 
-  loadMap(mapId: string): MapData {
-    const mapData = MAPS[mapId];
-    if (!mapData) throw new Error(`Unknown map: ${mapId}`);
+  loadMap(floorNumber: number): MapData {
     this.clearMap();
-    this.currentMap = mapData;
+    this.currentMap = generateOverworldMap(floorNumber);
     this.renderMap();
-    return mapData;
+    return this.currentMap;
   }
 
   private renderMap(): void {
     if (!this.currentMap) return;
     const { tiles, tileSize } = this.currentMap;
     tiles.forEach((tile) => {
-      const color = tile.type === 'wall' ? 0x334455 : tile.type === 'door' ? 0x886644 : 0x223344;
+      const color = TILE_COLORS[tile.type] ?? 0x2a3a4a;
       const rect = this.scene.add.rectangle(
         tile.x * tileSize + tileSize / 2,
         tile.y * tileSize + tileSize / 2,
@@ -107,6 +133,7 @@ export class MapManager {
         tileSize - 1,
         color,
       );
+      rect.setDepth(0);
       this.tileSprites.push(rect);
     });
     this.bus.emit('map:loaded', this.currentMap);
@@ -128,15 +155,5 @@ export class MapManager {
 
   getCurrentMap(): MapData | null {
     return this.currentMap;
-  }
-
-  checkEncounter(): string[] | null {
-    if (!this.currentMap) return null;
-    for (const enc of this.currentMap.encounters) {
-      if (enc.rate > 0 && Math.random() < enc.rate) {
-        return enc.enemies;
-      }
-    }
-    return null;
   }
 }

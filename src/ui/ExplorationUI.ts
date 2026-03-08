@@ -2,15 +2,15 @@ import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
 
 const W = 800;
-const H = 600;
 
 export class ExplorationUI {
   private scene: Phaser.Scene;
   private bus: EventBus;
-  private mapNameText!: Phaser.GameObjects.Text;
+  private headerBg!: Phaser.GameObjects.Rectangle;
+  private floorText!: Phaser.GameObjects.Text;
+  private scoreText!: Phaser.GameObjects.Text;
   private partyStatusBg!: Phaser.GameObjects.Rectangle;
   private partyTexts: Phaser.GameObjects.Text[] = [];
-  private helpText!: Phaser.GameObjects.Text;
   private onMapLoaded!: (mapData: unknown) => void;
 
   constructor(scene: Phaser.Scene) {
@@ -21,41 +21,47 @@ export class ExplorationUI {
   }
 
   private buildUI(): void {
-    this.mapNameText = this.scene.add.text(W / 2, 8, '', {
+    // ── Header bar (floor + score) ──────────────────────────────────────────
+    this.headerBg = this.scene.add.rectangle(W / 2, 14, W, 28, 0x0a0a1a, 0.82);
+    this.headerBg.setDepth(50);
+
+    this.floorText = this.scene.add.text(8, 4, '', {
       fontSize: '14px',
       color: '#aaddff',
       fontFamily: 'monospace',
     });
-    this.mapNameText.setOrigin(0.5, 0);
-    this.mapNameText.setDepth(50);
+    this.floorText.setDepth(51);
 
-    this.partyStatusBg = this.scene.add.rectangle(W - 110, 60, 200, 80, 0x111122, 0.8);
+    this.scoreText = this.scene.add.text(W - 8, 4, '', {
+      fontSize: '14px',
+      color: '#ffcc44',
+      fontFamily: 'monospace',
+    });
+    this.scoreText.setOrigin(1, 0).setDepth(51);
+
+    // ── Party status (top-right, stacked rows) ──────────────────────────────
+    this.partyStatusBg = this.scene.add.rectangle(W - 102, 62, 196, 66, 0x0a0a1a, 0.80);
     this.partyStatusBg.setDepth(50);
 
     const state = GameState.getInstance();
     state.data.party.forEach((_c, i) => {
-      const t = this.scene.add.text(W - 200, 25 + i * 22, '', {
-        fontSize: '11px',
-        color: '#ffffff',
+      const t = this.scene.add.text(W - 196, 32 + i * 20, '', {
+        fontSize: '12px',
+        color: '#dddddd',
         fontFamily: 'monospace',
       });
       t.setDepth(51);
       this.partyTexts.push(t);
     });
-    this.refresh();
 
-    this.helpText = this.scene.add.text(W / 2, H - 6, '↑↓←→/D-Pad Move   Space/OK Interact   (Yellow = EXIT)', {
-      fontSize: '10px',
-      color: '#888888',
-      fontFamily: 'monospace',
-    }).setOrigin(0.5, 1).setDepth(51);
+    this.refresh();
   }
 
   private registerEvents(): void {
     this.onMapLoaded = (mapData) => {
       const md = mapData as { name: string };
-      if (this.mapNameText?.active) {
-        this.mapNameText.setText(md.name);
+      if (this.floorText?.active) {
+        this.floorText.setText(md.name);
       }
     };
     this.bus.on('map:loaded', this.onMapLoaded);
@@ -63,16 +69,20 @@ export class ExplorationUI {
 
   refresh(): void {
     const state = GameState.getInstance();
+    this.floorText?.setText(`Floor ${state.data.difficultyLevel}  (Lv.${state.data.level})`);
+    this.scoreText?.setText(`Score: ${state.data.score.toLocaleString()}`);
     state.data.party.forEach((c, i) => {
-      this.partyTexts[i]?.setText(`${c.name}: ${c.stats.hp}/${c.stats.maxHp}`);
+      const alive = c.alive ? '' : ' ✕';
+      this.partyTexts[i]?.setText(`${c.name}${alive}: ${c.stats.hp}/${c.stats.maxHp} HP`);
     });
   }
 
   destroy(): void {
     this.bus.off('map:loaded', this.onMapLoaded);
-    this.mapNameText.destroy();
+    this.headerBg.destroy();
+    this.floorText.destroy();
+    this.scoreText.destroy();
     this.partyStatusBg.destroy();
     this.partyTexts.forEach((t) => t.destroy());
-    this.helpText.destroy();
   }
 }

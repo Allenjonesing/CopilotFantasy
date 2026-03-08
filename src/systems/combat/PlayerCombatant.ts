@@ -1,26 +1,27 @@
 import { CombatEntity, Stats } from './CombatEntity';
-import charactersData from '../../data/characters.json';
+import { GameState } from '../../core/state/GameState';
 
 export class PlayerCombatant extends CombatEntity {
   readonly characterId: string;
 
   constructor(characterId: string) {
-    const def = charactersData.characters.find((c) => c.id === characterId);
-    if (!def) throw new Error(`Unknown character: ${characterId}`);
+    const state = GameState.getInstance();
+    const charState = state.getCharacter(characterId);
+    if (!charState) throw new Error(`Unknown character: ${characterId}`);
     const stats: Stats = {
-      hp: def.baseStats.hp,
-      maxHp: def.baseStats.hp,
-      mp: def.baseStats.mp,
-      maxMp: def.baseStats.mp,
-      strength: def.baseStats.strength,
-      magic: def.baseStats.magic,
-      defense: def.baseStats.defense,
-      magicDefense: def.baseStats.magicDefense,
-      agility: def.baseStats.agility,
-      luck: def.baseStats.luck,
+      hp: charState.stats.hp,
+      maxHp: charState.stats.maxHp,
+      mp: charState.stats.mp,
+      maxMp: charState.stats.maxMp,
+      strength: charState.stats.strength,
+      magic: charState.stats.magic,
+      defense: charState.stats.defense,
+      magicDefense: charState.stats.magicDefense,
+      agility: charState.stats.agility,
+      luck: charState.stats.luck,
     };
-    super(characterId, def.name, stats);
+    super(characterId, charState.name, stats);
     this.characterId = characterId;
-    this.skills = def.skills;
+    this.skills = [...charState.skills];
   }
 }

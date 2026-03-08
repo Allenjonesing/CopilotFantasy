@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CombatSystem } from '../systems/combat/CombatSystem';
+import { CombatSystem, CombatResult } from '../systems/combat/CombatSystem';
 import { PlayerCombatant } from '../systems/combat/PlayerCombatant';
 import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { CombatUI } from '../ui/CombatUI';
@@ -20,13 +20,14 @@ export class CombatScene extends Phaser.Scene {
     super({ key: 'CombatScene' });
   }
 
-  init(data: { enemies?: string[] }): void {
+  init(data: { enemies?: string[]; difficultyLevel?: number }): void {
     const enemyIds = data.enemies ?? ['slime'];
+    const difficultyScale = GameState.getInstance().getEnemyScale();
     const state = GameState.getInstance();
     const players = state.data.party
       .filter((c) => c.alive)
       .map((c) => new PlayerCombatant(c.id));
-    const enemies = enemyIds.map((id) => new EnemyCombatant(id));
+    const enemies = enemyIds.map((id) => new EnemyCombatant(id, difficultyScale));
     this.system = new CombatSystem(players, enemies);
   }
 
@@ -55,10 +56,9 @@ export class CombatScene extends Phaser.Scene {
       }
     };
 
-    this.bus.on('combat:fled', () => this.endCombat('fled'));
+    this.bus.on('combat:fled', () => this.endCombat('fled', null));
 
-    // Defer the first turn until after the first render frame so Phaser's
-    // WebGL text objects are fully initialised before any setText calls.
+    // Defer the first turn until after the first render frame.
     this.time.delayedCall(50, () => this.advanceTurn());
   }
 
@@ -66,8 +66,9 @@ export class CombatScene extends Phaser.Scene {
     const result = this.system.checkResult();
     if (result) {
       if (result.victory) {
-        this.endCombat('victory');
+        this.endCombat('victory', result);
       } else if (result.defeat) {
+        this.syncHpToState();
         this.scene.start('GameOverScene');
       }
       return;
@@ -105,8 +106,46 @@ export class CombatScene extends Phaser.Scene {
     }
   }
 
-  private endCombat(_reason: string): void {
-    this.scene.start('ExplorationScene');
+  /** Write HP/MP/alive back from combat entities into GameState. */
+  private syncHpToState(): void {
+    const state = GameState.getInstance();
+    this.system.players.forEach((player) => {
+      const charState = state.getCharacter(player.id);
+      if (charState) {
+        charState.stats.hp = player.stats.hp;
+        charState.stats.mp = player.stats.mp;
+        charState.alive = !player.isDefeated;
+      }
+    });
+  }
+
+  private endCombat(reason: string, result: CombatResult | null): void {
+    this.syncHpToState();
+
+    if (reason === 'victory' && result) {
+      const state = GameState.getInstance();
+      const scoreMultiplier = state.data.difficultyLevel;
+      const scoreGained = result.expGained * scoreMultiplier;
+      state.addScore(scoreGained);
+      const levelResult = state.gainExp(result.expGained);
+      state.addGil(result.gilGained);
+      result.itemsGained.forEach((id) => state.addItem(id));
+      state.increaseDifficulty();
+
+      this.scene.start('VictoryScene', {
+        expGained: result.expGained,
+        gilGained: result.gilGained,
+        itemsGained: result.itemsGained,
+        leveledUp: levelResult.leveledUp,
+        newLevel: levelResult.newLevel,
+        scoreGained,
+        totalScore: state.data.score,
+        difficultyLevel: state.data.difficultyLevel,
+      });
+    } else {
+      // Fled: return to exploration with the same difficulty.
+      this.scene.start('ExplorationScene');
+    }
   }
 
   shutdown(): void {

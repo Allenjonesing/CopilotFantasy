@@ -6,17 +6,19 @@
       "class": "Warrior",
       "color": 4493567,
       "baseStats": {
-        "hp": 320,
-        "mp": 60,
-        "strength": 18,
-        "magic": 6,
-        "defense": 14,
-        "magicDefense": 8,
-        "agility": 12,
-        "luck": 10
+        "hp": 40,
+        "mp": 10,
+        "strength": 6,
+        "magic": 2,
+        "defense": 5,
+        "magicDefense": 3,
+        "agility": 6,
+        "luck": 5
       },
-      "skills": ["attack", "powerBreak", "sentinel", "provoke"],
-      "startingItems": []
+      "skills": ["attack"],
+      "startingItems": [],
+      "levelUpStats": { "hp": 8, "mp": 2, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
+      "levelSkills": { "2": "sentinel", "3": "powerBreak", "5": "provoke" }
     },
     {
       "id": "kael",
@@ -24,17 +26,19 @@
       "class": "Mage",
       "color": 11157759,
       "baseStats": {
-        "hp": 200,
-        "mp": 180,
-        "strength": 8,
-        "magic": 22,
-        "defense": 6,
-        "magicDefense": 16,
-        "agility": 14,
-        "luck": 12
+        "hp": 25,
+        "mp": 40,
+        "strength": 3,
+        "magic": 10,
+        "defense": 2,
+        "magicDefense": 6,
+        "agility": 9,
+        "luck": 5
       },
-      "skills": ["attack", "fire", "blizzard", "thunder", "dualcast"],
-      "startingItems": []
+      "skills": ["attack"],
+      "startingItems": [],
+      "levelUpStats": { "hp": 5, "mp": 10, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
+      "levelSkills": { "2": "fire", "3": "thunder", "4": "blizzard", "5": "dualcast" }
     },
     {
       "id": "lyra",
@@ -42,17 +46,19 @@
       "class": "Healer",
       "color": 4521864,
       "baseStats": {
-        "hp": 240,
-        "mp": 160,
-        "strength": 10,
-        "magic": 18,
-        "defense": 10,
-        "magicDefense": 18,
-        "agility": 16,
-        "luck": 14
+        "hp": 30,
+        "mp": 35,
+        "strength": 4,
+        "magic": 8,
+        "defense": 3,
+        "magicDefense": 7,
+        "agility": 10,
+        "luck": 6
       },
-      "skills": ["attack", "cure", "cura", "esuna", "reraise"],
-      "startingItems": ["potion", "potion", "ether"]
+      "skills": ["attack"],
+      "startingItems": [],
+      "levelUpStats": { "hp": 6, "mp": 8, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
+      "levelSkills": { "2": "cure", "3": "cura", "4": "esuna", "5": "reraise" }
     }
   ]
 }

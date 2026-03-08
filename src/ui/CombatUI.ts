@@ -9,9 +9,9 @@ import itemsData from '../data/items.json';
 const W = 800;
 const H = 600;
 const LOG_X = W - 290;
-const LOG_Y = H - 170;
+const LOG_Y = H - 150;
 const LOG_W = 280;
-const LOG_H = 160;
+const LOG_H = 140;
 const TIMELINE_W = W;
 const TIMELINE_H = 36;
 const TIMELINE_SLOT_W = 72;
@@ -19,10 +19,10 @@ const DAMAGE_FLASH_MS = 200;
 const ENEMY_FLASH_MS = 80;
 const ENEMY_FLASH_REPEAT = 2;
 const TIMELINE_NAME_LEN = 7;
-// Menu placed at screen centre, away from health bars (bottom-left)
-const MENU_X = W / 2 - 100;
-const MENU_Y = H / 2 - 90;
-const MENU_W = 200;
+// Menu anchored at the bottom-centre of the screen.
+const MENU_W = 220;
+const MENU_X = W / 2 - MENU_W / 2;
+const MENU_Y = H - 255;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
@@ -140,14 +140,14 @@ export class CombatUI {
     this.targetCursor.setDepth(15);
     this.targetCursor.setVisible(false);
 
-    // Action menu container — centred on screen, away from health bars
+    // Action menu container — anchored to the bottom-centre of the screen
     this.menuContainer = this.scene.add.container(MENU_X, MENU_Y);
     this.menuContainer.setDepth(30);
-    this.menuBg = this.scene.add.rectangle(MENU_W / 2, 60, MENU_W, 120, 0x111133, 0.9);
-    this.menuBg.setStrokeStyle(1, 0x6666aa);
+    this.menuBg = this.scene.add.rectangle(MENU_W / 2, 60, MENU_W, 140, 0x111133, 0.92);
+    this.menuBg.setStrokeStyle(2, 0x6666cc);
     this.menuContainer.add(this.menuBg);
     this.menuTitle = this.scene.add.text(10, 8, 'ACTION', {
-      fontSize: '11px',
+      fontSize: '13px',
       color: '#aaaaff',
       fontFamily: 'monospace',
     });
@@ -174,8 +174,8 @@ export class CombatUI {
     items.forEach((label, i) => {
       const isDisabled = this.menuDisabled[i];
       const color = isDisabled ? '#555555' : i === 0 ? '#ffff00' : '#ffffff';
-      const t = this.scene.add.text(12, 26 + i * 22, label, {
-        fontSize: '13px',
+      const t = this.scene.add.text(12, 28 + i * 26, label, {
+        fontSize: '16px',
         color,
         fontFamily: 'monospace',
       });
@@ -201,7 +201,7 @@ export class CombatUI {
       this.menuItems.push(t);
     });
     // Resize background to fit items
-    const h = Math.max(60, 26 + items.length * 22 + 14);
+    const h = Math.max(70, 28 + items.length * 26 + 16);
     if (this.menuBg.active) {
       this.menuBg.setSize(MENU_W, h);
       this.menuBg.setPosition(MENU_W / 2, h / 2);

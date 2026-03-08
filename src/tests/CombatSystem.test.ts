@@ -5,8 +5,14 @@ import { CTBTimeline } from '../systems/combat/CTBTimeline';
 import { CombatSystem } from '../systems/combat/CombatSystem';
 import { StatusEffectSystem } from '../systems/combat/StatusEffectSystem';
 import { EventBus } from '../core/events/EventBus';
+import { GameState } from '../core/state/GameState';
 
 describe('CTBTimeline', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
   it('initialises entities with a non-negative ctbValue', () => {
     const aria = new PlayerCombatant('aria');
     const slime = new EnemyCombatant('slime');
@@ -16,7 +22,7 @@ describe('CTBTimeline', () => {
   });
 
   it('returns the entity with the lowest ctbValue first', () => {
-    const kael = new PlayerCombatant('kael');   // agility 14
+    const kael = new PlayerCombatant('kael');   // agility 9 (> slime agility 8)
     const slime = new EnemyCombatant('slime');  // agility 8
     const timeline = new CTBTimeline([kael, slime]);
     const first = timeline.next();
@@ -36,6 +42,7 @@ describe('CombatSystem', () => {
   let system: CombatSystem;
 
   beforeEach(() => {
+    GameState.getInstance().reset();
     EventBus.getInstance().clear();
     system = new CombatSystem(
       [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
@@ -73,11 +80,26 @@ describe('CombatSystem', () => {
     system.executeAction(actor, { type: 'attack', target: system.enemies[0] });
     expect(system.log.length).toBeGreaterThan(0);
   });
+
+  it('consumes item from inventory on use', () => {
+    const state = GameState.getInstance();
+    state.addItem('potion', 2);
+    system.nextTurn();
+    const actor = system.currentActor!;
+    system.executeAction(actor, { type: 'item', itemId: 'potion', target: actor });
+    const remaining = state.data.inventory.find((i) => i.id === 'potion');
+    // Quantity should have dropped from 2 to 1.
+    expect(remaining?.quantity ?? 0).toBe(1);
+  });
 });
 
 describe('StatusEffectSystem', () => {
-  it('applies and processes poison DoT', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
     EventBus.getInstance().clear();
+  });
+
+  it('applies and processes poison DoT', () => {
     const aria = new PlayerCombatant('aria');
     const ses = new StatusEffectSystem();
     ses.apply(aria, 'poison');
@@ -88,7 +110,6 @@ describe('StatusEffectSystem', () => {
   });
 
   it('removes effects after duration expires', () => {
-    EventBus.getInstance().clear();
     const aria = new PlayerCombatant('aria');
     const ses = new StatusEffectSystem();
     ses.apply(aria, 'slow'); // duration = 3
@@ -99,10 +120,9 @@ describe('StatusEffectSystem', () => {
   });
 
   it('haste doubles effective agility', () => {
-    EventBus.getInstance().clear();
-    const kael = new PlayerCombatant('kael'); // base agility 14
+    const kael = new PlayerCombatant('kael'); // base agility 9
     const ses = new StatusEffectSystem();
     ses.apply(kael, 'haste');
-    expect(kael.effectiveAgility()).toBe(28);
+    expect(kael.effectiveAgility()).toBe(18); // 9 * 2 = 18
   });
 });

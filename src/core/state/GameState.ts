@@ -32,10 +32,21 @@ export interface GameStateData {
   party: CharacterState[];
   inventory: InventoryItem[];
   gil: number;
+  score: number;
+  highScore: number;
+  difficultyLevel: number;
+  level: number;
+  exp: number;
+  expToNext: number;
   currentMap: string;
   playerX: number;
   playerY: number;
   flags: Record<string, boolean>;
+}
+
+export interface LevelUpResult {
+  leveledUp: boolean;
+  newLevel: number;
 }
 
 export class GameState {
@@ -67,31 +78,26 @@ export class GameState {
         agility: c.baseStats.agility,
         luck: c.baseStats.luck,
       },
-      skills: c.skills,
+      skills: [...c.skills],
       statusEffects: [],
       alive: true,
     }));
 
-    const inventory: InventoryItem[] = [];
-    charactersData.characters.forEach((c) => {
-      c.startingItems.forEach((itemId) => {
-        const existing = inventory.find((i) => i.id === itemId);
-        if (existing) {
-          existing.quantity++;
-        } else {
-          const itemDef = itemsData.items.find((it) => it.id === itemId);
-          if (itemDef) inventory.push({ id: itemId, quantity: 1 });
-        }
-      });
-    });
+    const highScore = this.loadHighScore();
 
     this.state = {
       party,
-      inventory,
-      gil: 150,
-      currentMap: 'town',
-      playerX: 5,
-      playerY: 5,
+      inventory: [],
+      gil: 0,
+      score: 0,
+      highScore,
+      difficultyLevel: 1,
+      level: 1,
+      exp: 0,
+      expToNext: 50,
+      currentMap: 'overworld',
+      playerX: 2,
+      playerY: 2,
       flags: {},
     };
   }
@@ -117,7 +123,8 @@ export class GameState {
     if (existing) {
       existing.quantity += qty;
     } else {
-      this.state.inventory.push({ id, quantity: qty });
+      const def = itemsData.items.find((it) => it.id === id);
+      if (def) this.state.inventory.push({ id, quantity: qty });
     }
   }
 
@@ -129,6 +136,87 @@ export class GameState {
       this.state.inventory = this.state.inventory.filter((i) => i.id !== id);
     }
     return true;
+  }
+
+  addGil(amount: number): void {
+    this.state.gil += amount;
+  }
+
+  addScore(points: number): void {
+    this.state.score += points;
+    if (this.state.score > this.state.highScore) {
+      this.state.highScore = this.state.score;
+      this.saveHighScore();
+    }
+  }
+
+  increaseDifficulty(): void {
+    this.state.difficultyLevel++;
+  }
+
+  /** Scale factor applied to enemy stats based on current difficulty. */
+  getEnemyScale(): number {
+    return 1 + (this.state.difficultyLevel - 1) * 0.18;
+  }
+
+  gainExp(amount: number): LevelUpResult {
+    this.state.exp += amount;
+    if (this.state.exp >= this.state.expToNext) {
+      this.state.exp -= this.state.expToNext;
+      this.state.level++;
+      this.state.expToNext = Math.floor(this.state.expToNext * 1.6 + 20);
+      this.applyLevelUp();
+      return { leveledUp: true, newLevel: this.state.level };
+    }
+    return { leveledUp: false, newLevel: this.state.level };
+  }
+
+  private applyLevelUp(): void {
+    const level = this.state.level;
+    this.state.party.forEach((p) => {
+      const charDef = charactersData.characters.find((c) => c.id === p.id);
+      if (!charDef) return;
+
+      const gains = charDef.levelUpStats as Record<string, number>;
+      p.stats.maxHp += gains['hp'] ?? 0;
+      p.stats.maxMp += gains['mp'] ?? 0;
+      p.stats.strength += gains['strength'] ?? 0;
+      p.stats.magic += gains['magic'] ?? 0;
+      p.stats.defense += gains['defense'] ?? 0;
+      p.stats.magicDefense += gains['magicDefense'] ?? 0;
+      p.stats.agility += gains['agility'] ?? 0;
+      p.stats.luck += gains['luck'] ?? 0;
+      // Restore some HP/MP on level-up
+      p.stats.hp = Math.min(p.stats.hp + (gains['hp'] ?? 0), p.stats.maxHp);
+      p.stats.mp = Math.min(p.stats.mp + (gains['mp'] ?? 0), p.stats.maxMp);
+
+      const levelSkills = charDef.levelSkills as Record<string, string>;
+      const newSkill = levelSkills[String(level)];
+      if (newSkill && !p.skills.includes(newSkill)) {
+        p.skills.push(newSkill);
+      }
+    });
+  }
+
+  private saveHighScore(): void {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('cf_highscore', String(this.state.highScore));
+      }
+    } catch (e) {
+      console.warn('CopilotFantasy: could not save high score', e);
+    }
+  }
+
+  private loadHighScore(): number {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return parseInt(localStorage.getItem('cf_highscore') ?? '0', 10) || 0;
+      }
+    } catch (e) {
+      console.warn('CopilotFantasy: could not load high score', e);
+    }
+    return 0;
   }
 
   reset(): void {
