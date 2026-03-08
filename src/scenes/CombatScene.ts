@@ -5,6 +5,7 @@ import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { CombatUI } from '../ui/CombatUI';
 import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
+import { CombatEnemySpec } from '../systems/exploration/ExplorationSystem';
 
 export class CombatScene extends Phaser.Scene {
   private system!: CombatSystem;
@@ -20,14 +21,19 @@ export class CombatScene extends Phaser.Scene {
     super({ key: 'CombatScene' });
   }
 
-  init(data: { enemies?: string[]; difficultyLevel?: number }): void {
-    const enemyIds = data.enemies ?? ['slime'];
-    const difficultyScale = GameState.getInstance().getEnemyScale();
+  init(data: { enemies?: Array<string | CombatEnemySpec>; difficultyLevel?: number }): void {
+    const enemySpecs = data.enemies ?? ['slime'];
+    const baseScale = GameState.getInstance().getEnemyScale();
     const state = GameState.getInstance();
     const players = state.data.party
       .filter((c) => c.alive)
       .map((c) => new PlayerCombatant(c.id));
-    const enemies = enemyIds.map((id) => new EnemyCombatant(id, difficultyScale));
+    const enemies = enemySpecs.map((e) => {
+      if (typeof e === 'string') {
+        return new EnemyCombatant(e, baseScale);
+      }
+      return new EnemyCombatant(e.typeId, baseScale * e.variantScale, e.displayName);
+    });
     this.system = new CombatSystem(players, enemies);
   }
 
@@ -129,7 +135,8 @@ export class CombatScene extends Phaser.Scene {
       const levelResult = state.gainExp(result.expGained);
       state.addGil(result.gilGained);
       result.itemsGained.forEach((id) => state.addItem(id));
-      state.increaseDifficulty();
+      // Difficulty only increases when the player reaches the floor exit,
+      // NOT on every combat victory.
 
       this.scene.start('VictoryScene', {
         expGained: result.expGained,
@@ -137,12 +144,13 @@ export class CombatScene extends Phaser.Scene {
         itemsGained: result.itemsGained,
         leveledUp: levelResult.leveledUp,
         newLevel: levelResult.newLevel,
+        skillsGained: levelResult.skillsGained,
         scoreGained,
         totalScore: state.data.score,
         difficultyLevel: state.data.difficultyLevel,
       });
     } else {
-      // Fled: return to exploration with the same difficulty.
+      // Fled: return to exploration without changing the floor.
       this.scene.start('ExplorationScene');
     }
   }

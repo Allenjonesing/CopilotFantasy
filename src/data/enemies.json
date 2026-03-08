@@ -5,68 +5,72 @@
       "name": "Slime",
       "color": 4447556,
       "stats": {
-        "hp": 80,
+        "hp": 30,
         "mp": 0,
-        "strength": 8,
-        "magic": 2,
-        "defense": 4,
-        "magicDefense": 4,
-        "agility": 8,
-        "luck": 4
+        "strength": 4,
+        "magic": 1,
+        "defense": 2,
+        "magicDefense": 2,
+        "agility": 6,
+        "luck": 3
       },
       "skills": ["attack"],
-      "rewards": { "exp": 20, "gil": 15, "items": [] }
+      "rewards": { "exp": 12, "gil": 8, "items": [] },
+      "possibleDrops": [{ "id": "potion", "chance": 0.35 }]
     },
     {
       "id": "goblin",
       "name": "Goblin",
       "color": 13404211,
       "stats": {
-        "hp": 120,
+        "hp": 100,
         "mp": 10,
-        "strength": 12,
-        "magic": 4,
-        "defense": 6,
-        "magicDefense": 4,
-        "agility": 11,
-        "luck": 6
+        "strength": 10,
+        "magic": 3,
+        "defense": 5,
+        "magicDefense": 3,
+        "agility": 10,
+        "luck": 5
       },
       "skills": ["attack", "powerBreak"],
-      "rewards": { "exp": 35, "gil": 25, "items": ["potion"] }
+      "rewards": { "exp": 30, "gil": 20, "items": ["potion"] },
+      "possibleDrops": [{ "id": "ether", "chance": 0.2 }]
     },
     {
       "id": "ironGolem",
       "name": "Iron Golem",
       "color": 8947848,
       "stats": {
-        "hp": 400,
+        "hp": 350,
         "mp": 0,
-        "strength": 20,
+        "strength": 18,
         "magic": 0,
-        "defense": 22,
-        "magicDefense": 8,
+        "defense": 20,
+        "magicDefense": 7,
         "agility": 5,
         "luck": 4
       },
       "skills": ["attack", "smash"],
-      "rewards": { "exp": 120, "gil": 80, "items": ["ether"] }
+      "rewards": { "exp": 100, "gil": 70, "items": ["ether"] },
+      "possibleDrops": [{ "id": "hiPotion", "chance": 0.3 }]
     },
     {
       "id": "shadowWisp",
       "name": "Shadow Wisp",
       "color": 4456516,
       "stats": {
-        "hp": 160,
-        "mp": 80,
-        "strength": 6,
-        "magic": 18,
-        "defense": 4,
-        "magicDefense": 20,
-        "agility": 18,
-        "luck": 10
+        "hp": 140,
+        "mp": 70,
+        "strength": 5,
+        "magic": 15,
+        "defense": 3,
+        "magicDefense": 18,
+        "agility": 16,
+        "luck": 9
       },
       "skills": ["attack", "fire", "drain"],
-      "rewards": { "exp": 55, "gil": 40, "items": [] }
+      "rewards": { "exp": 45, "gil": 35, "items": [] },
+      "possibleDrops": [{ "id": "ether", "chance": 0.3 }, { "id": "potion", "chance": 0.2 }]
     }
   ]
 }

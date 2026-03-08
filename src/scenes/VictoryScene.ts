@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
 import itemsData from '../data/items.json';
+import skillsData from '../data/skills.json';
+
+interface SkillGain {
+  charName: string;
+  skillId: string;
+}
 
 interface VictoryData {
   expGained: number;
@@ -7,6 +13,7 @@ interface VictoryData {
   itemsGained: string[];
   leveledUp: boolean;
   newLevel: number;
+  skillsGained?: SkillGain[];
   scoreGained: number;
   totalScore: number;
   difficultyLevel: number;
@@ -76,6 +83,14 @@ export class VictoryScene extends Phaser.Scene {
 
     if (d.leveledUp) {
       addLine(`★ LEVEL UP  →  Lv. ${d.newLevel} ★`, '#ffaa00', '24px');
+
+      // Show each skill gained on level-up.
+      const skills = d.skillsGained ?? [];
+      for (const gain of skills) {
+        const skillDef = skillsData.skills.find((s) => s.id === gain.skillId);
+        const skillName = skillDef ? skillDef.name : gain.skillId;
+        addLine(`  ${gain.charName} learned  ${skillName}!`, '#ffdd88', '18px');
+      }
     }
 
     addLine(`Score  +${d.scoreGained}   (Total: ${d.totalScore})`, '#ff8888', '20px');
@@ -84,7 +99,7 @@ export class VictoryScene extends Phaser.Scene {
     // Gold bar above footer
     this.add.rectangle(width / 2, cy, width * 0.7, 2, 0xffdd00, 0.3);
     cy += lineH * 0.4;
-    addLine(`The world darkens…  Floor ${d.difficultyLevel}`, '#aa88ff', '18px');
+    addLine(`Floor ${d.difficultyLevel}  --  Seek the exit to advance`, '#aa88ff', '18px');
 
     // ── Continue prompt ─────────────────────────────────────────
     this.add
