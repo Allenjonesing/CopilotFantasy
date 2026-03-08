@@ -4,6 +4,7 @@ import { EnemyCombatant } from './EnemyCombatant';
 import { CTBTimeline } from './CTBTimeline';
 import { StatusEffectSystem } from './StatusEffectSystem';
 import { EventBus } from '../../core/events/EventBus';
+import { GameState } from '../../core/state/GameState';
 import skillsData from '../../data/skills.json';
 import itemsData from '../../data/items.json';
 
@@ -125,6 +126,12 @@ export class CombatSystem {
   private useItem(actor: CombatEntity, itemId: string, target: CombatEntity | null): void {
     const item = itemsData.items.find((i) => i.id === itemId);
     if (!item) return;
+    // Consume the item from inventory first; bail if it can't be removed.
+    const state = GameState.getInstance();
+    if (!state.removeItem(itemId)) {
+      this.addLog(`No ${item.name} left!`);
+      return;
+    }
     const t = target ?? actor;
     const effect = item.effect as Record<string, unknown>;
     if (typeof effect['hp'] === 'number') {

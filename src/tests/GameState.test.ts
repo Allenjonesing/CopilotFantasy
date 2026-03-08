@@ -44,8 +44,8 @@ describe('GameState', () => {
     expect(aria!.name).toBe('Aria');
   });
 
-  it('gil starts at 150', () => {
-    expect(state.data.gil).toBe(150);
+  it('starts with 0 gil (roguelike — earn from battles)', () => {
+    expect(state.data.gil).toBe(0);
   });
 
   it('removeItem fails if not enough quantity', () => {
@@ -53,11 +53,39 @@ describe('GameState', () => {
     expect(result).toBe(false);
   });
 
-  it('starting inventory includes potions and ether from lyra', () => {
-    const inv = state.data.inventory;
-    const potion = inv.find((i) => i.id === 'potion');
-    const ether = inv.find((i) => i.id === 'ether');
-    expect(potion).toBeDefined();
-    expect(ether).toBeDefined();
+  it('starting inventory is empty (roguelike — earn items from battles)', () => {
+    expect(state.data.inventory).toHaveLength(0);
+  });
+
+  it('starts at difficulty level 1 with score 0', () => {
+    expect(state.data.difficultyLevel).toBe(1);
+    expect(state.data.score).toBe(0);
+    expect(state.data.level).toBe(1);
+  });
+
+  it('gainExp returns levelUp when threshold crossed', () => {
+    const result = state.gainExp(100);
+    expect(result.leveledUp).toBe(true);
+    expect(result.newLevel).toBe(2);
+  });
+
+  it('addScore accumulates and tracks high score', () => {
+    state.addScore(500);
+    expect(state.data.score).toBe(500);
+    expect(state.data.highScore).toBe(500);
+    state.addScore(300);
+    expect(state.data.score).toBe(800);
+    expect(state.data.highScore).toBe(800);
+  });
+
+  it('increaseDifficulty increments difficultyLevel', () => {
+    state.increaseDifficulty();
+    expect(state.data.difficultyLevel).toBe(2);
+  });
+
+  it('getEnemyScale scales with difficulty', () => {
+    expect(state.getEnemyScale()).toBe(1.0);
+    state.increaseDifficulty();
+    expect(state.getEnemyScale()).toBeGreaterThan(1.0);
   });
 });

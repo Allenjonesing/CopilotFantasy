@@ -1,7 +1,5 @@
 import Phaser from 'phaser';
 import { ExplorationSystem } from '../systems/exploration/ExplorationSystem';
-import { DialogueSystem } from '../systems/dialogue/DialogueSystem';
-import { DialogueUI } from '../ui/DialogueUI';
 import { ExplorationUI } from '../ui/ExplorationUI';
 import { TouchControls } from '../ui/TouchControls';
 import { EventBus } from '../core/events/EventBus';
@@ -9,15 +7,12 @@ import { GameState } from '../core/state/GameState';
 
 export class ExplorationScene extends Phaser.Scene {
   private exploration!: ExplorationSystem;
-  private dialogue!: DialogueSystem;
-  private _dialogueUI!: DialogueUI;
   private explorationUI!: ExplorationUI;
   private touchControls!: TouchControls;
   private bus!: EventBus;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private interactKey!: Phaser.Input.Keyboard.Key;
   private moveTimer = 0;
-  private readonly MOVE_DELAY = 180;
+  private readonly MOVE_DELAY = 160;
 
   constructor() {
     super({ key: 'ExplorationScene' });
@@ -25,47 +20,32 @@ export class ExplorationScene extends Phaser.Scene {
 
   create(): void {
     this.bus = EventBus.getInstance();
+
+    // Reset player position to spawn on each new map.
+    const state = GameState.getInstance();
+    state.data.playerX = 2;
+    state.data.playerY = 2;
+
     this.exploration = new ExplorationSystem(this);
-    this.dialogue = new DialogueSystem();
-    this._dialogueUI = new DialogueUI(this, this.dialogue);
     this.explorationUI = new ExplorationUI(this);
     this.touchControls = new TouchControls(this);
     this.exploration.init();
     this.cursors = this.input.keyboard!.createCursorKeys();
-    this.interactKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    this.bus.on('combat:start', (enemies) => {
-      this.scene.start('CombatScene', { enemies });
+    this.bus.on('combat:start', (data) => {
+      const d = data as { enemies: string[]; difficultyLevel: number };
+      this.scene.start('CombatScene', d);
     });
-    this.bus.on('map:exit', (exitData) => {
-      const exit = exitData as { targetMap: string; targetX: number; targetY: number };
-      const state = GameState.getInstance();
-      state.data.currentMap = exit.targetMap;
-      state.data.playerX = exit.targetX;
-      state.data.playerY = exit.targetY;
+
+    this.bus.on('map:exit', () => {
+      // Advance to next floor.
+      GameState.getInstance().increaseDifficulty();
       this.scene.restart();
-    });
-    this.bus.on('dialogue:start', (id) => {
-      this.dialogue.start(id as string);
     });
   }
 
   update(_time: number, delta: number): void {
-    // Consume one-shot touch flags once per frame.
-    const touchInteract = this.touchControls.justDownInteract();
-    const touchNavUp = this.touchControls.justDownNavUp();
-    const touchNavDown = this.touchControls.justDownNavDown();
-
-    if (this._dialogueUI.visible) {
-      if (Phaser.Input.Keyboard.JustDown(this.interactKey) || touchInteract) {
-        this._dialogueUI.handleInput('interact');
-      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || touchNavUp) {
-        this._dialogueUI.handleInput('up');
-      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.down) || touchNavDown) {
-        this._dialogueUI.handleInput('down');
-      }
-      return;
-    }
+    this.exploration.updateEnemies(delta);
 
     this.moveTimer += delta;
     if (this.moveTimer >= this.MOVE_DELAY) {
@@ -89,16 +69,11 @@ export class ExplorationScene extends Phaser.Scene {
       }
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.interactKey) || touchInteract) {
-      this.exploration.checkNpcInteraction();
-    }
-
     this.explorationUI.refresh();
   }
 
   shutdown(): void {
     this.exploration.destroy();
-    this._dialogueUI.destroy();
     this.explorationUI.destroy();
     this.touchControls.destroy();
     this.bus.clear();

@@ -3,6 +3,7 @@ import { BootScene } from '../../scenes/BootScene';
 import { MainMenuScene } from '../../scenes/MainMenuScene';
 import { ExplorationScene } from '../../scenes/ExplorationScene';
 import { CombatScene } from '../../scenes/CombatScene';
+import { VictoryScene } from '../../scenes/VictoryScene';
 import { GameOverScene } from '../../scenes/GameOverScene';
 
 export function createGame(): Phaser.Game {
@@ -16,7 +17,7 @@ export function createGame(): Phaser.Game {
       width: 800,
       height: 600,
     },
-    scene: [BootScene, MainMenuScene, ExplorationScene, CombatScene, GameOverScene],
+    scene: [BootScene, MainMenuScene, ExplorationScene, CombatScene, VictoryScene, GameOverScene],
     audio: { disableWebAudio: false },
   };
   return new Phaser.Game(config);
