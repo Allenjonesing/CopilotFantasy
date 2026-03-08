@@ -203,7 +203,9 @@ export class GameState {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('cf_highscore', String(this.state.highScore));
       }
-    } catch (_e) { /* noop */ }
+    } catch (e) {
+      console.warn('CopilotFantasy: could not save high score', e);
+    }
   }
 
   private loadHighScore(): number {
@@ -211,7 +213,9 @@ export class GameState {
       if (typeof localStorage !== 'undefined') {
         return parseInt(localStorage.getItem('cf_highscore') ?? '0', 10) || 0;
       }
-    } catch (_e) { /* noop */ }
+    } catch (e) {
+      console.warn('CopilotFantasy: could not load high score', e);
+    }
     return 0;
   }
 

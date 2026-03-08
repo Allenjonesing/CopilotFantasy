@@ -42,6 +42,9 @@ function makeRng(seed: number): () => number {
 }
 
 export function generateOverworldMap(floorNumber: number): MapData {
+  // XOR Date.now() with the floor number so each *run* gets a unique layout
+  // while the floor number still influences obstacle density.  This gives the
+  // typical roguelike feel of never repeating the same floor layout.
   const seed = Date.now() ^ (floorNumber * 0x9e3779b9);
   const rng = makeRng(seed);
 
