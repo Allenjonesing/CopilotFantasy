@@ -76,7 +76,7 @@ export class ExplorationSystem {
     const mapW = mapData.width * tileSize;
     const mapH = mapData.height * tileSize;
     this.scene.cameras.main.setBounds(0, 0, mapW, mapH);
-    this.scene.cameras.main.startFollow(this.playerSprite as Phaser.GameObjects.Image, true);
+    this.scene.cameras.main.startFollow(this.playerSprite, true);
 
     // Exit marker — use the dedicated exit tile texture when available.
     mapData.exits.forEach((exit) => {
