@@ -16,6 +16,10 @@ const ENEMY_FLASH_REPEAT = 2;
 const LOG_STRIP_H = 42;
 const LOG_LINE_COUNT = 3;
 
+const HELP_TEXT_DEFAULT = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Tap enemy or ally to target';
+const HELP_TEXT_SKILL    = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover skill to see description';
+const HELP_TEXT_ITEM     = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover item to see description';
+
 // Entity icon sizes (fixed pixel sizes)
 const ENEMY_W = 80;
 const ENEMY_H = 80;
@@ -115,8 +119,17 @@ export class CombatUI {
     this.ICON_Y = Math.round(this.H * 0.292);             // battlefield icon Y centre = 29% of screen height (~175 at H=600)
     this.ENEMY_BASE_X = Math.round(this.W * 0.494);       // enemy icon start X = ~49% of screen width (~395 at W=800)
     this.PLAYER_BASE_X = Math.round(this.W * 0.094);      // player icon start X = ~9% of screen width (~75 at W=800)
-    this.ENEMY_SPREAD = Math.round(this.W * 0.4375);      // enemy horizontal spread = ~44% of screen width (~350 at W=800)
-    this.PLAYER_SPREAD = Math.round(this.W * 0.30);       // player horizontal spread = 30% of screen width (~240 at W=800)
+    // Ensure icons never overlap: minimum step = icon width + 6px gap
+    const pCount = system.players.length;
+    const eCount = system.enemies.length;
+    this.ENEMY_SPREAD = Math.max(
+      Math.round(this.W * 0.4375),
+      (ENEMY_W + 6) * Math.max(eCount, 1),
+    );
+    this.PLAYER_SPREAD = Math.max(
+      Math.round(this.W * 0.30),
+      (PLAYER_ICON_W + 6) * Math.max(pCount, 1),
+    );
 
     const barW = Math.max(58, Math.round(this.LEFT_PANEL_W * 0.48));
     this.BAR_HALF_W = Math.round(barW / 2);
@@ -233,7 +246,7 @@ export class CombatUI {
 
     // ── Help text — single line at very bottom ────────────────────────────────
     this.helpText = this.scene.add
-      .text(this.W / 2, this.H - 4, '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Tap enemy or ally to target', {
+      .text(this.W / 2, this.H - 4, HELP_TEXT_DEFAULT, {
         fontSize: '10px',
         color: '#666688',
         fontFamily: 'monospace',
@@ -297,7 +310,7 @@ export class CombatUI {
   }
 
   /** Rebuild the visible menu items inside the container. */
-  private buildMenuItems(items: string[], disabled: boolean[] = []): void {
+  private buildMenuItems(items: string[], disabled: boolean[] = [], tooltips: string[] = []): void {
     this.menuItems.forEach((t) => t.destroy());
     this.menuItems = [];
     this.menuDisabled = disabled.length === items.length ? [...disabled] : items.map(() => false);
@@ -317,6 +330,7 @@ export class CombatUI {
             this.selectedMenuIndex = i;
             this.updateMenuHighlight();
             if (this.menuState === 'target') this.updateTargetCursor();
+            if (tooltips[i] && this.helpText.active) this.helpText.setText(tooltips[i]);
           }
         });
         t.on('pointerdown', () => {
@@ -359,7 +373,14 @@ export class CombatUI {
       const def = skillsData.skills.find((s) => s.id === id);
       return def ? `${def.name} MP:${def.mpCost}` : id;
     });
-    this.buildMenuItems(items);
+    const tooltips = skillIds.map((id) => {
+      const def = skillsData.skills.find((s) => s.id === id);
+      return def?.description ?? '';
+    });
+    if (this.helpText.active) {
+      this.helpText.setText(HELP_TEXT_SKILL);
+    }
+    this.buildMenuItems(items, [], tooltips);
   }
 
   private buildItemMenu(): void {
@@ -369,17 +390,35 @@ export class CombatUI {
       const def = itemsData.items.find((it) => it.id === i.id);
       return def ? `${def.name} x${i.quantity}` : `${i.id} x${i.quantity}`;
     });
-    this.buildMenuItems(items);
+    const tooltips = inv.map((i) => {
+      const def = itemsData.items.find((it) => it.id === i.id);
+      return def?.description ?? '';
+    });
+    if (this.helpText.active) {
+      this.helpText.setText(HELP_TEXT_ITEM);
+    }
+    this.buildMenuItems(items, [], tooltips);
   }
 
   private enterTargetMode(actionType: 'attack' | 'skill' | 'item'): void {
     this.menuStateBeforeTarget = this.menuState;
     this.menuState = 'target';
     this.pendingActionType = actionType;
-    this.targetList = [
-      ...this.system.enemies.filter((e) => !e.isDefeated),
-      ...this.system.players.filter((p) => !p.isDefeated),
-    ];
+
+    // Determine whether the action targets allies (healing item or ally-targeting skill).
+    let preferAlly = false;
+    if (actionType === 'item' && this.pendingItemId) {
+      const itemDef = itemsData.items.find((it) => it.id === this.pendingItemId);
+      preferAlly = itemDef?.target === 'single_ally';
+    } else if (actionType === 'skill' && this.pendingSkillId) {
+      const skillDef = skillsData.skills.find((s) => s.id === this.pendingSkillId);
+      preferAlly = skillDef?.target === 'single_ally' || skillDef?.target === 'all_allies';
+    }
+
+    const allies = this.system.players.filter((p) => !p.isDefeated);
+    const foes = this.system.enemies.filter((e) => !e.isDefeated);
+    this.targetList = preferAlly ? [...allies, ...foes] : [...foes, ...allies];
+
     this.menuTitle.setText('TARGET [BACK: cancel]');
     const labels = this.targetList.map((t) => {
       const isEnemy = !this.system.players.some((p) => p === t);
@@ -656,6 +695,12 @@ export class CombatUI {
       const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
       const skillId = skillIds[idx];
       if (!skillId) return null;
+      const skillDef = skillsData.skills.find((s) => s.id === skillId);
+      // Self-targeting skills execute immediately without target selection.
+      if (skillDef?.target === 'self') {
+        this.resetToMain();
+        return { type: 'skill', skillId, target: this.currentActor };
+      }
       this.pendingSkillId = skillId;
       this.enterTargetMode('skill');
       return null;

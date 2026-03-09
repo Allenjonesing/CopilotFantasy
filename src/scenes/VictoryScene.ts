@@ -53,7 +53,17 @@ export class VictoryScene extends Phaser.Scene {
     this.add.rectangle(width / 2, height * 0.19, width * 0.7, 2, 0xffdd00, 0.5);
 
     let cy = height * 0.26;
-    const lineH = height * 0.072;
+    // Calculate how many lines we'll render so we can cap lineH to prevent overflow.
+    const skills = d.skillsGained ?? [];
+    const estimatedLines =
+      2 + // EXP + GIL
+      (d.itemsGained.length > 0 ? 1 : 0) +
+      (d.leveledUp ? 1 + skills.length : 0) +
+      1 + // Score
+      2;  // footer gap (0.4 lineH) + Floor line
+    // Reserve the bottom 14% for the "continue" prompt and spacing.
+    const availableH = height * 0.86 - cy;
+    const lineH = Math.min(height * 0.072, availableH / Math.max(estimatedLines, 1));
 
     const addLine = (txt: string, color: string, size = '20px'): void => {
       this.add
@@ -85,7 +95,6 @@ export class VictoryScene extends Phaser.Scene {
       addLine(`★ LEVEL UP  →  Lv. ${d.newLevel} ★`, '#ffaa00', '24px');
 
       // Show each skill gained on level-up.
-      const skills = d.skillsGained ?? [];
       for (const gain of skills) {
         const skillDef = skillsData.skills.find((s) => s.id === gain.skillId);
         const skillName = skillDef ? skillDef.name : gain.skillId;
@@ -103,7 +112,7 @@ export class VictoryScene extends Phaser.Scene {
 
     // ── Continue prompt ─────────────────────────────────────────
     this.add
-      .text(width / 2, height * 0.9, 'Press ENTER or tap to continue', {
+      .text(width / 2, height * 0.93, 'Press ENTER or tap to continue', {
         fontSize: '16px',
         color: '#888888',
         fontFamily: 'monospace',
