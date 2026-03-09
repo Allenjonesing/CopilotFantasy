@@ -46,8 +46,20 @@ export class ExplorationScene extends Phaser.Scene {
     this.exitTriggered = false;
 
     this.bus.on('combat:start', (data) => {
-      const d = data as { enemies: string[]; difficultyLevel: number };
+      const d = data as { enemies: string[]; difficultyLevel: number; battleType?: string };
       this.scene.start('CombatScene', d);
+    });
+
+    this.bus.on('shop:open', (data) => {
+      this.scene.start('ShopScene', data as object);
+    });
+
+    this.bus.on('pickup:collected', (data) => {
+      const d = data as { kind: string; gold: number; itemId?: string };
+      const msg = d.itemId
+        ? `Found ${d.gold} Gold + ${d.itemId}!`
+        : `Collected ${d.gold} Gold!`;
+      this.explorationUI.showPickupMessage(msg);
     });
 
     this.bus.on('map:exit', () => {
@@ -63,6 +75,7 @@ export class ExplorationScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.exploration.updateEnemies(delta);
+    this.explorationUI.updatePickupMsg(delta);
 
     this.moveTimer += delta;
     if (this.moveTimer >= this.MOVE_DELAY) {

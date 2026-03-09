@@ -9,7 +9,7 @@ interface SkillGain {
 
 interface VictoryData {
   expGained: number;
-  gilGained: number;
+  goldGained: number;
   itemsGained: string[];
   leveledUp: boolean;
   newLevel: number;
@@ -79,7 +79,7 @@ export class VictoryScene extends Phaser.Scene {
     };
 
     addLine(`EXP  +${d.expGained}`, '#88ffaa', '22px');
-    addLine(`Gil  +${d.gilGained}`, '#ffcc44', '22px');
+    addLine(`Gold  +${d.goldGained}`, '#ffcc44', '22px');
 
     if (d.itemsGained.length > 0) {
       const names = d.itemsGained.map((id) => {

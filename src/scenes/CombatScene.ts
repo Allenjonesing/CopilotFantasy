@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CombatSystem, CombatResult } from '../systems/combat/CombatSystem';
+import { CombatSystem, CombatResult, BattleType } from '../systems/combat/CombatSystem';
 import { PlayerCombatant } from '../systems/combat/PlayerCombatant';
 import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { CombatUI } from '../ui/CombatUI';
@@ -17,11 +17,13 @@ export class CombatScene extends Phaser.Scene {
   private backKey!: Phaser.Input.Keyboard.Key;
   private waitingForInput = false;
 
+  private battleType: BattleType = 'normal';
+
   constructor() {
     super({ key: 'CombatScene' });
   }
 
-  init(data: { enemies?: Array<string | CombatEnemySpec>; difficultyLevel?: number }): void {
+  init(data: { enemies?: Array<string | CombatEnemySpec>; difficultyLevel?: number; battleType?: BattleType }): void {
     const enemySpecs = data.enemies ?? ['slime'];
     const baseScale = GameState.getInstance().getEnemyScale();
     const state = GameState.getInstance();
@@ -35,6 +37,10 @@ export class CombatScene extends Phaser.Scene {
       return new EnemyCombatant(e.typeId, baseScale * e.variantScale, e.displayName);
     });
     this.system = new CombatSystem(players, enemies);
+    this.battleType = data.battleType ?? 'normal';
+    if (this.battleType !== 'normal') {
+      this.system.applyBattleType(this.battleType);
+    }
   }
 
   create(): void {
@@ -44,7 +50,7 @@ export class CombatScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.add.rectangle(width / 2, height / 2, width, height, 0x0a0a1a);
 
-    this.ui = new CombatUI(this, this.system);
+    this.ui = new CombatUI(this, this.system, this.battleType);
 
     this.upKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     this.downKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
@@ -134,14 +140,14 @@ export class CombatScene extends Phaser.Scene {
       const scoreGained = result.expGained * scoreMultiplier;
       state.addScore(scoreGained);
       const levelResult = state.gainExp(result.expGained);
-      state.addGil(result.gilGained);
+      state.addGold(result.goldGained);
       result.itemsGained.forEach((id) => state.addItem(id));
       // Difficulty only increases when the player reaches the floor exit,
       // NOT on every combat victory.
 
       this.scene.start('VictoryScene', {
         expGained: result.expGained,
-        gilGained: result.gilGained,
+        goldGained: result.goldGained,
         itemsGained: result.itemsGained,
         leveledUp: levelResult.leveledUp,
         newLevel: levelResult.newLevel,
@@ -151,7 +157,10 @@ export class CombatScene extends Phaser.Scene {
         difficultyLevel: state.data.difficultyLevel,
       });
     } else {
-      // Fled: return to exploration without changing the floor.
+      // Fled: reset player to map start so they end up at the floor entrance.
+      const fleeState = GameState.getInstance();
+      fleeState.data.preCombatX = null;
+      fleeState.data.preCombatY = null;
       this.scene.start('ExplorationScene');
     }
   }

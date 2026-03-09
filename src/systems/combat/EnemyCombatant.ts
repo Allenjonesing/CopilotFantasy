@@ -10,13 +10,13 @@ interface EnemyDef {
     defense: number; magicDefense: number; agility: number; luck: number;
   };
   skills: string[];
-  rewards: { exp: number; gil: number; items: string[] };
+  rewards: { exp: number; gold: number; items: string[] };
   possibleDrops?: Array<{ id: string; chance: number }>;
 }
 
 export class EnemyCombatant extends CombatEntity {
   readonly enemyId: string;
-  readonly rewards: { exp: number; gil: number; items: string[] };
+  readonly rewards: { exp: number; gold: number; items: string[] };
 
   /** Monotonically increasing counter so each instance gets a unique entity ID. */
   private static nextId = 0;
@@ -34,7 +34,8 @@ export class EnemyCombatant extends CombatEntity {
       magic: Math.ceil(def.stats.magic * s),
       defense: Math.ceil(def.stats.defense * s),
       magicDefense: Math.ceil(def.stats.magicDefense * s),
-      agility: def.stats.agility,
+      // Agility scales with difficulty so buff enemies get noticeably more turns
+      agility: Math.ceil(def.stats.agility * s),
       luck: def.stats.luck,
     };
     // Use a unique per-instance ID so that multiple enemies of the same type
@@ -50,7 +51,7 @@ export class EnemyCombatant extends CombatEntity {
 
     this.rewards = {
       exp: Math.ceil(def.rewards.exp * s),
-      gil: Math.ceil(def.rewards.gil * s),
+      gold: Math.ceil(def.rewards.gold * s),
       items: [...def.rewards.items, ...rolledItems],
     };
     this.skills = def.skills;

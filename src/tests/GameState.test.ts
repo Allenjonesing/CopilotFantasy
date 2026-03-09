@@ -44,8 +44,8 @@ describe('GameState', () => {
     expect(aria!.name).toBe('Aria');
   });
 
-  it('starts with 0 gil (roguelike — earn from battles)', () => {
-    expect(state.data.gil).toBe(0);
+  it('starts with 0 gold (roguelike — earn from battles)', () => {
+    expect(state.data.gold).toBe(0);
   });
 
   it('removeItem fails if not enough quantity', () => {

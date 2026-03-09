@@ -31,7 +31,7 @@ export interface InventoryItem {
 export interface GameStateData {
   party: CharacterState[];
   inventory: InventoryItem[];
-  gil: number;
+  gold: number;
   score: number;
   highScore: number;
   difficultyLevel: number;
@@ -110,7 +110,7 @@ export class GameState {
     this.state = {
       party,
       inventory: [],
-      gil: 0,
+      gold: 0,
       score: 0,
       highScore,
       difficultyLevel: 1,
@@ -164,8 +164,14 @@ export class GameState {
     return true;
   }
 
-  addGil(amount: number): void {
-    this.state.gil += amount;
+  addGold(amount: number): void {
+    this.state.gold += amount;
+  }
+
+  removeGold(amount: number): boolean {
+    if (this.state.gold < amount) return false;
+    this.state.gold -= amount;
+    return true;
   }
 
   addScore(points: number): void {

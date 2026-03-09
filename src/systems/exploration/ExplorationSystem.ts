@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MapManager } from './MapManager';
 import { EventBus } from '../../core/events/EventBus';
 import { GameState, PersistentMapEnemy } from '../../core/state/GameState';
+import { BattleType } from '../combat/CombatSystem';
 
 export interface CombatEnemySpec {
   typeId: string;
@@ -25,6 +26,23 @@ interface MapEnemy {
   label: Phaser.GameObjects.Text;
 }
 
+interface Pickup {
+  id: string;
+  kind: 'coin' | 'chest';
+  gold: number;
+  itemId?: string;
+  x: number;
+  y: number;
+  sprite: EntitySprite;
+}
+
+interface Shopkeeper {
+  x: number;
+  y: number;
+  sprite: EntitySprite;
+  label: Phaser.GameObjects.Text;
+}
+
 const ENEMY_WANDER_INTERVAL = 900;
 const ENEMY_CHASE_INTERVAL = 480;
 const ENEMY_CHASE_RANGE = 6;
@@ -37,6 +55,9 @@ function enemyTypesForDifficulty(difficulty: number): string[] {
   return ['shadowWisp', 'ironGolem'];
 }
 
+/** Shop inventory: always have these items available. */
+const SHOP_INVENTORY = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote'];
+
 export class ExplorationSystem {
   private scene: Phaser.Scene;
   private mapManager: MapManager;
@@ -44,6 +65,8 @@ export class ExplorationSystem {
   private playerSprite!: EntitySprite;
   private exitMarkers: Phaser.GameObjects.GameObject[] = [];
   private mapEnemies: MapEnemy[] = [];
+  private pickups: Pickup[] = [];
+  private shopkeeper: Shopkeeper | null = null;
   private combatActive = false;
 
   constructor(scene: Phaser.Scene) {
@@ -107,6 +130,8 @@ export class ExplorationSystem {
     });
 
     this.spawnMapEnemies();
+    this.spawnPickups();
+    this.spawnShopkeeper();
     this.combatActive = false;
   }
 
@@ -125,7 +150,9 @@ export class ExplorationSystem {
       enemiesToSpawn = state.data.pendingMapEnemies;
     } else {
       // Fresh floor – generate new enemies with random variant scaling.
-      const count = Math.min(3 + Math.floor(difficulty / 2), 8);
+      // Enemy count varies randomly: base 2-4 + floor scaling, max 10.
+      const baseCount = 2 + Math.floor(Math.random() * 3);
+      const count = Math.min(baseCount + Math.floor(difficulty / 2), 10);
       const generated: PersistentMapEnemy[] = [];
 
       for (let i = 0; i < count; i++) {
@@ -216,6 +243,116 @@ export class ExplorationSystem {
         label,
       });
     }
+  }
+
+  /** Spawn coins and chests on the current floor. */
+  private spawnPickups(): void {
+    const state = GameState.getInstance();
+    const difficulty = state.data.difficultyLevel;
+    const mapData = this.mapManager.getCurrentMap()!;
+    const tileSize = mapData.tileSize;
+
+    // 3-6 pickups per floor, scaling slightly with difficulty.
+    const count = 3 + Math.floor(Math.random() * 3) + Math.min(Math.floor(difficulty / 3), 2);
+    const occupied = new Set<string>();
+    this.mapEnemies.forEach((e) => occupied.add(`${e.x},${e.y}`));
+    occupied.add(`${state.data.playerX},${state.data.playerY}`);
+
+    for (let i = 0; i < count; i++) {
+      let tx = 0, ty = 0, placed = false;
+      for (let attempt = 0; attempt < 150; attempt++) {
+        tx = 1 + Math.floor(Math.random() * (mapData.width - 2));
+        ty = 1 + Math.floor(Math.random() * (mapData.height - 2));
+        const tile = this.mapManager.getTile(tx, ty);
+        if (!tile?.passable) continue;
+        if (occupied.has(`${tx},${ty}`)) continue;
+        placed = true;
+        break;
+      }
+      if (!placed) continue;
+      occupied.add(`${tx},${ty}`);
+
+      // 70% coin (gold), 30% chest (item or bigger gold)
+      const isChest = Math.random() < 0.30;
+      const kind: 'coin' | 'chest' = isChest ? 'chest' : 'coin';
+      const gold = isChest
+        ? (5 + Math.floor(Math.random() * 20)) * difficulty
+        : (2 + Math.floor(Math.random() * 8)) * difficulty;
+      // Chests sometimes contain an item too.
+      const itemPool = ['potion', 'ether', 'antidote'];
+      const itemId = isChest && Math.random() < 0.5 ? itemPool[Math.floor(Math.random() * itemPool.length)] : undefined;
+
+      const sx = tx * tileSize + tileSize / 2;
+      const sy = ty * tileSize + tileSize / 2;
+      const textureKey = kind === 'chest' ? 'chest' : 'coin';
+      let sprite: EntitySprite;
+      if (this.scene.textures.exists(textureKey)) {
+        sprite = this.scene.add
+          .image(sx, sy, textureKey)
+          .setDisplaySize(tileSize - 10, tileSize - 10)
+          .setDepth(7);
+      } else {
+        const color = kind === 'chest' ? 0xcc8800 : 0xffdd00;
+        sprite = this.scene.add
+          .rectangle(sx, sy, tileSize - 12, tileSize - 12, color)
+          .setDepth(7);
+      }
+
+      this.pickups.push({ id: `pickup_${i}`, kind, gold, itemId, x: tx, y: ty, sprite });
+    }
+  }
+
+  /** Spawn a shopkeeper NPC on floor 2+ with 35% chance. */
+  private spawnShopkeeper(): void {
+    const state = GameState.getInstance();
+    if (state.data.difficultyLevel < 2) return;
+    if (Math.random() >= 0.35) return;
+
+    const mapData = this.mapManager.getCurrentMap()!;
+    const tileSize = mapData.tileSize;
+    const occupied = new Set<string>();
+    this.mapEnemies.forEach((e) => occupied.add(`${e.x},${e.y}`));
+    this.pickups.forEach((p) => occupied.add(`${p.x},${p.y}`));
+    occupied.add(`${state.data.playerX},${state.data.playerY}`);
+
+    let tx = 0, ty = 0, placed = false;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      tx = 1 + Math.floor(Math.random() * (mapData.width - 2));
+      ty = 1 + Math.floor(Math.random() * (mapData.height - 2));
+      const tile = this.mapManager.getTile(tx, ty);
+      if (!tile?.passable) continue;
+      if (occupied.has(`${tx},${ty}`)) continue;
+      // Ensure some distance from player spawn
+      if (Math.abs(tx - state.data.playerX) + Math.abs(ty - state.data.playerY) < 4) continue;
+      placed = true;
+      break;
+    }
+    if (!placed) return;
+
+    const sx = tx * tileSize + tileSize / 2;
+    const sy = ty * tileSize + tileSize / 2;
+    let sprite: EntitySprite;
+    if (this.scene.textures.exists('shopkeeper')) {
+      sprite = this.scene.add
+        .image(sx, sy, 'shopkeeper')
+        .setDisplaySize(tileSize - 4, tileSize - 4)
+        .setDepth(9);
+    } else {
+      sprite = this.scene.add
+        .rectangle(sx, sy, tileSize - 4, tileSize - 4, 0x44aaff)
+        .setDepth(9);
+    }
+
+    const label = this.scene.add
+      .text(sx, sy - tileSize, '🛒 SHOP', {
+        fontSize: '9px',
+        color: '#44aaff',
+        fontFamily: 'monospace',
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(12);
+
+    this.shopkeeper = { x: tx, y: ty, sprite, label };
   }
 
   /** Returns a variant scale and optional name prefix for a spawned enemy. */
@@ -332,6 +469,18 @@ export class ExplorationSystem {
     const tileSize = this.mapManager.getCurrentMap()!.tileSize;
     this.playerSprite.setPosition(nx * tileSize + tileSize / 2, ny * tileSize + tileSize / 2);
 
+    // Check for pickup collection.
+    const pickupIdx = this.pickups.findIndex((p) => p.x === nx && p.y === ny);
+    if (pickupIdx !== -1) {
+      this.collectPickup(pickupIdx);
+    }
+
+    // Check for shopkeeper interaction.
+    if (this.shopkeeper && this.shopkeeper.x === nx && this.shopkeeper.y === ny) {
+      this.openShop();
+      return;
+    }
+
     // Check for exit tile.
     const mapData = this.mapManager.getCurrentMap()!;
     const exit = mapData.exits.find((e) => e.x === nx && e.y === ny);
@@ -340,6 +489,30 @@ export class ExplorationSystem {
       this.combatActive = true;
       this.bus.emit('map:exit', exit);
     }
+  }
+
+  private collectPickup(idx: number): void {
+    const pickup = this.pickups[idx];
+    pickup.sprite.destroy();
+    this.pickups.splice(idx, 1);
+
+    const state = GameState.getInstance();
+    state.addGold(pickup.gold);
+    if (pickup.itemId) {
+      state.addItem(pickup.itemId);
+    }
+
+    this.bus.emit('pickup:collected', {
+      kind: pickup.kind,
+      gold: pickup.gold,
+      itemId: pickup.itemId,
+    });
+  }
+
+  private openShop(): void {
+    if (this.combatActive) return;
+    this.combatActive = true;
+    this.bus.emit('shop:open', { inventory: SHOP_INVENTORY });
   }
 
   private triggerCombat(enemy: MapEnemy): void {
@@ -381,7 +554,18 @@ export class ExplorationSystem {
       enemies.push({ typeId: extraTypeId, displayName: prefix + baseName, variantScale: scale });
     }
 
-    this.bus.emit('combat:start', { enemies, difficultyLevel: difficulty });
+    // Roll for preemptive strike (player advantage) or ambush (enemy advantage).
+    const battleType: BattleType = this.rollBattleType();
+
+    this.bus.emit('combat:start', { enemies, difficultyLevel: difficulty, battleType });
+  }
+
+  /** Roll for battle-start type: 25% preemptive, 20% ambush, 55% normal. */
+  private rollBattleType(): BattleType {
+    const roll = Math.random();
+    if (roll < 0.25) return 'preemptive';
+    if (roll < 0.45) return 'ambush';
+    return 'normal';
   }
 
   destroy(): void {
@@ -392,6 +576,13 @@ export class ExplorationSystem {
       e.label.destroy();
     });
     this.mapEnemies = [];
+    this.pickups.forEach((p) => p.sprite.destroy());
+    this.pickups = [];
+    if (this.shopkeeper) {
+      this.shopkeeper.sprite.destroy();
+      this.shopkeeper.label.destroy();
+      this.shopkeeper = null;
+    }
     this.exitMarkers.forEach((m) => m.destroy());
     this.exitMarkers = [];
   }

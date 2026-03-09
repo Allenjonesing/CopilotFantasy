@@ -17,12 +17,14 @@ export interface CombatAction {
   target?: CombatEntity;
 }
 
+export type BattleType = 'normal' | 'preemptive' | 'ambush';
+
 export interface CombatResult {
   victory: boolean;
   defeat: boolean;
   fled: boolean;
   expGained: number;
-  gilGained: number;
+  goldGained: number;
   itemsGained: string[];
 }
 
@@ -41,6 +43,19 @@ export class CombatSystem {
     this.timeline = new CTBTimeline([...players, ...enemies]);
     this.statusSystem = new StatusEffectSystem();
     this.bus = EventBus.getInstance();
+  }
+
+  /** Apply battle-type advantages (preemptive/ambush) by adjusting CTB values. */
+  applyBattleType(type: BattleType): void {
+    if (type === 'preemptive') {
+      // Players act immediately; enemies are significantly delayed.
+      this.players.forEach((p) => { p.ctbValue = 0; });
+      this.enemies.forEach((e) => { e.ctbValue = 500; });
+    } else if (type === 'ambush') {
+      // Enemies act immediately; players are significantly delayed.
+      this.enemies.forEach((en) => { en.ctbValue = 0; });
+      this.players.forEach((p) => { p.ctbValue = 500; });
+    }
   }
 
   /** Advance to the next actor's turn. */
@@ -211,12 +226,12 @@ export class CombatSystem {
 
     if (allEnemiesDead) {
       const expGained = this.enemies.reduce((sum, e) => sum + e.rewards.exp, 0);
-      const gilGained = this.enemies.reduce((sum, e) => sum + e.rewards.gil, 0);
+      const goldGained = this.enemies.reduce((sum, e) => sum + e.rewards.gold, 0);
       const itemsGained = this.enemies.flatMap((e) => e.rewards.items);
-      return { victory: true, defeat: false, fled: false, expGained, gilGained, itemsGained };
+      return { victory: true, defeat: false, fled: false, expGained, goldGained, itemsGained };
     }
     if (allPlayersDead) {
-      return { victory: false, defeat: true, fled: false, expGained: 0, gilGained: 0, itemsGained: [] };
+      return { victory: false, defeat: true, fled: false, expGained: 0, goldGained: 0, itemsGained: [] };
     }
     return null;
   }
