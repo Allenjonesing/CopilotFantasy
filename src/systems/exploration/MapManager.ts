@@ -106,7 +106,7 @@ export class MapManager {
   private scene: Phaser.Scene;
   private bus: EventBus;
   private currentMap: MapData | null = null;
-  private tileSprites: Phaser.GameObjects.Rectangle[] = [];
+  private tileSprites: Phaser.GameObjects.GameObject[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -125,16 +125,22 @@ export class MapManager {
     if (!this.currentMap) return;
     const { tiles, tileSize } = this.currentMap;
     tiles.forEach((tile) => {
-      const color = TILE_COLORS[tile.type] ?? 0x2a3a4a;
-      const rect = this.scene.add.rectangle(
-        tile.x * tileSize + tileSize / 2,
-        tile.y * tileSize + tileSize / 2,
-        tileSize - 1,
-        tileSize - 1,
-        color,
-      );
-      rect.setDepth(0);
-      this.tileSprites.push(rect);
+      const cx = tile.x * tileSize + tileSize / 2;
+      const cy = tile.y * tileSize + tileSize / 2;
+      const textureKey = `tile_${tile.type}`;
+      let obj: Phaser.GameObjects.GameObject;
+      if (this.scene.textures.exists(textureKey)) {
+        obj = this.scene.add
+          .image(cx, cy, textureKey)
+          .setDisplaySize(tileSize - 1, tileSize - 1)
+          .setDepth(0);
+      } else {
+        const color = TILE_COLORS[tile.type] ?? 0x2a3a4a;
+        obj = this.scene.add
+          .rectangle(cx, cy, tileSize - 1, tileSize - 1, color)
+          .setDepth(0);
+      }
+      this.tileSprites.push(obj);
     });
     this.bus.emit('map:loaded', this.currentMap);
   }

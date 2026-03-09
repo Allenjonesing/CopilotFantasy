@@ -60,9 +60,13 @@ export class TouchControls {
     const { width: W, height: H } = this.scene.scale;
 
     // ── D-pad (bottom-left) ─────────────────────────────────────────────────
-    // Gap between centres = 70 px so a 64-px button + 6-px gutter
-    const CX = W * 0.12;   // D-pad centre X  (≈ 96 px for 800-wide canvas)
-    const CY = H - 78;     // D-pad centre Y  (≈ 522 px for 600-tall canvas)
+    // Gap between centres = 70 px so a 64-px button + 6-px gutter.
+    // Minimum CX = 140 ensures the LEFT button (CX-GAP=70) is never clipped on
+    // narrow screens (e.g. 375 px wide phones where W*0.12 ≈ 45 is off-screen).
+    // CY = H-160 ensures the DOWN button (CY+GAP) stays at least ~58 px above
+    // the bottom edge even on small or landscape viewports.
+    const CX = Math.max(140, Math.round(W * 0.17));
+    const CY = H - 160;
     const GAP = 70;
 
     this.createDirButton(CX, CY - GAP, '▲', this.up, () => { this._navUpJustDown = true; });
@@ -75,8 +79,10 @@ export class TouchControls {
     this.gameObjects.push(pip);
 
     // ── OK / Interact button (bottom-right) ─────────────────────────────────
-    const OKX = W - W * 0.10;   // ≈ 720 for 800-wide
-    const OKY = H - 78;
+    // Keep the OK button vertically aligned with the D-pad centre so both
+    // controls sit on the same row and are reachable with one hand.
+    const OKX = W - Math.max(60, Math.round(W * 0.10));
+    const OKY = CY;
     const okBg = this.scene.add.rectangle(OKX, OKY, 72, 72, 0x224433, 0.78);
     okBg.setStrokeStyle(2, 0x44aa77);
     okBg.setDepth(60);
