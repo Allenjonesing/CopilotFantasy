@@ -39,12 +39,11 @@ export class ShopScene extends Phaser.Scene {
 
     // Build item list from shop inventory
     this.items = (this.shopData?.inventory ?? [])
-      .map((id) => {
+      .flatMap((id) => {
         const def = itemsData.items.find((it) => it.id === id);
-        if (!def) return null;
-        return { id: def.id, name: def.name, buyPrice: def.buyPrice, description: def.description };
-      })
-      .filter(Boolean) as Array<{ id: string; name: string; buyPrice: number; description: string }>;
+        if (!def || !def.buyPrice) return [];
+        return [{ id: def.id, name: def.name, buyPrice: def.buyPrice, description: def.description }];
+      });
 
     // Title
     this.add.text(W / 2, 24, '🛒  TRAVELING SHOP', {

@@ -93,9 +93,9 @@ export class ExplorationUI {
   showPickupMessage(msg: string): void {
     const W = this.scene.scale.width;
     const H = this.scene.scale.height;
-    if (this.pickupMsg?.active) {
-      this.pickupMsg.destroy();
-    }
+    // Destroy any existing pickup message before creating a new one.
+    this.pickupMsg?.destroy();
+    this.pickupMsg = null;
     this.pickupMsg = this.scene.add.text(W / 2, H / 2 - 60, msg, {
       fontSize: '18px',
       color: '#ffe066',
