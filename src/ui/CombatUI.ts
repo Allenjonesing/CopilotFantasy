@@ -6,58 +6,49 @@ import { GameState } from '../core/state/GameState';
 import skillsData from '../data/skills.json';
 import itemsData from '../data/items.json';
 
-const W = 800;
-const H = 600;
+// Fixed/animation constants that don't depend on screen size
 const TIMELINE_H = 36;
 const TIMELINE_SLOT_W = 72;
 const TIMELINE_NAME_LEN = 7;
 const DAMAGE_FLASH_MS = 200;
 const ENEMY_FLASH_MS = 80;
 const ENEMY_FLASH_REPEAT = 2;
-
-// Battlefield spans y = TIMELINE_H to BOTTOM_Y
-const BATTLEFIELD_BOTTOM = 252;
-
-// Compact 3-line log strip between battlefield and menu
-const LOG_STRIP_Y = BATTLEFIELD_BOTTOM + 4;
 const LOG_STRIP_H = 42;
 const LOG_LINE_COUNT = 3;
 
-// Bottom panel starts below the log strip
-const BOTTOM_Y = LOG_STRIP_Y + LOG_STRIP_H + 4;
-
-// Left status panel (player HP bars + combat nav buttons)
-const LEFT_PANEL_W = 248;
-
-// Action menu covers centre + right of the bottom panel
-const MENU_X = LEFT_PANEL_W + 8;
-const MENU_Y = BOTTOM_Y;
-const MENU_W = W - MENU_X - 8; // ≈ 536 px
-
-// Entity icon sizes
+// Entity icon sizes (fixed pixel sizes)
 const ENEMY_W = 80;
 const ENEMY_H = 80;
 const PLAYER_ICON_W = 62;
 const PLAYER_ICON_H = 62;
 
-// Horizontal spread width for positioning multiple entities
-const ENEMY_SPACING_WIDTH = 350;
-const PLAYER_SPACING_WIDTH = 240;
-
 // Attack movement animation
-const ATTACK_MOVE_MAX_PX = 70;   // max pixels the attacker slides toward the target
-const ATTACK_MOVE_RATIO = 0.45;  // fraction of the gap to cover (capped at max)
-const ATTACK_MOVE_FORWARD_MS = 160; // duration of forward lunge (ms)
-const ATTACK_MOVE_RETURN_MS = 200;  // duration of return slide (ms)
-
-// Battlefield Y centre for icons
-const ICON_Y = 175;
+const ATTACK_MOVE_MAX_PX = 70;
+const ATTACK_MOVE_RATIO = 0.45;
+const ATTACK_MOVE_FORWARD_MS = 160;
+const ATTACK_MOVE_RETURN_MS = 200;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
 export class CombatUI {
   private scene: Phaser.Scene;
   private system: CombatSystem;
+
+  // Layout constants computed from screen dimensions
+  private readonly W: number;
+  private readonly H: number;
+  private readonly BATTLEFIELD_BOTTOM: number;
+  private readonly LOG_STRIP_Y: number;
+  private readonly BOTTOM_Y: number;
+  private readonly LEFT_PANEL_W: number;
+  private readonly MENU_X: number;
+  private readonly MENU_W: number;
+  private readonly ICON_Y: number;
+  private readonly ENEMY_BASE_X: number;
+  private readonly PLAYER_BASE_X: number;
+  private readonly ENEMY_SPREAD: number;
+  private readonly PLAYER_SPREAD: number;
+  private readonly BAR_HALF_W: number; // half of HP bar width (for refresh animation)
   // Enemy sprites
   private enemyRects: Map<string, Phaser.GameObjects.Rectangle> = new Map();
   private enemyNameTexts: Phaser.GameObjects.Text[] = [];
@@ -110,24 +101,44 @@ export class CombatUI {
     this.scene = scene;
     this.system = system;
     this.bus = EventBus.getInstance();
+
+    // Compute all layout constants from the actual screen dimensions so the
+    // combat UI fills the available space on any screen (including portrait).
+    this.W = scene.scale.width;
+    this.H = scene.scale.height;
+    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.42);  // ~252 at 600 H
+    this.LOG_STRIP_Y = this.BATTLEFIELD_BOTTOM + 4;
+    this.BOTTOM_Y = this.LOG_STRIP_Y + LOG_STRIP_H + 4;
+    this.LEFT_PANEL_W = Math.round(this.W * 0.31);        // ~248 at 800 W
+    this.MENU_X = this.LEFT_PANEL_W + 8;
+    this.MENU_W = this.W - this.MENU_X - 8;
+    this.ICON_Y = Math.round(this.H * 0.292);             // ~175 at 600 H
+    this.ENEMY_BASE_X = Math.round(this.W * 0.494);       // ~395 at 800 W
+    this.PLAYER_BASE_X = Math.round(this.W * 0.094);      // ~75 at 800 W
+    this.ENEMY_SPREAD = Math.round(this.W * 0.4375);      // ~350 at 800 W
+    this.PLAYER_SPREAD = Math.round(this.W * 0.30);       // ~240 at 800 W
+
+    const barW = Math.max(58, Math.round(this.LEFT_PANEL_W * 0.48));
+    this.BAR_HALF_W = Math.round(barW / 2);
+
     this.buildUI();
     this.registerEvents();
   }
 
   private buildUI(): void {
     // ── Timeline bar ──────────────────────────────────────────────────────────
-    this.scene.add.rectangle(W / 2, TIMELINE_H / 2, W, TIMELINE_H, 0x111133);
+    this.scene.add.rectangle(this.W / 2, TIMELINE_H / 2, this.W, TIMELINE_H, 0x111133);
     this.timelineContainer = this.scene.add.container(0, 0);
     this.timelineContainer.setDepth(20);
 
     // ── Battlefield background ────────────────────────────────────────────────
-    this.scene.add.rectangle(W / 2, (TIMELINE_H + BATTLEFIELD_BOTTOM) / 2, W, BATTLEFIELD_BOTTOM - TIMELINE_H, 0x1a1a2e);
+    this.scene.add.rectangle(this.W / 2, (TIMELINE_H + this.BATTLEFIELD_BOTTOM) / 2, this.W, this.BATTLEFIELD_BOTTOM - TIMELINE_H, 0x1a1a2e);
 
     // ── Enemy icons (right side of battlefield) ───────────────────────────────
     const eCount = this.system.enemies.length;
     this.system.enemies.forEach((e, idx) => {
-      const x = 395 + idx * Math.floor(ENEMY_SPACING_WIDTH / Math.max(eCount, 1));
-      const y = ICON_Y;
+      const x = this.ENEMY_BASE_X + idx * Math.floor(this.ENEMY_SPREAD / Math.max(eCount, 1));
+      const y = this.ICON_Y;
       const rect = this.scene.add.rectangle(x, y, ENEMY_W, ENEMY_H, 0xcc4444);
       rect.setDepth(5);
       rect.setInteractive({ useHandCursor: true });
@@ -143,8 +154,8 @@ export class CombatUI {
     // ── Player icons (left side of battlefield) ───────────────────────────────
     const pCount = this.system.players.length;
     this.system.players.forEach((p, idx) => {
-      const x = 75 + idx * Math.floor(PLAYER_SPACING_WIDTH / Math.max(pCount, 1));
-      const y = ICON_Y;
+      const x = this.PLAYER_BASE_X + idx * Math.floor(this.PLAYER_SPREAD / Math.max(pCount, 1));
+      const y = this.ICON_Y;
       const rect = this.scene.add.rectangle(x, y, PLAYER_ICON_W, PLAYER_ICON_H, 0x4466cc);
       rect.setDepth(5);
       rect.setInteractive({ useHandCursor: true });
@@ -164,35 +175,37 @@ export class CombatUI {
     this.targetCursor.setVisible(false);
 
     // ── Compact log strip ─────────────────────────────────────────────────────
-    this.logStripBg = this.scene.add.rectangle(W / 2, LOG_STRIP_Y + LOG_STRIP_H / 2, W - 10, LOG_STRIP_H, 0x0a0a1a, 0.80);
+    this.logStripBg = this.scene.add.rectangle(this.W / 2, this.LOG_STRIP_Y + LOG_STRIP_H / 2, this.W - 10, LOG_STRIP_H, 0x0a0a1a, 0.80);
     this.logStripBg.setStrokeStyle(1, 0x333355);
     this.logStripBg.setDepth(20);
     for (let i = 0; i < LOG_LINE_COUNT; i++) {
-      const t = this.scene.add.text(8, LOG_STRIP_Y + 3 + i * 13, '', {
+      const t = this.scene.add.text(8, this.LOG_STRIP_Y + 3 + i * 13, '', {
         fontSize: '11px',
         color: '#aaaaaa',
         fontFamily: 'monospace',
-        wordWrap: { width: W - 16 },
+        wordWrap: { width: this.W - 16 },
       });
       t.setDepth(21);
       this.logTexts.push(t);
     }
 
     // ── Bottom panel background ───────────────────────────────────────────────
-    this.scene.add.rectangle(W / 2, (BOTTOM_Y + H - 22) / 2, W, H - 22 - BOTTOM_Y, 0x0d0d1f, 0.95).setDepth(18);
+    this.scene.add.rectangle(this.W / 2, (this.BOTTOM_Y + this.H - 22) / 2, this.W, this.H - 22 - this.BOTTOM_Y, 0x0d0d1f, 0.95).setDepth(18);
 
     // ── Left panel: player HP bars ────────────────────────────────────────────
+    const barW = this.BAR_HALF_W * 2;
+    const barTextX = Math.round(this.LEFT_PANEL_W * 0.58);
     this.system.players.forEach((p, idx) => {
       const x = 8;
-      const y = BOTTOM_Y + 10 + idx * 38;
+      const y = this.BOTTOM_Y + 10 + idx * 38;
       const nameText = this.scene.add
         .text(x, y, p.name, { fontSize: '12px', color: '#aaaaff', fontFamily: 'monospace' })
         .setDepth(21);
       this.playerNameTexts.push(nameText);
-      const bg = this.scene.add.rectangle(x + 80, y + 6, 120, 11, 0x333333).setDepth(21);
-      const bar = this.scene.add.rectangle(x + 80, y + 6, 120, 11, 0x44aa44).setDepth(22);
+      const bg = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 6, barW, 11, 0x333333).setDepth(21);
+      const bar = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 6, barW, 11, 0x44aa44).setDepth(22);
       const text = this.scene.add
-        .text(x + 145, y, `${p.stats.hp}/${p.stats.maxHp}`, {
+        .text(x + barTextX, y, `${p.stats.hp}/${p.stats.maxHp}`, {
           fontSize: '10px',
           color: '#ffffff',
           fontFamily: 'monospace',
@@ -205,9 +218,9 @@ export class CombatUI {
     this.buildNavButtons();
 
     // ── Action menu container ─────────────────────────────────────────────────
-    this.menuContainer = this.scene.add.container(MENU_X, MENU_Y);
+    this.menuContainer = this.scene.add.container(this.MENU_X, this.BOTTOM_Y);
     this.menuContainer.setDepth(30);
-    this.menuBg = this.scene.add.rectangle(MENU_W / 2, 60, MENU_W, 160, 0x111133, 0.94);
+    this.menuBg = this.scene.add.rectangle(this.MENU_W / 2, 60, this.MENU_W, 160, 0x111133, 0.94);
     this.menuBg.setStrokeStyle(2, 0x5555bb);
     this.menuContainer.add(this.menuBg);
     this.menuTitle = this.scene.add.text(10, 6, 'ACTION', {
@@ -220,7 +233,7 @@ export class CombatUI {
 
     // ── Help text — single line at very bottom ────────────────────────────────
     this.helpText = this.scene.add
-      .text(W / 2, H - 4, '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Tap enemy or ally to target', {
+      .text(this.W / 2, this.H - 4, '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Tap enemy or ally to target', {
         fontSize: '10px',
         color: '#666688',
         fontFamily: 'monospace',
@@ -229,14 +242,16 @@ export class CombatUI {
       .setDepth(25);
   }
 
-  /** Build the four compact combat navigation buttons in the left panel. */
+  /** Build the four combat navigation buttons in the left panel — large enough for touch. */
   private buildNavButtons(): void {
-    const BW = 68; // button width
-    const BH = 36; // button height
-    const COL1 = 40;
-    const COL2 = 120;
-    const ROW1 = BOTTOM_Y + this.system.players.length * 38 + 22;
-    const ROW2 = ROW1 + BH + 8;
+    // Buttons scale with the left panel width; minimum 48×50 px for touch targets.
+    const BW = Math.max(48, Math.round(this.LEFT_PANEL_W * 0.43));
+    const BH = 50;
+    const GUTTER = 6;
+    const COL1 = Math.round(this.LEFT_PANEL_W * 0.26);
+    const COL2 = Math.round(this.LEFT_PANEL_W * 0.74);
+    const ROW1 = this.BOTTOM_Y + this.system.players.length * 38 + 22;
+    const ROW2 = ROW1 + BH + GUTTER;
 
     const makeBtn = (
       label: string,
@@ -246,12 +261,12 @@ export class CombatUI {
       stroke: number,
       onTap: () => void,
     ): void => {
-      const bg = this.scene.add.rectangle(x, y, BW, BH, color, 0.82);
-      bg.setStrokeStyle(2, stroke);
+      const bg = this.scene.add.rectangle(x, y, BW, BH, color, 0.90);
+      bg.setStrokeStyle(3, stroke);
       bg.setDepth(32);
       bg.setInteractive({ useHandCursor: true });
       const txt = this.scene.add
-        .text(x, y, label, { fontSize: '15px', color: '#ffffff', fontFamily: 'monospace' })
+        .text(x, y, label, { fontSize: '18px', color: '#ffffff', fontFamily: 'monospace' })
         .setOrigin(0.5)
         .setDepth(33);
       bg.on('pointerdown', (_pointer: unknown, _lx: unknown, _ly: unknown, event: { stopPropagation: () => void }) => {
@@ -316,8 +331,8 @@ export class CombatUI {
     // Resize background to fit items
     const h = Math.max(70, 26 + items.length * 26 + 14);
     if (this.menuBg.active) {
-      this.menuBg.setSize(MENU_W, h);
-      this.menuBg.setPosition(MENU_W / 2, h / 2);
+      this.menuBg.setSize(this.MENU_W, h);
+      this.menuBg.setPosition(this.MENU_W / 2, h / 2);
     }
   }
 
@@ -434,7 +449,7 @@ export class CombatUI {
       if (bars) {
         const ratio = entity.stats.hp / entity.stats.maxHp;
         bars.bar.setScale(ratio, 1);
-        bars.bar.setPosition(bars.bg.x - 60 * (1 - ratio), bars.bg.y);
+        bars.bar.setPosition(bars.bg.x - this.BAR_HALF_W * (1 - ratio), bars.bg.y);
         if (bars.text.active) {
           bars.text.setText(`${entity.stats.hp}/${entity.stats.maxHp}`);
         }
@@ -542,20 +557,20 @@ export class CombatUI {
   private entityScreenPos(entity: CombatEntity): { x: number; y: number } {
     if (entity instanceof PlayerCombatant) {
       const icon = this.playerIconRects.get(entity.id);
-      return icon ? { x: icon.x, y: icon.y - 40 } : { x: 100, y: 150 };
+      return icon ? { x: icon.x, y: icon.y - 40 } : { x: Math.round(this.W * 0.125), y: Math.round(this.H * 0.25) };
     }
     const rect = this.enemyRects.get(entity.id);
-    return rect ? { x: rect.x, y: rect.y - 50 } : { x: 450, y: 130 };
+    return rect ? { x: rect.x, y: rect.y - 50 } : { x: Math.round(this.W * 0.5625), y: Math.round(this.H * 0.217) };
   }
 
   /** Return the screen center of an entity (used to place the target cursor). */
   private entityCenter(entity: CombatEntity): { x: number; y: number } {
     if (entity instanceof PlayerCombatant) {
       const icon = this.playerIconRects.get(entity.id);
-      return icon ? { x: icon.x, y: icon.y } : { x: 100, y: 175 };
+      return icon ? { x: icon.x, y: icon.y } : { x: Math.round(this.W * 0.125), y: this.ICON_Y };
     }
     const rect = this.enemyRects.get(entity.id);
-    return rect ? { x: rect.x, y: rect.y } : { x: 450, y: 175 };
+    return rect ? { x: rect.x, y: rect.y } : { x: Math.round(this.W * 0.5625), y: this.ICON_Y };
   }
 
   /** Rebuild the CTB turn-order bar from the timeline preview. */

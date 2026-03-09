@@ -12,10 +12,8 @@ export function createGame(): Phaser.Game {
     backgroundColor: '#1a1a2e',
     parent: 'game',
     scale: {
-      mode: Phaser.Scale.FIT,
+      mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      width: 800,
-      height: 600,
     },
     scene: [BootScene, MainMenuScene, ExplorationScene, CombatScene, VictoryScene, GameOverScene],
     audio: { disableWebAudio: false },

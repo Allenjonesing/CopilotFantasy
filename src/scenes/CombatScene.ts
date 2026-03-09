@@ -41,7 +41,8 @@ export class CombatScene extends Phaser.Scene {
     this.bus = EventBus.getInstance();
 
     // Background (full-screen dark fill; battlefield area created by CombatUI)
-    this.add.rectangle(400, 300, 800, 600, 0x0a0a1a);
+    const { width, height } = this.scale;
+    this.add.rectangle(width / 2, height / 2, width, height, 0x0a0a1a);
 
     this.ui = new CombatUI(this, this.system);
 

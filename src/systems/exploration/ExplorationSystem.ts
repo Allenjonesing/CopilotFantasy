@@ -64,6 +64,13 @@ export class ExplorationSystem {
     );
     this.playerSprite.setDepth(10);
 
+    // Set up camera to follow the player within map bounds so the game works
+    // on portrait screens where the map is wider than the visible area.
+    const mapW = mapData.width * tileSize;
+    const mapH = mapData.height * tileSize;
+    this.scene.cameras.main.setBounds(0, 0, mapW, mapH);
+    this.scene.cameras.main.startFollow(this.playerSprite, true);
+
     // Exit marker
     mapData.exits.forEach((exit) => {
       const ex = exit.x * tileSize + tileSize / 2;
@@ -290,6 +297,8 @@ export class ExplorationSystem {
     const mapData = this.mapManager.getCurrentMap()!;
     const exit = mapData.exits.find((e) => e.x === nx && e.y === ny);
     if (exit) {
+      // Block further movement so the exit event only fires once per floor.
+      this.combatActive = true;
       this.bus.emit('map:exit', exit);
     }
   }
