@@ -106,17 +106,17 @@ export class CombatUI {
     // combat UI fills the available space on any screen (including portrait).
     this.W = scene.scale.width;
     this.H = scene.scale.height;
-    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.42);  // ~252 at 600 H
+    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.42);  // battlefield ends at 42% of screen height (~252 at H=600)
     this.LOG_STRIP_Y = this.BATTLEFIELD_BOTTOM + 4;
     this.BOTTOM_Y = this.LOG_STRIP_Y + LOG_STRIP_H + 4;
-    this.LEFT_PANEL_W = Math.round(this.W * 0.31);        // ~248 at 800 W
+    this.LEFT_PANEL_W = Math.round(this.W * 0.31);        // left HP/nav panel = 31% of screen width (~248 at W=800)
     this.MENU_X = this.LEFT_PANEL_W + 8;
     this.MENU_W = this.W - this.MENU_X - 8;
-    this.ICON_Y = Math.round(this.H * 0.292);             // ~175 at 600 H
-    this.ENEMY_BASE_X = Math.round(this.W * 0.494);       // ~395 at 800 W
-    this.PLAYER_BASE_X = Math.round(this.W * 0.094);      // ~75 at 800 W
-    this.ENEMY_SPREAD = Math.round(this.W * 0.4375);      // ~350 at 800 W
-    this.PLAYER_SPREAD = Math.round(this.W * 0.30);       // ~240 at 800 W
+    this.ICON_Y = Math.round(this.H * 0.292);             // battlefield icon Y centre = 29% of screen height (~175 at H=600)
+    this.ENEMY_BASE_X = Math.round(this.W * 0.494);       // enemy icon start X = ~49% of screen width (~395 at W=800)
+    this.PLAYER_BASE_X = Math.round(this.W * 0.094);      // player icon start X = ~9% of screen width (~75 at W=800)
+    this.ENEMY_SPREAD = Math.round(this.W * 0.4375);      // enemy horizontal spread = ~44% of screen width (~350 at W=800)
+    this.PLAYER_SPREAD = Math.round(this.W * 0.30);       // player horizontal spread = 30% of screen width (~240 at W=800)
 
     const barW = Math.max(58, Math.round(this.LEFT_PANEL_W * 0.48));
     this.BAR_HALF_W = Math.round(barW / 2);
@@ -244,8 +244,11 @@ export class CombatUI {
 
   /** Build the four combat navigation buttons in the left panel — large enough for touch. */
   private buildNavButtons(): void {
-    // Buttons scale with the left panel width; minimum 48×50 px for touch targets.
-    const BW = Math.max(48, Math.round(this.LEFT_PANEL_W * 0.43));
+    // Minimum 48 px width satisfies Apple/Google touch-target guidelines (44 pt minimum).
+    const MIN_BTN_W = 48;
+    // Buttons fill ~43% of the left panel width to leave room for two columns.
+    const BTN_WIDTH_RATIO = 0.43;
+    const BW = Math.max(MIN_BTN_W, Math.round(this.LEFT_PANEL_W * BTN_WIDTH_RATIO));
     const BH = 50;
     const GUTTER = 6;
     const COL1 = Math.round(this.LEFT_PANEL_W * 0.26);
