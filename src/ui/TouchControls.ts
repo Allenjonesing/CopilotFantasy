@@ -36,12 +36,14 @@ export class TouchControls {
     const bg = this.scene.add.rectangle(x, y, SIZE, SIZE, 0x334466, 0.72);
     bg.setStrokeStyle(2, 0x6688cc);
     bg.setDepth(60);
+    bg.setScrollFactor(0);
     bg.setInteractive();
 
     const txt = this.scene.add
       .text(x, y, label, { fontSize: '26px', color: '#aaccff', fontFamily: 'monospace' })
       .setOrigin(0.5)
-      .setDepth(61);
+      .setDepth(61)
+      .setScrollFactor(0);
 
     bg.on('pointerdown', (_pointer: unknown, _lx: unknown, _ly: unknown, event: { stopPropagation: () => void }) => {
       state.isDown = true;
@@ -69,7 +71,7 @@ export class TouchControls {
     this.createDirButton(CX + GAP, CY, '▶', this.right);
 
     // Centre pip (visual only)
-    const pip = this.scene.add.rectangle(CX, CY, 20, 20, 0x223355, 0.4).setDepth(60);
+    const pip = this.scene.add.rectangle(CX, CY, 20, 20, 0x223355, 0.4).setDepth(60).setScrollFactor(0);
     this.gameObjects.push(pip);
 
     // ── OK / Interact button (bottom-right) ─────────────────────────────────
@@ -78,12 +80,14 @@ export class TouchControls {
     const okBg = this.scene.add.rectangle(OKX, OKY, 72, 72, 0x224433, 0.78);
     okBg.setStrokeStyle(2, 0x44aa77);
     okBg.setDepth(60);
+    okBg.setScrollFactor(0);
     okBg.setInteractive();
 
     const okTxt = this.scene.add
       .text(OKX, OKY, 'OK', { fontSize: '22px', color: '#88ffcc', fontFamily: 'monospace' })
       .setOrigin(0.5)
-      .setDepth(61);
+      .setDepth(61)
+      .setScrollFactor(0);
 
     okBg.on('pointerdown', (_pointer: unknown, _lx: unknown, _ly: unknown, event: { stopPropagation: () => void }) => {
       this._interactJustDown = true;
@@ -101,7 +105,8 @@ export class TouchControls {
         align: 'center',
       })
       .setOrigin(0.5, 1)
-      .setDepth(62);
+      .setDepth(62)
+      .setScrollFactor(0);
     this.gameObjects.push(legend);
   }
 
