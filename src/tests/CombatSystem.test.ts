@@ -91,6 +91,28 @@ describe('CombatSystem', () => {
     // Quantity should have dropped from 2 to 1.
     expect(remaining?.quantity ?? 0).toBe(1);
   });
+
+  it('emits combat:heal event when a healing item is used', () => {
+    const state = GameState.getInstance();
+    state.addItem('potion', 1);
+    system.nextTurn();
+    const actor = system.currentActor!;
+    // Damage the actor first so healing is visible.
+    actor.applyDamage(50);
+    const hpBefore = actor.stats.hp;
+    let healEmitted = false;
+    EventBus.getInstance().on('combat:heal', () => { healEmitted = true; });
+    system.executeAction(actor, { type: 'item', itemId: 'potion', target: actor });
+    expect(actor.stats.hp).toBeGreaterThan(hpBefore);
+    expect(healEmitted).toBe(true);
+  });
+
+  it('applies sentinel status when the sentinel skill is used', () => {
+    system.nextTurn();
+    const actor = system.currentActor!;
+    system.executeAction(actor, { type: 'skill', skillId: 'sentinel', target: actor });
+    expect(actor.hasStatus('sentinel')).toBe(true);
+  });
 });
 
 describe('StatusEffectSystem', () => {

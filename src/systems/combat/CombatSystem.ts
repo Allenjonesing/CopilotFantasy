@@ -122,6 +122,9 @@ export class CombatSystem {
     } else if (skill.type === 'status_remove') {
       target.statusEffects.forEach((eff) => this.statusSystem.remove(target, eff));
       this.addLog(`${actor.name} cures ${target.name}'s status effects.`);
+    } else if (skill.type === 'stance') {
+      actor.addStatus(skill.id);
+      this.addLog(`${actor.name} uses ${skill.name}.`);
     }
   }
 
@@ -139,10 +142,12 @@ export class CombatSystem {
     if (typeof effect['hp'] === 'number') {
       t.restoreHp(effect['hp']);
       this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['hp']} HP.`);
+      this.bus.emit('combat:heal', t, effect['hp']);
     }
     if (typeof effect['mp'] === 'number') {
       t.stats.mp = Math.min(t.stats.maxMp, t.stats.mp + (effect['mp'] as number));
       this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['mp']} MP.`);
+      this.bus.emit('combat:heal', t, effect['mp']);
     }
     this.bus.emit('combat:itemUsed', actor, item.id);
   }
