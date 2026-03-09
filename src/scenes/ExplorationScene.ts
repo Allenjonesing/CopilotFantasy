@@ -13,6 +13,9 @@ export class ExplorationScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private moveTimer = 0;
   private readonly MOVE_DELAY = 160;
+  /** Guard flag: true once the floor-exit event has fired so we don't call
+   *  increaseDifficulty() a second time before the scene restart completes. */
+  private exitTriggered = false;
 
   constructor() {
     super({ key: 'ExplorationScene' });
@@ -40,12 +43,18 @@ export class ExplorationScene extends Phaser.Scene {
     this.exploration.init();
     this.cursors = this.input.keyboard!.createCursorKeys();
 
+    this.exitTriggered = false;
+
     this.bus.on('combat:start', (data) => {
       const d = data as { enemies: string[]; difficultyLevel: number };
       this.scene.start('CombatScene', d);
     });
 
     this.bus.on('map:exit', () => {
+      // Guard prevents multiple difficulty increments if the event somehow fires
+      // more than once before the scene restart completes.
+      if (this.exitTriggered) return;
+      this.exitTriggered = true;
       // Advance to next floor.
       GameState.getInstance().increaseDifficulty();
       this.scene.restart();

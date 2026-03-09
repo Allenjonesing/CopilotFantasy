@@ -1,6 +1,7 @@
 import { CombatSystem, CombatAction } from '../systems/combat/CombatSystem';
 import { CombatEntity } from '../systems/combat/CombatEntity';
 import { PlayerCombatant } from '../systems/combat/PlayerCombatant';
+import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
 import skillsData from '../data/skills.json';
@@ -34,6 +35,9 @@ const ATTACK_MOVE_RETURN_MS = 200;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
+/** Union type for entity icons that may be image sprites or rectangle fallbacks. */
+type EntityIcon = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
+
 export class CombatUI {
   private scene: Phaser.Scene;
   private system: CombatSystem;
@@ -54,10 +58,10 @@ export class CombatUI {
   private readonly PLAYER_SPREAD: number;
   private readonly BAR_HALF_W: number; // half of HP bar width (for refresh animation)
   // Enemy sprites
-  private enemyRects: Map<string, Phaser.GameObjects.Rectangle> = new Map();
+  private enemyRects: Map<string, EntityIcon> = new Map();
   private enemyNameTexts: Phaser.GameObjects.Text[] = [];
   // Player icon sprites on the battlefield
-  private playerIconRects: Map<string, Phaser.GameObjects.Rectangle> = new Map();
+  private playerIconRects: Map<string, EntityIcon> = new Map();
   private playerIconNames: Phaser.GameObjects.Text[] = [];
   // Player HP bars (left status panel)
   private playerBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
@@ -152,15 +156,24 @@ export class CombatUI {
     this.system.enemies.forEach((e, idx) => {
       const x = this.ENEMY_BASE_X + idx * Math.floor(this.ENEMY_SPREAD / Math.max(eCount, 1));
       const y = this.ICON_Y;
-      const rect = this.scene.add.rectangle(x, y, ENEMY_W, ENEMY_H, 0xcc4444);
-      rect.setDepth(5);
-      rect.setInteractive({ useHandCursor: true });
-      rect.on('pointerdown', () => this.onEntityTap(e));
+      const enemyCombatant = e as EnemyCombatant;
+      const textureKey = `enemy_${enemyCombatant.enemyId}`;
+      let icon: EntityIcon;
+      if (this.scene.textures.exists(textureKey)) {
+        icon = this.scene.add
+          .image(x, y, textureKey)
+          .setDisplaySize(ENEMY_W, ENEMY_H)
+          .setDepth(5);
+      } else {
+        icon = this.scene.add.rectangle(x, y, ENEMY_W, ENEMY_H, 0xcc4444).setDepth(5);
+      }
+      icon.setInteractive({ useHandCursor: true });
+      icon.on('pointerdown', () => this.onEntityTap(e));
       const nameText = this.scene.add
         .text(x, y + ENEMY_H / 2 + 8, e.name, { fontSize: '12px', color: '#ffffff', fontFamily: 'monospace' })
         .setOrigin(0.5)
         .setDepth(6);
-      this.enemyRects.set(e.id, rect);
+      this.enemyRects.set(e.id, icon);
       this.enemyNameTexts.push(nameText);
     });
 
@@ -169,15 +182,22 @@ export class CombatUI {
     this.system.players.forEach((p, idx) => {
       const x = this.PLAYER_BASE_X + idx * Math.floor(this.PLAYER_SPREAD / Math.max(pCount, 1));
       const y = this.ICON_Y;
-      const rect = this.scene.add.rectangle(x, y, PLAYER_ICON_W, PLAYER_ICON_H, 0x4466cc);
-      rect.setDepth(5);
-      rect.setInteractive({ useHandCursor: true });
-      rect.on('pointerdown', () => this.onEntityTap(p));
+      let icon: EntityIcon;
+      if (this.scene.textures.exists('player')) {
+        icon = this.scene.add
+          .image(x, y, 'player')
+          .setDisplaySize(PLAYER_ICON_W, PLAYER_ICON_H)
+          .setDepth(5);
+      } else {
+        icon = this.scene.add.rectangle(x, y, PLAYER_ICON_W, PLAYER_ICON_H, 0x4466cc).setDepth(5);
+      }
+      icon.setInteractive({ useHandCursor: true });
+      icon.on('pointerdown', () => this.onEntityTap(p));
       const nameText = this.scene.add
         .text(x, y + PLAYER_ICON_H / 2 + 8, p.name, { fontSize: '12px', color: '#aaaaff', fontFamily: 'monospace' })
         .setOrigin(0.5)
         .setDepth(6);
-      this.playerIconRects.set(p.id, rect);
+      this.playerIconRects.set(p.id, icon);
       this.playerIconNames.push(nameText);
     });
 
@@ -499,12 +519,22 @@ export class CombatUI {
       // Dim the player icon if defeated
       const icon = this.playerIconRects.get(entity.id);
       if (icon && icon.active) {
-        icon.setFillStyle(entity.isDefeated ? 0x222244 : 0x4466cc);
+        if (icon instanceof Phaser.GameObjects.Image) {
+          icon.setTint(entity.isDefeated ? 0x222244 : 0xffffff);
+          icon.setAlpha(entity.isDefeated ? 0.45 : 1.0);
+        } else {
+          (icon as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x222244 : 0x4466cc);
+        }
       }
     } else {
       const rect = this.enemyRects.get(entity.id);
       if (rect) {
-        rect.setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
+        if (rect instanceof Phaser.GameObjects.Image) {
+          rect.setTint(entity.isDefeated ? 0x333333 : 0xffffff);
+          rect.setAlpha(entity.isDefeated ? 0.4 : 1.0);
+        } else {
+          (rect as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
+        }
       }
     }
   }
@@ -558,22 +588,41 @@ export class CombatUI {
         if (bars.bar.active) bars.bar.setFillStyle(0x44aa44);
       });
     } else {
-      const rect = this.enemyRects.get(entity.id);
-      if (!rect || !rect.active || entity.isDefeated) return;
-      rect.setFillStyle(0xffffff);
-      this.scene.tweens.add({
-        targets: rect,
-        alpha: { from: 1, to: 0.4 },
-        duration: ENEMY_FLASH_MS,
-        yoyo: true,
-        repeat: ENEMY_FLASH_REPEAT,
-        onComplete: () => {
-          if (rect.active) {
-            rect.setAlpha(1);
-            rect.setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
-          }
-        },
-      });
+      const icon = this.enemyRects.get(entity.id);
+      if (!icon || !icon.active || entity.isDefeated) return;
+      if (icon instanceof Phaser.GameObjects.Image) {
+        // Flash to white tint then restore
+        icon.setTint(0xffffff);
+        this.scene.tweens.add({
+          targets: icon,
+          alpha: { from: 1, to: 0.4 },
+          duration: ENEMY_FLASH_MS,
+          yoyo: true,
+          repeat: ENEMY_FLASH_REPEAT,
+          onComplete: () => {
+            if (icon.active) {
+              icon.setAlpha(1);
+              icon.setTint(entity.isDefeated ? 0x333333 : 0xffffff);
+            }
+          },
+        });
+      } else {
+        const rect = icon as Phaser.GameObjects.Rectangle;
+        rect.setFillStyle(0xffffff);
+        this.scene.tweens.add({
+          targets: rect,
+          alpha: { from: 1, to: 0.4 },
+          duration: ENEMY_FLASH_MS,
+          yoyo: true,
+          repeat: ENEMY_FLASH_REPEAT,
+          onComplete: () => {
+            if (rect.active) {
+              rect.setAlpha(1);
+              rect.setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
+            }
+          },
+        });
+      }
     }
 
     // Floating damage number

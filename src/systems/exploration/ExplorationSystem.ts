@@ -9,6 +9,9 @@ export interface CombatEnemySpec {
   variantScale: number;
 }
 
+/** Union of the two game-object types used for entity sprites. */
+type EntitySprite = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
+
 interface MapEnemy {
   id: string;
   typeId: string;
@@ -18,7 +21,7 @@ interface MapEnemy {
   y: number;
   moveTimer: number;
   state: 'wander' | 'chase';
-  sprite: Phaser.GameObjects.Rectangle;
+  sprite: EntitySprite;
   label: Phaser.GameObjects.Text;
 }
 
@@ -38,7 +41,7 @@ export class ExplorationSystem {
   private scene: Phaser.Scene;
   private mapManager: MapManager;
   private bus: EventBus;
-  private playerSprite!: Phaser.GameObjects.Rectangle;
+  private playerSprite!: EntitySprite;
   private exitMarkers: Phaser.GameObjects.GameObject[] = [];
   private mapEnemies: MapEnemy[] = [];
   private combatActive = false;
@@ -55,29 +58,43 @@ export class ExplorationSystem {
     const mapData = this.mapManager.loadMap(state.data.difficultyLevel);
     const tileSize = mapData.tileSize;
 
-    this.playerSprite = this.scene.add.rectangle(
-      state.data.playerX * tileSize + tileSize / 2,
-      state.data.playerY * tileSize + tileSize / 2,
-      tileSize - 4,
-      tileSize - 4,
-      0xff8844,
-    );
-    this.playerSprite.setDepth(10);
+    const px = state.data.playerX * tileSize + tileSize / 2;
+    const py = state.data.playerY * tileSize + tileSize / 2;
+    if (this.scene.textures.exists('player')) {
+      this.playerSprite = this.scene.add
+        .image(px, py, 'player')
+        .setDisplaySize(tileSize - 4, tileSize - 4)
+        .setDepth(10);
+    } else {
+      this.playerSprite = this.scene.add
+        .rectangle(px, py, tileSize - 4, tileSize - 4, 0xff8844)
+        .setDepth(10);
+    }
 
     // Set up camera to follow the player within map bounds so the game works
     // on portrait screens where the map is wider than the visible area.
     const mapW = mapData.width * tileSize;
     const mapH = mapData.height * tileSize;
     this.scene.cameras.main.setBounds(0, 0, mapW, mapH);
-    this.scene.cameras.main.startFollow(this.playerSprite, true);
+    this.scene.cameras.main.startFollow(this.playerSprite as Phaser.GameObjects.Image, true);
 
-    // Exit marker
+    // Exit marker — use the dedicated exit tile texture when available.
     mapData.exits.forEach((exit) => {
       const ex = exit.x * tileSize + tileSize / 2;
       const ey = exit.y * tileSize + tileSize / 2;
-      const marker = this.scene.add.rectangle(ex, ey, tileSize - 4, tileSize - 4, 0xffdd00);
-      marker.setDepth(8);
-      marker.setAlpha(0.75);
+      let marker: EntitySprite;
+      if (this.scene.textures.exists('tile_exit')) {
+        marker = this.scene.add
+          .image(ex, ey, 'tile_exit')
+          .setDisplaySize(tileSize - 4, tileSize - 4)
+          .setDepth(8)
+          .setAlpha(0.9);
+      } else {
+        marker = this.scene.add
+          .rectangle(ex, ey, tileSize - 4, tileSize - 4, 0xffdd00)
+          .setDepth(8)
+          .setAlpha(0.75);
+      }
       const label = this.scene.add
         .text(ex, ey - tileSize, '⬆ EXIT', {
           fontSize: '9px',
@@ -146,23 +163,36 @@ export class ExplorationSystem {
 
     // Render each enemy.
     for (const eData of enemiesToSpawn) {
-      const color = this.enemyColor(eData.typeId);
-      const sprite = this.scene.add
-        .rectangle(
-          eData.x * tileSize + tileSize / 2,
-          eData.y * tileSize + tileSize / 2,
-          tileSize - 6,
-          tileSize - 6,
-          color,
-        )
-        .setDepth(10);
+      const ex = eData.x * tileSize + tileSize / 2;
+      const ey = eData.y * tileSize + tileSize / 2;
+      const textureKey = `enemy_${eData.typeId}`;
+      let sprite: EntitySprite;
 
-      // Variant visual cues: weak = faded, buff = brighter
+      if (this.scene.textures.exists(textureKey)) {
+        sprite = this.scene.add
+          .image(ex, ey, textureKey)
+          .setDisplaySize(tileSize - 6, tileSize - 6)
+          .setDepth(10);
+      } else {
+        const color = this.enemyColor(eData.typeId);
+        sprite = this.scene.add
+          .rectangle(ex, ey, tileSize - 6, tileSize - 6, color)
+          .setDepth(10);
+      }
+
+      // Variant visual cues: weak = faded, buff = brighter tint
       if (eData.variantScale < 0.82) {
         sprite.setAlpha(0.65);
       } else if (eData.variantScale > 1.18) {
         sprite.setAlpha(1.0);
-        sprite.setFillStyle(Phaser.Display.Color.ValueToColor(color).brighten(20).color);
+        if (sprite instanceof Phaser.GameObjects.Image) {
+          sprite.setTint(0xffccaa); // warm tint for buff variant
+        } else {
+          const color = this.enemyColor(eData.typeId);
+          (sprite as Phaser.GameObjects.Rectangle).setFillStyle(
+            Phaser.Display.Color.ValueToColor(color).brighten(20).color,
+          );
+        }
       }
 
       // Label: show variant indicator so the player has a heads-up.
@@ -263,6 +293,15 @@ export class ExplorationSystem {
         const tileSize = this.mapManager.getCurrentMap()!.tileSize;
         enemy.sprite.setPosition(nx * tileSize + tileSize / 2, ny * tileSize + tileSize / 2);
         enemy.label.setPosition(nx * tileSize + tileSize / 2, ny * tileSize);
+
+        // Keep the persistent enemy record in sync so that if the player
+        // flees from a later combat, enemies re-spawn at their last seen
+        // positions rather than their original spawn positions.
+        const persEnemy = state.data.pendingMapEnemies?.find((e) => e.id === enemy.id);
+        if (persEnemy) {
+          persEnemy.x = nx;
+          persEnemy.y = ny;
+        }
 
         if (nx === px && ny === py) {
           this.triggerCombat(enemy);
