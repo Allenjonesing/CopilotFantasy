@@ -15,7 +15,7 @@
         "luck": 3
       },
       "skills": ["attack"],
-      "rewards": { "exp": 20, "gil": 8, "items": [] },
+      "rewards": { "exp": 20, "gold": 8, "items": [] },
       "possibleDrops": [{ "id": "potion", "chance": 0.60 }]
     },
     {
@@ -33,7 +33,7 @@
         "luck": 5
       },
       "skills": ["attack", "powerBreak"],
-      "rewards": { "exp": 50, "gil": 20, "items": ["potion"] },
+      "rewards": { "exp": 50, "gold": 20, "items": ["potion"] },
       "possibleDrops": [{ "id": "ether", "chance": 0.50 }]
     },
     {
@@ -51,7 +51,7 @@
         "luck": 4
       },
       "skills": ["attack", "smash"],
-      "rewards": { "exp": 160, "gil": 70, "items": ["ether"] },
+      "rewards": { "exp": 160, "gold": 70, "items": ["ether"] },
       "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }]
     },
     {
@@ -69,7 +69,7 @@
         "luck": 9
       },
       "skills": ["attack", "fire", "drain"],
-      "rewards": { "exp": 75, "gil": 35, "items": [] },
+      "rewards": { "exp": 75, "gold": 35, "items": [] },
       "possibleDrops": [{ "id": "ether", "chance": 0.60 }, { "id": "potion", "chance": 0.50 }]
     }
   ]

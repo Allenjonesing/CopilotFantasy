@@ -105,7 +105,7 @@ export class CombatUI {
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
 
-  constructor(scene: Phaser.Scene, system: CombatSystem) {
+  constructor(scene: Phaser.Scene, system: CombatSystem, battleType: import('../systems/combat/CombatSystem').BattleType = 'normal') {
     this.scene = scene;
     this.system = system;
     this.bus = EventBus.getInstance();
@@ -114,32 +114,42 @@ export class CombatUI {
     // combat UI fills the available space on any screen (including portrait).
     this.W = scene.scale.width;
     this.H = scene.scale.height;
-    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.42);  // battlefield ends at 42% of screen height (~252 at H=600)
+    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.42);
     this.LOG_STRIP_Y = this.BATTLEFIELD_BOTTOM + 4;
     this.BOTTOM_Y = this.LOG_STRIP_Y + LOG_STRIP_H + 4;
-    this.LEFT_PANEL_W = Math.round(this.W * 0.31);        // left HP/nav panel = 31% of screen width (~248 at W=800)
+    this.LEFT_PANEL_W = Math.round(this.W * 0.31);
     this.MENU_X = this.LEFT_PANEL_W + 8;
     this.MENU_W = this.W - this.MENU_X - 8;
-    this.ICON_Y = Math.round(this.H * 0.292);             // battlefield icon Y centre = 29% of screen height (~175 at H=600)
-    this.ENEMY_BASE_X = Math.round(this.W * 0.494);       // enemy icon start X = ~49% of screen width (~395 at W=800)
-    this.PLAYER_BASE_X = Math.round(this.W * 0.094);      // player icon start X = ~9% of screen width (~75 at W=800)
-    // Ensure icons never overlap: minimum step = icon width + 6px gap
+    this.ICON_Y = Math.round(this.H * 0.292);
+
+    // Layout: LEFT half (0–50%) for players, RIGHT half (50–100%) for enemies.
+    // Players are spread evenly across the left half with good spacing.
+    // Enemies start at ~55% of screen width and spread toward the right edge.
     const pCount = system.players.length;
     const eCount = system.enemies.length;
-    this.ENEMY_SPREAD = Math.max(
-      Math.round(this.W * 0.4375),
-      (ENEMY_W + 6) * Math.max(eCount, 1),
-    );
-    this.PLAYER_SPREAD = Math.max(
-      Math.round(this.W * 0.30),
-      (PLAYER_ICON_W + 6) * Math.max(pCount, 1),
-    );
+
+    // Player icons: spread across 10%–48% of screen width.
+    const playerAreaW = Math.round(this.W * 0.38);
+    this.PLAYER_SPREAD = Math.max(playerAreaW, (PLAYER_ICON_W + 14) * Math.max(pCount, 1));
+    this.PLAYER_BASE_X = Math.round(this.W * 0.10);
+
+    // Enemy icons: spread across 55%–95% of screen width.
+    const enemyAreaW = Math.round(this.W * 0.38);
+    this.ENEMY_SPREAD = Math.max(enemyAreaW, (ENEMY_W + 14) * Math.max(eCount, 1));
+    this.ENEMY_BASE_X = Math.round(this.W * 0.57);
 
     const barW = Math.max(58, Math.round(this.LEFT_PANEL_W * 0.48));
     this.BAR_HALF_W = Math.round(barW / 2);
 
     this.buildUI();
     this.registerEvents();
+
+    // Show battle-start announcement if preemptive or ambush.
+    if (battleType === 'preemptive') {
+      this.showBattleAnnouncement('⚡ PREEMPTIVE STRIKE!', '#ffff00');
+    } else if (battleType === 'ambush') {
+      this.showBattleAnnouncement('💀 AMBUSH!', '#ff4444');
+    }
   }
 
   private buildUI(): void {
@@ -802,6 +812,36 @@ export class CombatUI {
       this.menuState = 'main';
       this.buildMainMenu();
     }
+  }
+
+  /** Show a brief full-screen announcement for preemptive/ambush battles. */
+  private showBattleAnnouncement(text: string, color: string): void {
+    const banner = this.scene.add.text(this.W / 2, this.H * 0.3, text, {
+      fontSize: '36px',
+      color,
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+
+    this.scene.tweens.add({
+      targets: banner,
+      alpha: { from: 0, to: 1 },
+      y: { from: this.H * 0.3, to: this.H * 0.25 },
+      duration: 300,
+      ease: 'Back.Out',
+      yoyo: false,
+      onComplete: () => {
+        this.scene.time.delayedCall(900, () => {
+          this.scene.tweens.add({
+            targets: banner,
+            alpha: 0,
+            duration: 400,
+            onComplete: () => banner.destroy(),
+          });
+        });
+      },
+    });
   }
 
   get isMenuVisible(): boolean {

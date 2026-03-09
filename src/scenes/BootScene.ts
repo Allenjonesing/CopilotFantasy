@@ -32,6 +32,9 @@ function generateTextures(scene: Phaser.Scene): void {
   makeGoblinSprite(scene);
   makeShadowWispSprite(scene);
   makeIronGolemSprite(scene);
+  makeCoinSprite(scene);
+  makeChestSprite(scene);
+  makeShopkeeperSprite(scene);
 }
 
 /** 32×32 floor tile — dark stone with subtle crosshatch. */
@@ -296,5 +299,88 @@ function makeIronGolemSprite(scene: Phaser.Scene): void {
   g.fillRect(4, 26, 9, 2);
   g.fillRect(15, 26, 9, 2);
   g.generateTexture('enemy_ironGolem', 28, 28);
+  g.destroy();
+}
+
+/** 24×24 coin — golden disc with shine. */
+function makeCoinSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Outer gold ring
+  g.fillStyle(0xddaa00);
+  g.fillCircle(12, 12, 11);
+  // Inner gold face
+  g.fillStyle(0xffcc00);
+  g.fillCircle(12, 12, 9);
+  // Shine highlight
+  g.fillStyle(0xffee88);
+  g.fillCircle(9, 9, 3);
+  // Edge detail
+  g.lineStyle(1, 0xcc9900, 0.8);
+  g.strokeCircle(12, 12, 10);
+  g.generateTexture('coin', 24, 24);
+  g.destroy();
+}
+
+/** 28×28 chest — wooden chest with metal trim and latch. */
+function makeChestSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Chest body (lower)
+  g.fillStyle(0x8b5e1a);
+  g.fillRect(2, 14, 24, 12);
+  // Chest lid (upper)
+  g.fillStyle(0xaa7722);
+  g.fillRect(2, 6, 24, 10);
+  // Metal band
+  g.fillStyle(0xd4aa40);
+  g.fillRect(2, 13, 24, 3);
+  // Metal trim on lid
+  g.fillStyle(0xd4aa40);
+  g.fillRect(2, 6, 24, 2);
+  g.fillRect(2, 14, 24, 2);
+  // Latch
+  g.fillStyle(0xe0c050);
+  g.fillRect(11, 11, 6, 6);
+  g.fillStyle(0xffd700);
+  g.fillRect(13, 13, 2, 2);
+  // Outline
+  g.lineStyle(1, 0x5a3a0a, 0.9);
+  g.strokeRect(2, 6, 24, 20);
+  g.generateTexture('chest', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 shopkeeper — friendly merchant NPC. */
+function makeShopkeeperSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Robe/body (blue merchant robe)
+  g.fillStyle(0x2244aa);
+  g.fillRect(6, 14, 16, 14);
+  // Head
+  g.fillStyle(0xf5c89a);
+  g.fillCircle(14, 10, 7);
+  // Hat (merchant cap)
+  g.fillStyle(0x1133bb);
+  g.fillRect(7, 3, 14, 5);
+  g.fillRect(5, 6, 18, 3);
+  // Hat brim shine
+  g.fillStyle(0xffdd00);
+  g.fillRect(5, 6, 18, 1);
+  // Eyes
+  g.fillStyle(0x222222);
+  g.fillRect(11, 9, 2, 2);
+  g.fillRect(15, 9, 2, 2);
+  // Smile
+  g.lineStyle(1, 0x553311);
+  g.strokeRect(12, 12, 4, 1);
+  // Satchel/bag
+  g.fillStyle(0xcc8822);
+  g.fillRect(18, 16, 6, 8);
+  g.fillStyle(0xddaa33);
+  g.fillRect(19, 17, 4, 6);
+  // Arms
+  g.fillStyle(0x2244aa);
+  g.fillRect(2, 16, 4, 10);
+  g.fillRect(22, 16, 4, 10);
+  g.generateTexture('shopkeeper', 28, 28);
   g.destroy();
 }

@@ -48,7 +48,7 @@ const DIALOGUES: Record<string, DialogueNode[]> = {
       id: 'start',
       lines: [
         { speaker: 'Merchant', text: 'Welcome! I have fine wares for sale.' },
-        { speaker: 'Merchant', text: 'Come back when you have more gil!' },
+        { speaker: 'Merchant', text: 'Come back when you have more gold!' },
       ],
     },
   ],

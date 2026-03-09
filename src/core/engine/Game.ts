@@ -5,6 +5,7 @@ import { ExplorationScene } from '../../scenes/ExplorationScene';
 import { CombatScene } from '../../scenes/CombatScene';
 import { VictoryScene } from '../../scenes/VictoryScene';
 import { GameOverScene } from '../../scenes/GameOverScene';
+import { ShopScene } from '../../scenes/ShopScene';
 
 export function createGame(): Phaser.Game {
   const config: Phaser.Types.Core.GameConfig = {
@@ -15,7 +16,7 @@ export function createGame(): Phaser.Game {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, MainMenuScene, ExplorationScene, CombatScene, VictoryScene, GameOverScene],
+    scene: [BootScene, MainMenuScene, ExplorationScene, CombatScene, VictoryScene, GameOverScene, ShopScene],
     audio: { disableWebAudio: false },
   };
   return new Phaser.Game(config);

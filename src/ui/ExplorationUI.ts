@@ -7,9 +7,12 @@ export class ExplorationUI {
   private headerBg!: Phaser.GameObjects.Rectangle;
   private floorText!: Phaser.GameObjects.Text;
   private scoreText!: Phaser.GameObjects.Text;
+  private goldText!: Phaser.GameObjects.Text;
   private partyStatusBg!: Phaser.GameObjects.Rectangle;
   private partyTexts: Phaser.GameObjects.Text[] = [];
   private onMapLoaded!: (mapData: unknown) => void;
+  private pickupMsg: Phaser.GameObjects.Text | null = null;
+  private pickupTimer = 0;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -38,6 +41,14 @@ export class ExplorationUI {
       fontFamily: 'monospace',
     });
     this.scoreText.setOrigin(1, 0).setDepth(51).setScrollFactor(0);
+
+    // Gold display (center of header)
+    this.goldText = this.scene.add.text(W / 2, 4, '', {
+      fontSize: '13px',
+      color: '#ffe066',
+      fontFamily: 'monospace',
+    });
+    this.goldText.setOrigin(0.5, 0).setDepth(51).setScrollFactor(0);
 
     // ── Party status (top-right, stacked rows) ──────────────────────────────
     this.partyStatusBg = this.scene.add.rectangle(W - 102, 62, 196, 66, 0x0a0a1a, 0.80);
@@ -71,10 +82,41 @@ export class ExplorationUI {
     const state = GameState.getInstance();
     this.floorText?.setText(`Floor ${state.data.difficultyLevel}  (Lv.${state.data.level})`);
     this.scoreText?.setText(`Score: ${state.data.score.toLocaleString()}`);
+    this.goldText?.setText(`💰 ${state.data.gold} Gold`);
     state.data.party.forEach((c, i) => {
       const alive = c.alive ? '' : ' ✕';
       this.partyTexts[i]?.setText(`${c.name}${alive}: ${c.stats.hp}/${c.stats.maxHp} HP`);
     });
+  }
+
+  /** Show a brief pickup notification message on screen. */
+  showPickupMessage(msg: string): void {
+    const W = this.scene.scale.width;
+    const H = this.scene.scale.height;
+    if (this.pickupMsg?.active) {
+      this.pickupMsg.destroy();
+    }
+    this.pickupMsg = this.scene.add.text(W / 2, H / 2 - 60, msg, {
+      fontSize: '18px',
+      color: '#ffe066',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    });
+    this.pickupMsg.setOrigin(0.5, 0.5).setDepth(80).setScrollFactor(0);
+    this.pickupTimer = 2200;
+  }
+
+  /** Call from scene update() to animate the pickup message fade-out. */
+  updatePickupMsg(delta: number): void {
+    if (!this.pickupMsg || !this.pickupMsg.active) return;
+    this.pickupTimer -= delta;
+    if (this.pickupTimer <= 0) {
+      this.pickupMsg.destroy();
+      this.pickupMsg = null;
+    } else if (this.pickupTimer < 600) {
+      this.pickupMsg.setAlpha(this.pickupTimer / 600);
+    }
   }
 
   destroy(): void {
@@ -82,7 +124,9 @@ export class ExplorationUI {
     this.headerBg.destroy();
     this.floorText.destroy();
     this.scoreText.destroy();
+    this.goldText.destroy();
     this.partyStatusBg.destroy();
     this.partyTexts.forEach((t) => t.destroy());
+    this.pickupMsg?.destroy();
   }
 }
