@@ -49,6 +49,15 @@ export interface GameStateData {
   preCombatY: number | null;
   /** Enemies still alive on the current floor; null means "generate fresh". */
   pendingMapEnemies: PersistentMapEnemy[] | null;
+  /** Pickups still uncollected on the current floor; null means "generate fresh". */
+  pendingPickups: PersistentPickup[] | null;
+  /**
+   * Shopkeeper position on the current floor.
+   * null  = not yet determined (fresh floor).
+   * false = rolled and no shopkeeper this floor.
+   * {x,y} = shopkeeper is at this tile.
+   */
+  pendingShopkeeper: { x: number; y: number } | false | null;
 }
 
 export interface SkillGain {
@@ -67,6 +76,15 @@ export interface PersistentMapEnemy {
   typeId: string;
   displayName: string;
   variantScale: number;
+  x: number;
+  y: number;
+}
+
+export interface PersistentPickup {
+  id: string;
+  kind: 'coin' | 'chest';
+  gold: number;
+  itemId?: string;
   x: number;
   y: number;
 }
@@ -125,6 +143,8 @@ export class GameState {
       preCombatX: null,
       preCombatY: null,
       pendingMapEnemies: null,
+      pendingPickups: null,
+      pendingShopkeeper: null,
     };
   }
 
@@ -187,6 +207,8 @@ export class GameState {
     // New floor → generate a fresh map seed and clear per-floor state.
     this.state.mapSeed = Date.now() ^ (this.state.difficultyLevel * 0x9e3779b9);
     this.state.pendingMapEnemies = null;
+    this.state.pendingPickups = null;
+    this.state.pendingShopkeeper = null;
     this.state.preCombatX = null;
     this.state.preCombatY = null;
   }

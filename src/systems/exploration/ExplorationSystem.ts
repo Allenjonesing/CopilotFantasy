@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { MapManager } from './MapManager';
 import { EventBus } from '../../core/events/EventBus';
-import { GameState, PersistentMapEnemy } from '../../core/state/GameState';
+import { GameState, PersistentMapEnemy, PersistentPickup } from '../../core/state/GameState';
 import { BattleType } from '../combat/CombatSystem';
 
 export interface CombatEnemySpec {
@@ -252,39 +252,55 @@ export class ExplorationSystem {
     const mapData = this.mapManager.getCurrentMap()!;
     const tileSize = mapData.tileSize;
 
-    // 3-6 pickups per floor, scaling slightly with difficulty.
-    const count = 3 + Math.floor(Math.random() * 3) + Math.min(Math.floor(difficulty / 3), 2);
-    const occupied = new Set<string>();
-    this.mapEnemies.forEach((e) => occupied.add(`${e.x},${e.y}`));
-    occupied.add(`${state.data.playerX},${state.data.playerY}`);
+    let pickupsToSpawn: PersistentPickup[];
 
-    for (let i = 0; i < count; i++) {
-      let tx = 0, ty = 0, placed = false;
-      for (let attempt = 0; attempt < 150; attempt++) {
-        tx = 1 + Math.floor(Math.random() * (mapData.width - 2));
-        ty = 1 + Math.floor(Math.random() * (mapData.height - 2));
-        const tile = this.mapManager.getTile(tx, ty);
-        if (!tile?.passable) continue;
-        if (occupied.has(`${tx},${ty}`)) continue;
-        placed = true;
-        break;
+    if (state.data.pendingPickups !== null) {
+      // Returning from a mid-floor combat/shop — restore the saved pickups.
+      pickupsToSpawn = state.data.pendingPickups;
+    } else {
+      // Fresh floor – generate new pickups.
+      // 3-6 pickups per floor, scaling slightly with difficulty.
+      const count = 3 + Math.floor(Math.random() * 3) + Math.min(Math.floor(difficulty / 3), 2);
+      const occupied = new Set<string>();
+      this.mapEnemies.forEach((e) => occupied.add(`${e.x},${e.y}`));
+      occupied.add(`${state.data.playerX},${state.data.playerY}`);
+
+      const generated: PersistentPickup[] = [];
+      for (let i = 0; i < count; i++) {
+        let tx = 0, ty = 0, placed = false;
+        for (let attempt = 0; attempt < 150; attempt++) {
+          tx = 1 + Math.floor(Math.random() * (mapData.width - 2));
+          ty = 1 + Math.floor(Math.random() * (mapData.height - 2));
+          const tile = this.mapManager.getTile(tx, ty);
+          if (!tile?.passable) continue;
+          if (occupied.has(`${tx},${ty}`)) continue;
+          placed = true;
+          break;
+        }
+        if (!placed) continue;
+        occupied.add(`${tx},${ty}`);
+
+        // 70% coin (gold), 30% chest (item or bigger gold)
+        const isChest = Math.random() < 0.30;
+        const kind: 'coin' | 'chest' = isChest ? 'chest' : 'coin';
+        const gold = isChest
+          ? (5 + Math.floor(Math.random() * 20)) * difficulty
+          : (2 + Math.floor(Math.random() * 8)) * difficulty;
+        // Chests sometimes contain an item too.
+        const itemPool = ['potion', 'ether', 'antidote'];
+        const itemId = isChest && Math.random() < 0.5 ? itemPool[Math.floor(Math.random() * itemPool.length)] : undefined;
+
+        generated.push({ id: `pickup_${i}`, kind, gold, itemId, x: tx, y: ty });
       }
-      if (!placed) continue;
-      occupied.add(`${tx},${ty}`);
 
-      // 70% coin (gold), 30% chest (item or bigger gold)
-      const isChest = Math.random() < 0.30;
-      const kind: 'coin' | 'chest' = isChest ? 'chest' : 'coin';
-      const gold = isChest
-        ? (5 + Math.floor(Math.random() * 20)) * difficulty
-        : (2 + Math.floor(Math.random() * 8)) * difficulty;
-      // Chests sometimes contain an item too.
-      const itemPool = ['potion', 'ether', 'antidote'];
-      const itemId = isChest && Math.random() < 0.5 ? itemPool[Math.floor(Math.random() * itemPool.length)] : undefined;
+      state.data.pendingPickups = generated;
+      pickupsToSpawn = generated;
+    }
 
-      const sx = tx * tileSize + tileSize / 2;
-      const sy = ty * tileSize + tileSize / 2;
-      const textureKey = kind === 'chest' ? 'chest' : 'coin';
+    for (const pData of pickupsToSpawn) {
+      const sx = pData.x * tileSize + tileSize / 2;
+      const sy = pData.y * tileSize + tileSize / 2;
+      const textureKey = pData.kind === 'chest' ? 'chest' : 'coin';
       let sprite: EntitySprite;
       if (this.scene.textures.exists(textureKey)) {
         sprite = this.scene.add
@@ -292,24 +308,36 @@ export class ExplorationSystem {
           .setDisplaySize(tileSize - 10, tileSize - 10)
           .setDepth(7);
       } else {
-        const color = kind === 'chest' ? 0xcc8800 : 0xffdd00;
+        const color = pData.kind === 'chest' ? 0xcc8800 : 0xffdd00;
         sprite = this.scene.add
           .rectangle(sx, sy, tileSize - 12, tileSize - 12, color)
           .setDepth(7);
       }
 
-      this.pickups.push({ id: `pickup_${i}`, kind, gold, itemId, x: tx, y: ty, sprite });
+      this.pickups.push({ ...pData, sprite });
     }
   }
 
   /** Spawn a shopkeeper NPC on floor 2+ with 35% chance. */
   private spawnShopkeeper(): void {
     const state = GameState.getInstance();
-    if (state.data.difficultyLevel < 2) return;
-    if (Math.random() >= 0.35) return;
+
+    // If we've already determined the shopkeeper state for this floor, restore it.
+    if (state.data.pendingShopkeeper !== null) {
+      if (state.data.pendingShopkeeper === false) return; // no shopkeeper this floor
+      // Restore the saved shopkeeper position.
+      const saved = state.data.pendingShopkeeper;
+      this.placeShopkeeperSprite(saved.x, saved.y);
+      return;
+    }
+
+    // Fresh floor roll.
+    if (state.data.difficultyLevel < 2 || Math.random() >= 0.35) {
+      state.data.pendingShopkeeper = false;
+      return;
+    }
 
     const mapData = this.mapManager.getCurrentMap()!;
-    const tileSize = mapData.tileSize;
     const occupied = new Set<string>();
     this.mapEnemies.forEach((e) => occupied.add(`${e.x},${e.y}`));
     this.pickups.forEach((p) => occupied.add(`${p.x},${p.y}`));
@@ -327,8 +355,18 @@ export class ExplorationSystem {
       placed = true;
       break;
     }
-    if (!placed) return;
+    if (!placed) {
+      state.data.pendingShopkeeper = false;
+      return;
+    }
 
+    state.data.pendingShopkeeper = { x: tx, y: ty };
+    this.placeShopkeeperSprite(tx, ty);
+  }
+
+  private placeShopkeeperSprite(tx: number, ty: number): void {
+    const mapData = this.mapManager.getCurrentMap()!;
+    const tileSize = mapData.tileSize;
     const sx = tx * tileSize + tileSize / 2;
     const sy = ty * tileSize + tileSize / 2;
     let sprite: EntitySprite;
@@ -502,6 +540,11 @@ export class ExplorationSystem {
       state.addItem(pickup.itemId);
     }
 
+    // Keep persistent list in sync so this pickup doesn't re-appear after combat.
+    if (state.data.pendingPickups) {
+      state.data.pendingPickups = state.data.pendingPickups.filter((p) => p.id !== pickup.id);
+    }
+
     this.bus.emit('pickup:collected', {
       kind: pickup.kind,
       gold: pickup.gold,
@@ -512,6 +555,10 @@ export class ExplorationSystem {
   private openShop(): void {
     if (this.combatActive) return;
     this.combatActive = true;
+    // Save player position so they return here after shopping (same logic as pre-combat).
+    const state = GameState.getInstance();
+    state.data.preCombatX = state.data.playerX;
+    state.data.preCombatY = state.data.playerY;
     this.bus.emit('shop:open', { inventory: SHOP_INVENTORY });
   }
 

@@ -157,10 +157,8 @@ export class CombatScene extends Phaser.Scene {
         difficultyLevel: state.data.difficultyLevel,
       });
     } else {
-      // Fled: reset player to map start so they end up at the floor entrance.
-      const fleeState = GameState.getInstance();
-      fleeState.data.preCombatX = null;
-      fleeState.data.preCombatY = null;
+      // Fled: preCombatX/Y was set when combat started, so ExplorationScene
+      // will restore the player to their pre-battle position automatically.
       this.scene.start('ExplorationScene');
     }
   }
