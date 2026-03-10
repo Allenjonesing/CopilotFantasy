@@ -6,12 +6,16 @@ interface ShopData {
   inventory: string[];
 }
 
+type ShopMode = 'browse' | 'confirm';
+
 export class ShopScene extends Phaser.Scene {
   private shopData!: ShopData;
   private selectedIndex = 0;
   private items: Array<{ id: string; name: string; buyPrice: number; description: string }> = [];
   private upKey!: Phaser.Input.Keyboard.Key;
   private downKey!: Phaser.Input.Keyboard.Key;
+  private leftKey!: Phaser.Input.Keyboard.Key;
+  private rightKey!: Phaser.Input.Keyboard.Key;
   private confirmKey!: Phaser.Input.Keyboard.Key;
   private backKey!: Phaser.Input.Keyboard.Key;
   private itemTexts: Phaser.GameObjects.Text[] = [];
@@ -19,6 +23,14 @@ export class ShopScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private statusTimer = 0;
   private canInput = true;
+
+  // Confirm dialog state
+  private mode: ShopMode = 'browse';
+  private confirmQty = 1;
+  private confirmPanel!: Phaser.GameObjects.Container;
+  private confirmQtyText!: Phaser.GameObjects.Text;
+  private confirmTotalText!: Phaser.GameObjects.Text;
+  private confirmGoldText!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'ShopScene' });
@@ -29,6 +41,8 @@ export class ShopScene extends Phaser.Scene {
     this.selectedIndex = 0;
     this.statusTimer = 0;
     this.canInput = true;
+    this.mode = 'browse';
+    this.confirmQty = 1;
   }
 
   create(): void {
@@ -87,7 +101,7 @@ export class ShopScene extends Phaser.Scene {
       t.on('pointerdown', () => {
         this.selectedIndex = i;
         this.refreshList();
-        this.buy();
+        this.openConfirmDialog();
       });
       t.on('pointerover', () => {
         this.selectedIndex = i;
@@ -137,7 +151,7 @@ export class ShopScene extends Phaser.Scene {
     // Footer buttons
     const footerY = H - 52;
     this.add.rectangle(W / 2, footerY - 6, W * 0.9, 1, 0x333366, 0.5);
-    this.add.text(W / 2, footerY + 4, 'BUY: OK/Enter   LEAVE: X/Tap here', {
+    this.add.text(W / 2, footerY + 4, 'SELECT: ▲▼/Enter   LEAVE: X', {
       fontSize: '13px',
       color: '#666688',
       fontFamily: 'monospace',
@@ -156,23 +170,212 @@ export class ShopScene extends Phaser.Scene {
     // Keyboard
     this.upKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     this.downKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+    this.leftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
+    this.rightKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
     this.confirmKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.backKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+
+    // Build confirm dialog (hidden by default)
+    this.buildConfirmDialog();
+  }
+
+  private buildConfirmDialog(): void {
+    const { width: W, height: H } = this.scale;
+    const PW = Math.min(W * 0.82, 380);
+    const PH = 230;
+    const PX = W / 2;
+    const PY = H / 2;
+
+    const container = this.add.container(PX, PY);
+
+    // Dark backdrop
+    const bg = this.add.rectangle(0, 0, PW, PH, 0x05051a, 0.97)
+      .setStrokeStyle(2, 0x44aaff, 0.9);
+    container.add(bg);
+
+    // Title
+    const titleTxt = this.add.text(0, -PH / 2 + 18, 'Confirm Purchase', {
+      fontSize: '18px',
+      color: '#44aaff',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5);
+    container.add(titleTxt);
+
+    const divider = this.add.rectangle(0, -PH / 2 + 34, PW * 0.85, 1, 0x44aaff, 0.4);
+    container.add(divider);
+
+    // Item name placeholder
+    const itemNameTxt = this.add.text(0, -PH / 2 + 52, '', {
+      fontSize: '17px',
+      color: '#ffffff',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setName('itemName');
+    container.add(itemNameTxt);
+
+    // Quantity row: [◀] [qty] [▶]
+    const GAP = PW * 0.22;
+    const QY = -PH / 2 + 92;
+    const qtyLabel = this.add.text(-GAP - 14, QY, 'Qty:', {
+      fontSize: '16px',
+      color: '#aaaaaa',
+      fontFamily: 'monospace',
+    }).setOrigin(1, 0.5);
+    container.add(qtyLabel);
+
+    const qtyDecBtn = this.add.text(-GAP + 10, QY, '◀', {
+      fontSize: '20px',
+      color: '#ffcc44',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
+    qtyDecBtn.on('pointerdown', () => this.changeQty(-1));
+    container.add(qtyDecBtn);
+
+    this.confirmQtyText = this.add.text(0, QY, '1', {
+      fontSize: '22px',
+      color: '#ffff00',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5);
+    container.add(this.confirmQtyText);
+
+    const qtyIncBtn = this.add.text(GAP - 10, QY, '▶', {
+      fontSize: '20px',
+      color: '#ffcc44',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
+    qtyIncBtn.on('pointerdown', () => this.changeQty(1));
+    container.add(qtyIncBtn);
+
+    // Total price
+    this.confirmTotalText = this.add.text(0, -PH / 2 + 128, 'Total: 0 G', {
+      fontSize: '17px',
+      color: '#ffcc44',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5);
+    container.add(this.confirmTotalText);
+
+    // Your Gold
+    this.confirmGoldText = this.add.text(0, -PH / 2 + 154, 'Your Gold: 0 G', {
+      fontSize: '14px',
+      color: '#ffe066',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5);
+    container.add(this.confirmGoldText);
+
+    // Buttons
+    const BTN_Y = PH / 2 - 28;
+    const confirmBtn = this.add.text(-PW * 0.22, BTN_Y, '[ CONFIRM ]', {
+      fontSize: '17px',
+      color: '#44ff88',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
+    confirmBtn.on('pointerdown', () => this.confirmBuy());
+    confirmBtn.on('pointerover', () => confirmBtn.setColor('#88ffaa'));
+    confirmBtn.on('pointerout', () => confirmBtn.setColor('#44ff88'));
+    container.add(confirmBtn);
+
+    const cancelBtn = this.add.text(PW * 0.22, BTN_Y, '[ CANCEL ]', {
+      fontSize: '17px',
+      color: '#ff6644',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
+    cancelBtn.on('pointerdown', () => this.closeConfirmDialog());
+    cancelBtn.on('pointerover', () => cancelBtn.setColor('#ff9977'));
+    cancelBtn.on('pointerout', () => cancelBtn.setColor('#ff6644'));
+    container.add(cancelBtn);
+
+    container.setDepth(50).setVisible(false);
+    this.confirmPanel = container;
+  }
+
+  private openConfirmDialog(): void {
+    if (this.items.length === 0) return;
+    const item = this.items[this.selectedIndex];
+    if (!item) return;
+
+    this.mode = 'confirm';
+    this.confirmQty = 1;
+
+    // Update the item name text inside the container
+    const nameText = this.confirmPanel.getByName('itemName') as Phaser.GameObjects.Text;
+    if (nameText) nameText.setText(item.name);
+
+    this.refreshConfirmDialog();
+    this.confirmPanel.setVisible(true);
+  }
+
+  private closeConfirmDialog(): void {
+    this.mode = 'browse';
+    this.confirmPanel.setVisible(false);
+  }
+
+  private changeQty(delta: number): void {
+    if (this.mode !== 'confirm') return;
+    const item = this.items[this.selectedIndex];
+    if (!item) return;
+    const state = GameState.getInstance();
+    const maxAffordable = Math.max(1, Math.floor(state.data.gold / item.buyPrice));
+    this.confirmQty = Math.max(1, Math.min(99, Math.min(maxAffordable, this.confirmQty + delta)));
+    this.refreshConfirmDialog();
+  }
+
+  private refreshConfirmDialog(): void {
+    const item = this.items[this.selectedIndex];
+    if (!item) return;
+    const state = GameState.getInstance();
+    const total = item.buyPrice * this.confirmQty;
+    const canAfford = state.data.gold >= total;
+
+    this.confirmQtyText.setText(String(this.confirmQty));
+    this.confirmTotalText
+      .setText(`Total: ${total} G`)
+      .setColor(canAfford ? '#ffcc44' : '#ff4444');
+    this.confirmGoldText.setText(`Your Gold: ${state.data.gold} G`);
+  }
+
+  private confirmBuy(): void {
+    if (this.mode !== 'confirm') return;
+    const item = this.items[this.selectedIndex];
+    if (!item) return;
+    const state = GameState.getInstance();
+    const total = item.buyPrice * this.confirmQty;
+    if (state.data.gold < total) {
+      this.setStatus(`Not enough Gold! (Need ${total} G)`, '#ff6666');
+      this.refreshConfirmDialog();
+      return;
+    }
+    state.removeGold(total);
+    state.addItem(item.id, this.confirmQty);
+    const qtyStr = this.confirmQty > 1 ? ` x${this.confirmQty}` : '';
+    this.setStatus(`Bought ${item.name}${qtyStr}!`, '#88ff88');
+    this.closeConfirmDialog();
+    this.refreshGold();
   }
 
   update(_time: number, delta: number): void {
     if (!this.canInput) return;
 
-    if (Phaser.Input.Keyboard.JustDown(this.upKey)) {
-      this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-      this.refreshList();
-    } else if (Phaser.Input.Keyboard.JustDown(this.downKey)) {
-      this.selectedIndex = Math.min(this.items.length - 1, this.selectedIndex + 1);
-      this.refreshList();
-    } else if (Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
-      this.buy();
-    } else if (Phaser.Input.Keyboard.JustDown(this.backKey)) {
-      this.leave();
+    if (this.mode === 'confirm') {
+      if (Phaser.Input.Keyboard.JustDown(this.leftKey) || Phaser.Input.Keyboard.JustDown(this.downKey)) {
+        this.changeQty(-1);
+      } else if (Phaser.Input.Keyboard.JustDown(this.rightKey) || Phaser.Input.Keyboard.JustDown(this.upKey)) {
+        this.changeQty(1);
+      } else if (Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
+        this.confirmBuy();
+      } else if (Phaser.Input.Keyboard.JustDown(this.backKey)) {
+        this.closeConfirmDialog();
+      }
+    } else {
+      if (Phaser.Input.Keyboard.JustDown(this.upKey)) {
+        this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+        this.refreshList();
+      } else if (Phaser.Input.Keyboard.JustDown(this.downKey)) {
+        this.selectedIndex = Math.min(this.items.length - 1, this.selectedIndex + 1);
+        this.refreshList();
+      } else if (Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
+        this.openConfirmDialog();
+      } else if (Phaser.Input.Keyboard.JustDown(this.backKey)) {
+        this.leave();
+      }
     }
 
     if (this.statusTimer > 0) {
@@ -181,21 +384,6 @@ export class ShopScene extends Phaser.Scene {
         this.statusText.setText('');
       }
     }
-  }
-
-  private buy(): void {
-    if (this.items.length === 0) return;
-    const item = this.items[this.selectedIndex];
-    if (!item) return;
-    const state = GameState.getInstance();
-    if (state.data.gold < item.buyPrice) {
-      this.setStatus(`Not enough Gold! (Need ${item.buyPrice} G)`, '#ff6666');
-      return;
-    }
-    state.removeGold(item.buyPrice);
-    state.addItem(item.id);
-    this.setStatus(`Bought ${item.name}!`, '#88ff88');
-    this.refreshGold();
   }
 
   private refreshList(): void {
