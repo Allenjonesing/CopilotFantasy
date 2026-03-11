@@ -62,9 +62,11 @@ export class CombatScene extends Phaser.Scene {
       if (!this.waitingForInput) return;
       const action = this.ui.confirmAction();
       if (action && this.system.currentActor) {
-        this.waitingForInput = false;
-        this.system.executeAction(this.system.currentActor, action);
-        this.time.delayedCall(400, () => this.advanceTurn());
+        const consumed = this.system.executeAction(this.system.currentActor, action);
+        if (consumed) {
+          this.waitingForInput = false;
+          this.time.delayedCall(400, () => this.advanceTurn());
+        }
       }
     };
 
@@ -111,9 +113,11 @@ export class CombatScene extends Phaser.Scene {
     } else if (Phaser.Input.Keyboard.JustDown(this.confirmKey)) {
       const action = this.ui.confirmAction();
       if (action && this.system.currentActor) {
-        this.waitingForInput = false;
-        this.system.executeAction(this.system.currentActor, action);
-        this.time.delayedCall(400, () => this.advanceTurn());
+        const consumed = this.system.executeAction(this.system.currentActor, action);
+        if (consumed) {
+          this.waitingForInput = false;
+          this.time.delayedCall(400, () => this.advanceTurn());
+        }
       }
     }
   }

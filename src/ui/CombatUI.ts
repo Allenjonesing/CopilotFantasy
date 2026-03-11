@@ -65,7 +65,11 @@ export class CombatUI {
   private playerIconNames: Phaser.GameObjects.Text[] = [];
   // Player HP bars (left status panel)
   private playerBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
+  // Player MP bars (left status panel)
+  private playerMpBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
   private playerNameTexts: Phaser.GameObjects.Text[] = [];
+  // Active turn indicator (battlefield highlight)
+  private activeTurnIndicator!: Phaser.GameObjects.Rectangle;
   // Action menu
   private menuContainer!: Phaser.GameObjects.Container;
   private menuBg!: Phaser.GameObjects.Rectangle;
@@ -101,6 +105,7 @@ export class CombatUI {
   private onCombatHeal!: (entity: unknown) => void;
   private onCombatTurnStart!: (actor: unknown) => void;
   private onCombatAttackStart!: (actor: unknown, target: unknown) => void;
+  private onCombatMpChange!: (entity: unknown) => void;
 
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
@@ -235,27 +240,46 @@ export class CombatUI {
     // ── Bottom panel background ───────────────────────────────────────────────
     this.scene.add.rectangle(this.W / 2, (this.BOTTOM_Y + this.H - 22) / 2, this.W, this.H - 22 - this.BOTTOM_Y, 0x0d0d1f, 0.95).setDepth(18);
 
-    // ── Left panel: player HP bars ────────────────────────────────────────────
+    // ── Left panel: player HP + MP bars ──────────────────────────────────────
+    const PER_PLAYER_PANEL_H = 50;
     const barW = this.BAR_HALF_W * 2;
     const barTextX = Math.round(this.LEFT_PANEL_W * 0.58);
     this.system.players.forEach((p, idx) => {
       const x = 8;
-      const y = this.BOTTOM_Y + 10 + idx * 38;
+      const y = this.BOTTOM_Y + 8 + idx * PER_PLAYER_PANEL_H;
       const nameText = this.scene.add
         .text(x, y, p.name, { fontSize: '12px', color: '#aaaaff', fontFamily: 'monospace' })
         .setDepth(21);
       this.playerNameTexts.push(nameText);
-      const bg = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 6, barW, 11, 0x333333).setDepth(21);
-      const bar = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 6, barW, 11, 0x44aa44).setDepth(22);
-      const text = this.scene.add
-        .text(x + barTextX, y, `${p.stats.hp}/${p.stats.maxHp}`, {
+      // HP bar
+      const hpBg = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 14, barW, 10, 0x333333).setDepth(21);
+      const hpBar = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 14, barW, 10, 0x44aa44).setDepth(22);
+      const hpText = this.scene.add
+        .text(x + barTextX, y + 8, `${p.stats.hp}/${p.stats.maxHp}`, {
           fontSize: '10px',
           color: '#ffffff',
           fontFamily: 'monospace',
         })
         .setDepth(22);
-      this.playerBars.set(p.id, { bg, bar, text });
+      this.playerBars.set(p.id, { bg: hpBg, bar: hpBar, text: hpText });
+      // MP bar
+      const mpBg = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 27, barW, 10, 0x222244).setDepth(21);
+      const mpBar = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 27, barW, 10, 0x4466cc).setDepth(22);
+      const mpText = this.scene.add
+        .text(x + barTextX, y + 21, `${p.stats.mp}/${p.stats.maxMp}`, {
+          fontSize: '10px',
+          color: '#aaaaff',
+          fontFamily: 'monospace',
+        })
+        .setDepth(22);
+      this.playerMpBars.set(p.id, { bg: mpBg, bar: mpBar, text: mpText });
     });
+
+    // ── Active turn indicator (battlefield highlight ring) ────────────────────
+    this.activeTurnIndicator = this.scene.add.rectangle(0, 0, PLAYER_ICON_W + 12, PLAYER_ICON_H + 12, 0x000000, 0);
+    this.activeTurnIndicator.setStrokeStyle(3, 0xffff00);
+    this.activeTurnIndicator.setDepth(4);
+    this.activeTurnIndicator.setVisible(false);
 
     // ── Combat nav buttons (left panel, touch-friendly) ───────────────────────
     this.buildNavButtons();
@@ -296,7 +320,7 @@ export class CombatUI {
     const GUTTER = 6;
     const COL1 = Math.round(this.LEFT_PANEL_W * 0.26);
     const COL2 = Math.round(this.LEFT_PANEL_W * 0.74);
-    const ROW1 = this.BOTTOM_Y + this.system.players.length * 38 + 22;
+    const ROW1 = this.BOTTOM_Y + this.system.players.length * 50 + 14;
     const ROW2 = ROW1 + BH + GUTTER;
 
     const makeBtn = (
@@ -310,11 +334,13 @@ export class CombatUI {
       const bg = this.scene.add.rectangle(x, y, BW, BH, color, 0.90);
       bg.setStrokeStyle(3, stroke);
       bg.setDepth(32);
+      bg.setVisible(false);
       bg.setInteractive({ useHandCursor: true });
       const txt = this.scene.add
         .text(x, y, label, { fontSize: '18px', color: '#ffffff', fontFamily: 'monospace' })
         .setOrigin(0.5)
-        .setDepth(33);
+        .setDepth(33)
+        .setVisible(false);
       bg.on('pointerdown', (_pointer: unknown, _lx: unknown, _ly: unknown, event: { stopPropagation: () => void }) => {
         event.stopPropagation();
         onTap();
@@ -403,6 +429,11 @@ export class CombatUI {
       const def = skillsData.skills.find((s) => s.id === id);
       return def ? `${def.name} MP:${def.mpCost}` : id;
     });
+    const disabled = skillIds.map((id) => {
+      const def = skillsData.skills.find((s) => s.id === id);
+      if (!def || !actor) return false;
+      return actor.stats.mp < def.mpCost;
+    });
     const tooltips = skillIds.map((id) => {
       const def = skillsData.skills.find((s) => s.id === id);
       return def?.description ?? '';
@@ -410,7 +441,7 @@ export class CombatUI {
     if (this.helpText.active) {
       this.helpText.setText(HELP_TEXT_SKILL);
     }
-    this.buildMenuItems(items, [], tooltips);
+    this.buildMenuItems(items, disabled, tooltips);
   }
 
   private buildItemMenu(): void {
@@ -497,6 +528,7 @@ export class CombatUI {
       this.playDamageAnimation(entity as CombatEntity, dmg as number);
     };
     this.onCombatHeal = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
+    this.onCombatMpChange = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
     this.onCombatTurnStart = (actor) => {
       if (!this.menuContainer.active) return;
       this.currentActor = actor as CombatEntity;
@@ -504,6 +536,16 @@ export class CombatUI {
       const isPlayer = actor instanceof PlayerCombatant;
       if (isPlayer) this.resetToMain();
       this.menuContainer.setVisible(isPlayer);
+      this.setNavVisible(isPlayer);
+      // Update active turn indicator on the battlefield
+      const entityPos = this.entityCenter(actor as CombatEntity);
+      const size = isPlayer ? PLAYER_ICON_W + 12 : ENEMY_W + 12;
+      this.activeTurnIndicator.setSize(size, size);
+      this.activeTurnIndicator.setPosition(entityPos.x, entityPos.y);
+      this.activeTurnIndicator.setVisible(true);
+      this.activeTurnIndicator.setStrokeStyle(3, isPlayer ? 0xffff00 : 0xff6666);
+      // Highlight the active player's name in the status panel
+      this.highlightActiveTurn(actor as CombatEntity);
     };
     this.onCombatAttackStart = (actor, target) => {
       this.playAttackMoveAnimation(actor as CombatEntity, target as CombatEntity);
@@ -511,8 +553,28 @@ export class CombatUI {
     this.bus.on('combat:log', this.onCombatLog);
     this.bus.on('combat:damage', this.onCombatDamage);
     this.bus.on('combat:heal', this.onCombatHeal);
+    this.bus.on('combat:mpChange', this.onCombatMpChange);
     this.bus.on('combat:turnStart', this.onCombatTurnStart);
     this.bus.on('combat:attackStart', this.onCombatAttackStart);
+  }
+
+  /** Highlight the name of the currently acting player in the status panel. */
+  private highlightActiveTurn(actor: CombatEntity): void {
+    this.playerNameTexts.forEach((t, i) => {
+      const player = this.system.players[i];
+      const isActive = player === actor;
+      t.setColor(isActive ? '#ffff00' : '#aaaaff');
+      t.setText(isActive ? `▶ ${player.name}` : player.name);
+    });
+  }
+
+  /** Show or hide the nav buttons (▲▼OK BACK). */
+  private setNavVisible(visible: boolean): void {
+    this.navObjects.forEach((obj) => {
+      if ((obj as Phaser.GameObjects.GameObject).active) {
+        (obj as unknown as { setVisible: (v: boolean) => void }).setVisible(visible);
+      }
+    });
   }
 
   private refreshEntityDisplay(entity: CombatEntity): void {
@@ -524,6 +586,16 @@ export class CombatUI {
         bars.bar.setPosition(bars.bg.x - this.BAR_HALF_W * (1 - ratio), bars.bg.y);
         if (bars.text.active) {
           bars.text.setText(`${entity.stats.hp}/${entity.stats.maxHp}`);
+        }
+      }
+      // Update MP bar
+      const mpBars = this.playerMpBars.get(entity.id);
+      if (mpBars) {
+        const mpRatio = entity.stats.maxMp > 0 ? entity.stats.mp / entity.stats.maxMp : 0;
+        mpBars.bar.setScale(mpRatio, 1);
+        mpBars.bar.setPosition(mpBars.bg.x - this.BAR_HALF_W * (1 - mpRatio), mpBars.bg.y);
+        if (mpBars.text.active) {
+          mpBars.text.setText(`${entity.stats.mp}/${entity.stats.maxMp}`);
         }
       }
       // Dim the player icon if defeated
@@ -852,6 +924,7 @@ export class CombatUI {
     this.bus.off('combat:log', this.onCombatLog);
     this.bus.off('combat:damage', this.onCombatDamage);
     this.bus.off('combat:heal', this.onCombatHeal);
+    this.bus.off('combat:mpChange', this.onCombatMpChange);
     this.bus.off('combat:turnStart', this.onCombatTurnStart);
     this.bus.off('combat:attackStart', this.onCombatAttackStart);
     this.menuContainer.destroy();
@@ -859,6 +932,7 @@ export class CombatUI {
     this.logStripBg.destroy();
     this.logTexts.forEach((t) => t.destroy());
     this.targetCursor.destroy();
+    this.activeTurnIndicator.destroy();
     this.helpText.destroy();
     this.navObjects.forEach((g) => g.destroy());
     // Explicitly destroy all tracked game objects
@@ -868,6 +942,11 @@ export class CombatUI {
     this.enemyRects.forEach((r) => r.destroy());
     this.playerIconRects.forEach((r) => r.destroy());
     this.playerBars.forEach(({ bg, bar, text }) => {
+      bg.destroy();
+      bar.destroy();
+      text.destroy();
+    });
+    this.playerMpBars.forEach(({ bg, bar, text }) => {
       bg.destroy();
       bar.destroy();
       text.destroy();

@@ -66,14 +66,15 @@ export class CombatSystem {
     return this.currentActor;
   }
 
-  /** Execute an action for the current actor. */
-  executeAction(actor: CombatEntity, action: CombatAction): void {
+  /** Execute an action for the current actor. Returns true if the turn was consumed, false if not (e.g. insufficient MP). */
+  executeAction(actor: CombatEntity, action: CombatAction): boolean {
+    let turnConsumed = true;
     switch (action.type) {
       case 'attack':
         this.physicalAttack(actor, action.target!);
         break;
       case 'skill':
-        this.useSkill(actor, action.skillId!, action.target ?? null);
+        turnConsumed = this.useSkill(actor, action.skillId!, action.target ?? null);
         break;
       case 'item':
         this.useItem(actor, action.itemId!, action.target ?? null);
@@ -86,8 +87,11 @@ export class CombatSystem {
         this.bus.emit('combat:fled');
         break;
     }
-    this.timeline.endTurn(actor);
-    this.bus.emit('combat:actionEnd', actor);
+    if (turnConsumed) {
+      this.timeline.endTurn(actor);
+      this.bus.emit('combat:actionEnd', actor);
+    }
+    return turnConsumed;
   }
 
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
@@ -101,15 +105,17 @@ export class CombatSystem {
     this.checkDefeated(target);
   }
 
-  private useSkill(actor: CombatEntity, skillId: string, target: CombatEntity | null): void {
+  private useSkill(actor: CombatEntity, skillId: string, target: CombatEntity | null): boolean {
     const skill = skillsData.skills.find((s) => s.id === skillId);
-    if (!skill) return;
+    if (!skill) return true;
     if (!actor.consumeMp(skill.mpCost)) {
       this.addLog(`${actor.name} doesn't have enough MP!`);
-      return;
+      return false;
     }
+    this.bus.emit('combat:mpChange', actor);
     const targets = this.resolveTargets(actor, skill.target, target);
     targets.forEach((t) => this.applySkillEffect(actor, skill, t));
+    return true;
   }
 
   private applySkillEffect(

@@ -68,6 +68,7 @@ export class ExplorationSystem {
   private pickups: Pickup[] = [];
   private shopkeeper: Shopkeeper | null = null;
   private combatActive = false;
+  private isMoving = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -487,7 +488,7 @@ export class ExplorationSystem {
   }
 
   movePlayer(dx: number, dy: number): void {
-    if (this.combatActive) return;
+    if (this.combatActive || this.isMoving) return;
     const state = GameState.getInstance();
     const nx = state.data.playerX + dx;
     const ny = state.data.playerY + dy;
@@ -502,31 +503,47 @@ export class ExplorationSystem {
     const tile = this.mapManager.getTile(nx, ny);
     if (!tile?.passable) return;
 
+    const tileSize = this.mapManager.getCurrentMap()!.tileSize;
+    const targetX = nx * tileSize + tileSize / 2;
+    const targetY = ny * tileSize + tileSize / 2;
+
+    // Update logical position immediately so collision checks are correct.
     state.data.playerX = nx;
     state.data.playerY = ny;
-    const tileSize = this.mapManager.getCurrentMap()!.tileSize;
-    this.playerSprite.setPosition(nx * tileSize + tileSize / 2, ny * tileSize + tileSize / 2);
+    this.isMoving = true;
 
-    // Check for pickup collection.
-    const pickupIdx = this.pickups.findIndex((p) => p.x === nx && p.y === ny);
-    if (pickupIdx !== -1) {
-      this.collectPickup(pickupIdx);
-    }
+    // Smoothly drift the sprite to the target tile.
+    this.scene.tweens.add({
+      targets: this.playerSprite,
+      x: targetX,
+      y: targetY,
+      duration: 140,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        this.isMoving = false;
 
-    // Check for shopkeeper interaction.
-    if (this.shopkeeper && this.shopkeeper.x === nx && this.shopkeeper.y === ny) {
-      this.openShop();
-      return;
-    }
+        // Check for pickup collection.
+        const pickupIdx = this.pickups.findIndex((p) => p.x === nx && p.y === ny);
+        if (pickupIdx !== -1) {
+          this.collectPickup(pickupIdx);
+        }
 
-    // Check for exit tile.
-    const mapData = this.mapManager.getCurrentMap()!;
-    const exit = mapData.exits.find((e) => e.x === nx && e.y === ny);
-    if (exit) {
-      // Block further movement so the exit event only fires once per floor.
-      this.combatActive = true;
-      this.bus.emit('map:exit', exit);
-    }
+        // Check for shopkeeper interaction.
+        if (this.shopkeeper && this.shopkeeper.x === nx && this.shopkeeper.y === ny) {
+          this.openShop();
+          return;
+        }
+
+        // Check for exit tile.
+        const mapData = this.mapManager.getCurrentMap()!;
+        const exit = mapData.exits.find((e) => e.x === nx && e.y === ny);
+        if (exit) {
+          // Block further movement so the exit event only fires once per floor.
+          this.combatActive = true;
+          this.bus.emit('map:exit', exit);
+        }
+      },
+    });
   }
 
   private collectPickup(idx: number): void {
