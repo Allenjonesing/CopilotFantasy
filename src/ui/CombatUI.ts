@@ -86,6 +86,7 @@ export class CombatUI {
   private pendingItemId: string | null = null;
   // Target selection
   private targetList: CombatEntity[] = [];
+  private targetIsPositive = false;
   private targetCursor!: Phaser.GameObjects.Rectangle;
   // Timeline display
   private timelineContainer!: Phaser.GameObjects.Container;
@@ -477,6 +478,10 @@ export class CombatUI {
       preferAlly = skillDef?.target === 'single_ally' || skillDef?.target === 'all_allies';
     }
 
+    // Positive actions (heals, buffs, items on allies) use a green cursor;
+    // hostile actions (attacks, offensive skills) use a red cursor.
+    this.targetIsPositive = preferAlly;
+
     const allies = this.system.players.filter((p) => !p.isDefeated);
     const foes = this.system.enemies.filter((e) => !e.isDefeated);
     this.targetList = preferAlly ? [...allies, ...foes] : [...foes, ...allies];
@@ -515,6 +520,9 @@ export class CombatUI {
     }
     const pos = this.entityCenter(target);
     this.targetCursor.setPosition(pos.x, pos.y);
+    // Green cursor for positive/healing actions, red for hostile/damaging actions.
+    const cursorColor = this.targetIsPositive ? 0x44ff88 : 0xff4444;
+    this.targetCursor.setStrokeStyle(3, cursorColor);
     this.targetCursor.setVisible(true);
   }
 
@@ -603,10 +611,11 @@ export class CombatUI {
       const icon = this.playerIconRects.get(entity.id);
       if (icon && icon.active) {
         if (icon instanceof Phaser.GameObjects.Image) {
-          icon.setTint(entity.isDefeated ? 0x222244 : 0xffffff);
-          icon.setAlpha(entity.isDefeated ? 0.45 : 1.0);
+          icon.setTint(entity.isDefeated ? 0x886688 : 0xffffff);
+          icon.setAlpha(entity.isDefeated ? 0.55 : 1.0);
         } else {
-          (icon as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x222244 : 0x4466cc);
+          (icon as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x553355 : 0x4466cc);
+          (icon as Phaser.GameObjects.Rectangle).setAlpha(entity.isDefeated ? 0.55 : 1.0);
         }
       }
     } else {
@@ -664,12 +673,50 @@ export class CombatUI {
   private playDamageAnimation(entity: CombatEntity, dmg: number): void {
     const isPlayer = entity instanceof PlayerCombatant;
     if (isPlayer) {
+      // Flash the HP bar red briefly.
       const bars = this.playerBars.get(entity.id);
-      if (!bars || !bars.bar.active) return;
-      bars.bar.setFillStyle(0xff4444);
-      this.scene.time.delayedCall(DAMAGE_FLASH_MS, () => {
-        if (bars.bar.active) bars.bar.setFillStyle(0x44aa44);
-      });
+      if (bars && bars.bar.active) {
+        bars.bar.setFillStyle(0xff4444);
+        this.scene.time.delayedCall(DAMAGE_FLASH_MS, () => {
+          if (bars.bar.active) bars.bar.setFillStyle(entity.isDefeated ? 0x222222 : 0x44aa44);
+        });
+      }
+      // Flash the player icon on the battlefield (only when alive – defeated state is set by refreshEntityDisplay).
+      const icon = this.playerIconRects.get(entity.id);
+      if (icon && icon.active && !entity.isDefeated) {
+        if (icon instanceof Phaser.GameObjects.Image) {
+          icon.setTint(0xff8888);
+          this.scene.tweens.add({
+            targets: icon,
+            alpha: { from: 1, to: 0.4 },
+            duration: ENEMY_FLASH_MS,
+            yoyo: true,
+            repeat: ENEMY_FLASH_REPEAT,
+            onComplete: () => {
+              if (icon.active && !entity.isDefeated) {
+                icon.setAlpha(1);
+                icon.setTint(0xffffff);
+              }
+            },
+          });
+        } else {
+          const rect = icon as Phaser.GameObjects.Rectangle;
+          rect.setFillStyle(0xff6666);
+          this.scene.tweens.add({
+            targets: rect,
+            alpha: { from: 1, to: 0.4 },
+            duration: ENEMY_FLASH_MS,
+            yoyo: true,
+            repeat: ENEMY_FLASH_REPEAT,
+            onComplete: () => {
+              if (rect.active) {
+                rect.setAlpha(entity.isDefeated ? 0.55 : 1);
+                rect.setFillStyle(entity.isDefeated ? 0x553355 : 0x4466cc);
+              }
+            },
+          });
+        }
+      }
     } else {
       const icon = this.enemyRects.get(entity.id);
       if (!icon || !icon.active || entity.isDefeated) return;

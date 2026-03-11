@@ -21,6 +21,7 @@ interface MapEnemy {
   x: number;
   y: number;
   moveTimer: number;
+  isMoving: boolean;
   state: 'wander' | 'chase';
   sprite: EntitySprite;
   label: Phaser.GameObjects.Text;
@@ -239,6 +240,7 @@ export class ExplorationSystem {
       this.mapEnemies.push({
         ...eData,
         moveTimer: Math.random() * 600,
+        isMoving: false,
         state: 'wander',
         sprite,
         label,
@@ -431,6 +433,7 @@ export class ExplorationSystem {
       const dist = Math.abs(enemy.x - px) + Math.abs(enemy.y - py);
       const interval = dist <= ENEMY_CHASE_RANGE ? ENEMY_CHASE_INTERVAL : ENEMY_WANDER_INTERVAL;
       if (enemy.moveTimer < interval) continue;
+      if (enemy.isMoving) continue;
       enemy.moveTimer = 0;
       enemy.state = dist <= ENEMY_CHASE_RANGE ? 'chase' : 'wander';
 
@@ -467,8 +470,6 @@ export class ExplorationSystem {
         enemy.x = nx;
         enemy.y = ny;
         const tileSize = this.mapManager.getCurrentMap()!.tileSize;
-        enemy.sprite.setPosition(nx * tileSize + tileSize / 2, ny * tileSize + tileSize / 2);
-        enemy.label.setPosition(nx * tileSize + tileSize / 2, ny * tileSize);
 
         // Keep the persistent enemy record in sync so that if the player
         // flees from a later combat, enemies re-spawn at their last seen
@@ -483,6 +484,24 @@ export class ExplorationSystem {
           this.triggerCombat(enemy);
           return;
         }
+
+        // Smoothly tween the sprite to the new tile position (like player movement).
+        const targetSpriteX = nx * tileSize + tileSize / 2;
+        const targetSpriteY = ny * tileSize + tileSize / 2;
+        enemy.isMoving = true;
+        this.scene.tweens.add({
+          targets: enemy.sprite,
+          x: targetSpriteX,
+          y: targetSpriteY,
+          duration: 140,
+          ease: 'Sine.easeOut',
+          onComplete: () => {
+            enemy.isMoving = false;
+            if (enemy.label.active) {
+              enemy.label.setPosition(targetSpriteX, targetSpriteY - tileSize / 2);
+            }
+          },
+        });
       }
     }
   }
