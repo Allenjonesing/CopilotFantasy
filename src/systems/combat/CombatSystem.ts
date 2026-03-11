@@ -107,7 +107,10 @@ export class CombatSystem {
 
   private useSkill(actor: CombatEntity, skillId: string, target: CombatEntity | null): boolean {
     const skill = skillsData.skills.find((s) => s.id === skillId);
-    if (!skill) return true;
+    if (!skill) {
+      this.addLog(`${actor.name} tried to use an unknown skill!`);
+      return false;
+    }
     if (!actor.consumeMp(skill.mpCost)) {
       this.addLog(`${actor.name} doesn't have enough MP!`);
       return false;

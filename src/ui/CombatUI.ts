@@ -26,6 +26,7 @@ const ENEMY_W = 80;
 const ENEMY_H = 80;
 const PLAYER_ICON_W = 62;
 const PLAYER_ICON_H = 62;
+const TURN_INDICATOR_PAD = 12; // px added around entity icon for the active-turn highlight ring
 
 // Attack movement animation
 const ATTACK_MOVE_MAX_PX = 70;
@@ -276,7 +277,7 @@ export class CombatUI {
     });
 
     // ── Active turn indicator (battlefield highlight ring) ────────────────────
-    this.activeTurnIndicator = this.scene.add.rectangle(0, 0, PLAYER_ICON_W + 12, PLAYER_ICON_H + 12, 0x000000, 0);
+    this.activeTurnIndicator = this.scene.add.rectangle(0, 0, PLAYER_ICON_W + TURN_INDICATOR_PAD, PLAYER_ICON_H + TURN_INDICATOR_PAD, 0x000000, 0);
     this.activeTurnIndicator.setStrokeStyle(3, 0xffff00);
     this.activeTurnIndicator.setDepth(4);
     this.activeTurnIndicator.setVisible(false);
@@ -539,7 +540,7 @@ export class CombatUI {
       this.setNavVisible(isPlayer);
       // Update active turn indicator on the battlefield
       const entityPos = this.entityCenter(actor as CombatEntity);
-      const size = isPlayer ? PLAYER_ICON_W + 12 : ENEMY_W + 12;
+      const size = isPlayer ? PLAYER_ICON_W + TURN_INDICATOR_PAD : ENEMY_W + TURN_INDICATOR_PAD;
       this.activeTurnIndicator.setSize(size, size);
       this.activeTurnIndicator.setPosition(entityPos.x, entityPos.y);
       this.activeTurnIndicator.setVisible(true);
