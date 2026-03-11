@@ -18,7 +18,7 @@
       "skills": ["attack"],
       "startingItems": [],
       "levelUpStats": { "hp": 8, "mp": 2, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "sentinel", "3": "powerBreak", "5": "provoke" }
+      "levelSkills": { "2": "sentinel", "5": "provoke" }
     },
     {
       "id": "kael",

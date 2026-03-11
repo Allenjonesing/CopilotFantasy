@@ -8,8 +8,6 @@ export class ExplorationUI {
   private floorText!: Phaser.GameObjects.Text;
   private scoreText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
-  private partyStatusBg!: Phaser.GameObjects.Rectangle;
-  private partyTexts: Phaser.GameObjects.Text[] = [];
   private onMapLoaded!: (mapData: unknown) => void;
   private pickupMsg: Phaser.GameObjects.Text | null = null;
   private pickupTimer = 0;
@@ -50,21 +48,6 @@ export class ExplorationUI {
     });
     this.goldText.setOrigin(0.5, 0).setDepth(51).setScrollFactor(0);
 
-    // ── Party status (top-right, stacked rows) ──────────────────────────────
-    this.partyStatusBg = this.scene.add.rectangle(W - 102, 62, 196, 66, 0x0a0a1a, 0.80);
-    this.partyStatusBg.setDepth(50).setScrollFactor(0);
-
-    const state = GameState.getInstance();
-    state.data.party.forEach((_c, i) => {
-      const t = this.scene.add.text(W - 196, 32 + i * 20, '', {
-        fontSize: '12px',
-        color: '#dddddd',
-        fontFamily: 'monospace',
-      });
-      t.setDepth(51).setScrollFactor(0);
-      this.partyTexts.push(t);
-    });
-
     this.refresh();
   }
 
@@ -83,10 +66,6 @@ export class ExplorationUI {
     this.floorText?.setText(`Floor ${state.data.difficultyLevel}  (Lv.${state.data.level})`);
     this.scoreText?.setText(`Score: ${state.data.score.toLocaleString()}`);
     this.goldText?.setText(`💰 ${state.data.gold} Gold`);
-    state.data.party.forEach((c, i) => {
-      const alive = c.alive ? '' : ' ✕';
-      this.partyTexts[i]?.setText(`${c.name}${alive}: ${c.stats.hp}/${c.stats.maxHp} HP`);
-    });
   }
 
   /** Show a brief pickup notification message on screen. */
@@ -125,8 +104,6 @@ export class ExplorationUI {
     this.floorText.destroy();
     this.scoreText.destroy();
     this.goldText.destroy();
-    this.partyStatusBg.destroy();
-    this.partyTexts.forEach((t) => t.destroy());
     this.pickupMsg?.destroy();
   }
 }
