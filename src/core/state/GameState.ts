@@ -52,12 +52,12 @@ export interface GameStateData {
   /** Pickups still uncollected on the current floor; null means "generate fresh". */
   pendingPickups: PersistentPickup[] | null;
   /**
-   * Shopkeeper position on the current floor.
-   * null  = not yet determined (fresh floor).
-   * false = rolled and no shopkeeper this floor.
-   * {x,y} = shopkeeper is at this tile.
+   * Shopkeeper state on the current floor.
+   * null        = not yet determined (fresh floor).
+   * false       = rolled and no shopkeeper this floor.
+   * {x,y,inventory} = shopkeeper at this tile with a fixed predetermined inventory.
    */
-  pendingShopkeeper: { x: number; y: number } | false | null;
+  pendingShopkeeper: { x: number; y: number; inventory: string[] } | false | null;
 }
 
 export interface SkillGain {

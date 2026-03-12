@@ -17,8 +17,8 @@ const ENEMY_FLASH_MS = 80;
 const ENEMY_FLASH_REPEAT = 2;
 const LOG_STRIP_H = 42;
 const LOG_LINE_COUNT = 3;
-/** Height of each player row in the left status panel (name + HP + MP bars). */
-const PER_PLAYER_PANEL_H = 50;
+/** Height of the touch-nav bar pinned to the bottom of the combat screen. */
+const NAV_BTN_H = 60;
 
 const HELP_TEXT_DEFAULT = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Tap enemy or ally to target';
 const HELP_TEXT_SKILL    = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover skill to see description';
@@ -54,6 +54,9 @@ const ATTACK_MOVE_MAX_PX = 70;
 const ATTACK_MOVE_RATIO = 0.45;
 const ATTACK_MOVE_FORWARD_MS = 160;
 const ATTACK_MOVE_RETURN_MS = 200;
+// Spell sparkle burst
+const SPARKLE_MIN_DIST = 28;
+const SPARKLE_DIST_VARIANCE = 20;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
@@ -72,7 +75,6 @@ export class CombatUI {
   private readonly BATTLEFIELD_BOTTOM: number;
   private readonly LOG_STRIP_Y: number;
   private readonly BOTTOM_Y: number;
-  private readonly LEFT_PANEL_W: number;
   private readonly MENU_X: number;
   private readonly MENU_W: number;
   private readonly ICON_Y: number;
@@ -105,6 +107,8 @@ export class CombatUI {
   private menuItems: Phaser.GameObjects.Text[] = [];
   private menuDisabled: boolean[] = [];
   private selectedMenuIndex = 0;
+  /** Tooltips for each menu item in the current menu — used to update help text on navigation. */
+  private menuTooltips: string[] = [];
   // Menu state machine
   private menuState: MenuState = 'main';
   private menuStateBeforeTarget: MenuState = 'main';
@@ -153,12 +157,14 @@ export class CombatUI {
     // combat UI fills the available space on any screen (including portrait).
     this.W = scene.scale.width;
     this.H = scene.scale.height;
-    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.44);
+    // Use 48% of height for the battlefield so there is enough room for HP/MP bars
+    // rendered directly under each player sprite.
+    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.48);
     this.LOG_STRIP_Y = this.BATTLEFIELD_BOTTOM + 4;
     this.BOTTOM_Y = this.LOG_STRIP_Y + LOG_STRIP_H + 4;
-    this.LEFT_PANEL_W = Math.round(this.W * 0.31);
-    this.MENU_X = this.LEFT_PANEL_W + 8;
-    this.MENU_W = this.W - this.MENU_X - 8;
+    // Menu spans the full width below the log strip.
+    this.MENU_X = 8;
+    this.MENU_W = this.W - 16;
 
     // Vertical stacking: enemies occupy top portion of battlefield, players the bottom.
     const battlefieldH = this.BATTLEFIELD_BOTTOM - TIMELINE_H;
@@ -179,8 +185,9 @@ export class CombatUI {
     this.ENEMY_SPREAD = Math.max(enemyAreaW, (ENEMY_W + 14) * Math.max(eCount, 1));
     this.ENEMY_BASE_X = Math.round(this.W * 0.10);
 
-    const barW = Math.max(58, Math.round(this.LEFT_PANEL_W * 0.48));
-    this.BAR_HALF_W = Math.round(barW / 2);
+    // HP/MP bars live directly under each player sprite icon, so the bar width
+    // matches the player icon width.
+    this.BAR_HALF_W = Math.round(PLAYER_ICON_W / 2);
 
     this.buildUI();
     this.registerEvents();
@@ -256,6 +263,30 @@ export class CombatUI {
         .setDepth(6);
       this.playerIconRects.set(p.id, icon);
       this.playerIconNames.push(nameText);
+
+      // ── HP and MP bars directly under the player sprite ──────────────────
+      const hpBarY = y + PLAYER_ICON_H / 2 + 20;
+      const mpBarY = hpBarY + 9;
+      const barW = PLAYER_ICON_W;
+      const hpBg  = this.scene.add.rectangle(x, hpBarY, barW, 6, 0x333333).setDepth(6);
+      const hpBar = this.scene.add.rectangle(x, hpBarY, barW, 6, 0x44aa44).setDepth(7);
+      const hpText = this.scene.add
+        .text(x + barW / 2 + 3, hpBarY - 2, `${p.stats.hp}/${p.stats.maxHp}`, {
+          fontSize: '8px', color: '#ccffcc', fontFamily: 'monospace',
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(7);
+      this.playerBars.set(p.id, { bg: hpBg, bar: hpBar, text: hpText });
+
+      const mpBg  = this.scene.add.rectangle(x, mpBarY, barW, 5, 0x222244).setDepth(6);
+      const mpBar = this.scene.add.rectangle(x, mpBarY, barW, 5, 0x4466cc).setDepth(7);
+      const mpText = this.scene.add
+        .text(x + barW / 2 + 3, mpBarY - 2, `${p.stats.mp}/${p.stats.maxMp}`, {
+          fontSize: '8px', color: '#aaaaff', fontFamily: 'monospace',
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(7);
+      this.playerMpBars.set(p.id, { bg: mpBg, bar: mpBar, text: mpText });
     });
 
     // ── Target cursor (hidden initially) ─────────────────────────────────────
@@ -265,11 +296,10 @@ export class CombatUI {
     this.targetCursor.setVisible(false);
 
     // ── Target panel highlight (hidden initially) ─────────────────────────────
-    this.targetPanelHighlight = this.scene.add.rectangle(
-      this.LEFT_PANEL_W / 2, 0, this.LEFT_PANEL_W, PER_PLAYER_PANEL_H - 2, 0x44ff88, 0,
-    );
+    // Positioned at the active target's sprite HP/MP bar area in the battlefield.
+    this.targetPanelHighlight = this.scene.add.rectangle(0, 0, PLAYER_ICON_W + 8, 22, 0x44ff88, 0);
     this.targetPanelHighlight.setStrokeStyle(2, 0x44ff88);
-    this.targetPanelHighlight.setDepth(20);
+    this.targetPanelHighlight.setDepth(9);
     this.targetPanelHighlight.setVisible(false);
 
     // ── Compact log strip ─────────────────────────────────────────────────────
@@ -287,42 +317,11 @@ export class CombatUI {
       this.logTexts.push(t);
     }
 
-    // ── Bottom panel background ───────────────────────────────────────────────
-    this.scene.add.rectangle(this.W / 2, (this.BOTTOM_Y + this.H - 22) / 2, this.W, this.H - 22 - this.BOTTOM_Y, 0x0d0d1f, 0.95).setDepth(18);
-
-    // ── Left panel: player HP + MP bars ──────────────────────────────────────
-    const barW = this.BAR_HALF_W * 2;
-    const barTextX = Math.round(this.LEFT_PANEL_W * 0.58);
-    this.system.players.forEach((p, idx) => {
-      const x = 8;
-      const y = this.BOTTOM_Y + 8 + idx * PER_PLAYER_PANEL_H;
-      const nameText = this.scene.add
-        .text(x, y, p.name, { fontSize: '12px', color: '#aaaaff', fontFamily: 'monospace' })
-        .setDepth(21);
-      this.playerNameTexts.push(nameText);
-      // HP bar
-      const hpBg = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 14, barW, 10, 0x333333).setDepth(21);
-      const hpBar = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 14, barW, 10, 0x44aa44).setDepth(22);
-      const hpText = this.scene.add
-        .text(x + barTextX, y + 8, `${p.stats.hp}/${p.stats.maxHp}`, {
-          fontSize: '10px',
-          color: '#ffffff',
-          fontFamily: 'monospace',
-        })
-        .setDepth(22);
-      this.playerBars.set(p.id, { bg: hpBg, bar: hpBar, text: hpText });
-      // MP bar
-      const mpBg = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 27, barW, 10, 0x222244).setDepth(21);
-      const mpBar = this.scene.add.rectangle(x + this.BAR_HALF_W + Math.round(barW * 0.17), y + 27, barW, 10, 0x4466cc).setDepth(22);
-      const mpText = this.scene.add
-        .text(x + barTextX, y + 21, `${p.stats.mp}/${p.stats.maxMp}`, {
-          fontSize: '10px',
-          color: '#aaaaff',
-          fontFamily: 'monospace',
-        })
-        .setDepth(22);
-      this.playerMpBars.set(p.id, { bg: mpBg, bar: mpBar, text: mpText });
-    });
+    // ── Bottom panel background (menu area, above the nav button strip) ──────
+    const menuAreaH = this.H - NAV_BTN_H - this.BOTTOM_Y;
+    this.scene.add.rectangle(
+      this.W / 2, this.BOTTOM_Y + menuAreaH / 2, this.W, menuAreaH, 0x0d0d1f, 0.95,
+    ).setDepth(18);
 
     // Initialise bar scales to match the actual current HP/MP values so the bars
     // are correct from the very first frame (not just after the first damage/heal event).
@@ -351,45 +350,51 @@ export class CombatUI {
     this.menuContainer.add(this.menuTitle);
     this.buildMainMenu();
 
-    // ── Help text — single line at very bottom ────────────────────────────────
+    // ── Help text — just above the nav button strip at the bottom ────────────
     this.helpText = this.scene.add
-      .text(this.W / 2, this.H - 4, HELP_TEXT_DEFAULT, {
+      .text(this.W / 2, this.H - NAV_BTN_H - 4, HELP_TEXT_DEFAULT, {
         fontSize: '10px',
         color: '#666688',
         fontFamily: 'monospace',
+        wordWrap: { width: this.W - 16 },
+        align: 'center',
       })
       .setOrigin(0.5, 1)
       .setDepth(25);
   }
 
-  /** Build the four combat navigation buttons in the left panel — large enough for touch. */
+  /** Build the four combat navigation buttons pinned to the very bottom of the screen,
+   *  spanning the full portrait width.  Layout mirrors the overworld controls:
+   *    ▲  |  ▼  |  OK  |  BACK
+   *  (navigation on the left half, action buttons on the right half).
+   */
   private buildNavButtons(): void {
-    // Make buttons large enough for comfortable touch on portrait phones.
-    // Fill the remaining vertical space in the left panel below the HP/MP bars.
-    const availableH = this.H - (this.BOTTOM_Y + this.system.players.length * PER_PLAYER_PANEL_H + 10);
-    const BH = Math.max(54, Math.min(Math.floor(availableH / 2) - 6, 80));
-    const BW = Math.max(64, Math.round(this.LEFT_PANEL_W * 0.46));
-    const GUTTER = 6;
-    const COL1 = Math.round(this.LEFT_PANEL_W * 0.26);
-    const COL2 = Math.round(this.LEFT_PANEL_W * 0.74);
-    const ROW1 = this.BOTTOM_Y + this.system.players.length * PER_PLAYER_PANEL_H + 14;
-    const ROW2 = ROW1 + BH + GUTTER;
+    const BTN_W = Math.floor(this.W / 4);
+    const BTN_H = NAV_BTN_H - 8;
+    const BTN_Y  = this.H - NAV_BTN_H / 2;
+
+    // Dark background strip for the whole nav row (hidden until player turn).
+    const navBg = this.scene.add.rectangle(this.W / 2, this.H - NAV_BTN_H / 2, this.W, NAV_BTN_H, 0x0a0a1a, 0.95);
+    navBg.setStrokeStyle(1, 0x333355);
+    navBg.setDepth(31);
+    navBg.setVisible(false);
+    this.navObjects.push(navBg);
 
     const makeBtn = (
       label: string,
-      x: number,
-      y: number,
+      col: number,          // 0-based column index (0=leftmost)
       color: number,
       stroke: number,
       onTap: () => void,
     ): void => {
-      const bg = this.scene.add.rectangle(x, y, BW, BH, color, 0.90);
-      bg.setStrokeStyle(3, stroke);
+      const cx = col * BTN_W + BTN_W / 2;
+      const bg = this.scene.add.rectangle(cx, BTN_Y, BTN_W - 4, BTN_H, color, 0.90);
+      bg.setStrokeStyle(2, stroke);
       bg.setDepth(32);
       bg.setVisible(false);
       bg.setInteractive({ useHandCursor: true });
       const txt = this.scene.add
-        .text(x, y, label, { fontSize: '22px', color: '#ffffff', fontFamily: 'monospace' })
+        .text(cx, BTN_Y, label, { fontSize: '22px', color: '#ffffff', fontFamily: 'monospace' })
         .setOrigin(0.5)
         .setDepth(33)
         .setVisible(false);
@@ -400,10 +405,12 @@ export class CombatUI {
       this.navObjects.push(bg, txt);
     };
 
-    makeBtn('▲', COL1, ROW1, 0x223355, 0x5577bb, () => this.navigateMenu('up'));
-    makeBtn('▼', COL1, ROW2, 0x223355, 0x5577bb, () => this.navigateMenu('down'));
-    makeBtn('OK', COL2, ROW1, 0x1a3322, 0x44aa66, () => this.onMenuTap?.());
-    makeBtn('BACK', COL2, ROW2, 0x331a1a, 0xaa4444, () => this.backMenu());
+    // Left half: navigation (▲ ▼)
+    makeBtn('▲', 0, 0x223355, 0x5577bb, () => this.navigateMenu('up'));
+    makeBtn('▼', 1, 0x223355, 0x5577bb, () => this.navigateMenu('down'));
+    // Right half: action buttons (OK / BACK)
+    makeBtn('OK',   2, 0x1a3322, 0x44aa66, () => this.onMenuTap?.());
+    makeBtn('BACK', 3, 0x331a1a, 0xaa4444, () => this.backMenu());
   }
 
   /** Handle a tap/click on an entity icon in the battlefield. */
@@ -422,7 +429,12 @@ export class CombatUI {
     this.menuItems.forEach((t) => t.destroy());
     this.menuItems = [];
     this.menuDisabled = disabled.length === items.length ? [...disabled] : items.map(() => false);
+    this.menuTooltips = tooltips.length === items.length ? [...tooltips] : items.map(() => '');
     this.selectedMenuIndex = 0;
+    // Show the tooltip for the first (auto-selected) item immediately.
+    if (this.menuTooltips[0] && this.helpText?.active) {
+      this.helpText.setText(this.menuTooltips[0]);
+    }
     items.forEach((label, i) => {
       const isDisabled = this.menuDisabled[i];
       const color = isDisabled ? '#555555' : i === 0 ? '#ffff00' : '#ffffff';
@@ -478,9 +490,19 @@ export class CombatUI {
     const specialSkills = actor ? actor.skills.filter((s) => s !== 'attack') : [];
     const hasSkills = specialSkills.length > 0;
     const hasItems = GameState.getInstance().data.inventory.length > 0;
+    const skillLabel = this.skillMenuLabel();
+    const tooltips = [
+      'Attack the enemy with a physical strike.',
+      `Use ${actor?.name ?? 'the character'}'s ${skillLabel.toLowerCase()} abilities.`,
+      'Use an item from your inventory (potions, etc.).',
+      'Take a defensive stance to reduce incoming damage.',
+      'Attempt to flee from the battle. Cannot flee from bosses.',
+    ];
+    if (this.helpText.active) this.helpText.setText(HELP_TEXT_DEFAULT);
     this.buildMenuItems(
-      ['Attack', this.skillMenuLabel(), 'Item', 'Defend', 'Flee'],
+      ['Attack', skillLabel, 'Item', 'Defend', 'Flee'],
       [false, !hasSkills, !hasItems, false, this.isBossBattle],
+      tooltips,
     );
   }
 
@@ -612,13 +634,16 @@ export class CombatUI {
     this.targetCursor.setStrokeStyle(3, cursorColor);
     this.targetCursor.setVisible(true);
 
-    // Also highlight the target's name+HP row in the left status panel if it is a player.
+    // Also highlight the HP/MP bar area under the player sprite in the battlefield.
     if (target instanceof PlayerCombatant) {
       const pIdx = this.system.players.indexOf(target);
       if (pIdx !== -1) {
-        const rowY = this.BOTTOM_Y + 8 + pIdx * PER_PLAYER_PANEL_H + PER_PLAYER_PANEL_H / 2 - 4;
-        this.targetPanelHighlight.setPosition(this.LEFT_PANEL_W / 2, rowY);
-        this.targetPanelHighlight.setSize(this.LEFT_PANEL_W - 4, PER_PLAYER_PANEL_H - 4);
+        const pCount = this.system.players.length;
+        const iconX = this.PLAYER_BASE_X + pIdx * Math.floor(this.PLAYER_SPREAD / Math.max(pCount, 1));
+        // Centre of the HP+MP bar band (20 px below sprite bottom edge)
+        const barCenterY = this.playerRowY + PLAYER_ICON_H / 2 + 24;
+        this.targetPanelHighlight.setPosition(iconX, barCenterY);
+        this.targetPanelHighlight.setSize(PLAYER_ICON_W + 8, 22);
         this.targetPanelHighlight.setStrokeStyle(2, cursorColor);
         this.targetPanelHighlight.setVisible(true);
       } else {
@@ -695,9 +720,9 @@ export class CombatUI {
     this.bus.on('combat:spellStart', this.onCombatSpellStart);
   }
 
-  /** Highlight the name of the currently acting player in the status panel. */
+  /** Highlight the name of the currently acting player under their battlefield sprite. */
   private highlightActiveTurn(actor: CombatEntity): void {
-    this.playerNameTexts.forEach((t, i) => {
+    this.playerIconNames.forEach((t, i) => {
       const player = this.system.players[i];
       const isActive = player === actor;
       t.setColor(isActive ? '#ffff00' : '#aaaaff');
@@ -902,51 +927,88 @@ export class CombatUI {
     });
   }
 
-  /** Play a visual spell effect: expanding coloured ring that fades out. */
+  /** Play a visual spell effect: expanding rings, sparkles and a spell name banner. */
   private playSpellAnimation(actor: CombatEntity, element: string, name: string): void {
     const pos = this.entityScreenPos(actor);
     const color = ELEMENT_COLORS[element] ?? 0xaaaaff;
-
-    // Spell name flash label
     const hexColor = `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
+
+    // ── Spell name banner ──────────────────────────────────────────────────
     const spellLabel = this.scene.add.text(pos.x, pos.y - 20, name, {
-      fontSize: '16px',
+      fontSize: '18px',
       color: hexColor,
       fontFamily: 'monospace',
       stroke: '#000000',
-      strokeThickness: 3,
+      strokeThickness: 4,
     }).setOrigin(0.5).setDepth(55).setAlpha(0);
 
     this.scene.tweens.add({
       targets: spellLabel,
       alpha: { from: 0, to: 1 },
-      y: pos.y - 45,
-      duration: 250,
-      yoyo: false,
+      y: pos.y - 50,
+      duration: 220,
+      ease: 'Back.Out',
       onComplete: () => {
-        this.scene.time.delayedCall(300, () => {
+        this.scene.time.delayedCall(350, () => {
           this.scene.tweens.add({
             targets: spellLabel,
             alpha: 0,
-            duration: 350,
+            y: pos.y - 70,
+            duration: 380,
             onComplete: () => spellLabel.destroy(),
           });
         });
       },
     });
 
-    // Expanding ring effect
-    const ring = this.scene.add.rectangle(pos.x, pos.y, 10, 10, color, 0.5);
-    ring.setDepth(54);
+    // ── Primary expanding ring ─────────────────────────────────────────────
+    const ring1 = this.scene.add.rectangle(pos.x, pos.y, 12, 12, color, 0.55);
+    ring1.setDepth(54);
     this.scene.tweens.add({
-      targets: ring,
+      targets: ring1,
       scaleX: 9,
       scaleY: 9,
       alpha: 0,
-      duration: 550,
+      duration: 560,
       ease: 'Power2.easeOut',
-      onComplete: () => ring.destroy(),
+      onComplete: () => ring1.destroy(),
     });
+
+    // ── Secondary ring (slightly delayed, narrower) ────────────────────────
+    this.scene.time.delayedCall(100, () => {
+      const ring2 = this.scene.add.rectangle(pos.x, pos.y, 8, 8, color, 0.35);
+      ring2.setDepth(53);
+      this.scene.tweens.add({
+        targets: ring2,
+        scaleX: 6,
+        scaleY: 6,
+        alpha: 0,
+        duration: 420,
+        ease: 'Power2.easeOut',
+        onComplete: () => ring2.destroy(),
+      });
+    });
+
+    // ── Sparkle burst: 6 small circles radiate outward ────────────────────
+    const SPARKS = 6;
+    for (let k = 0; k < SPARKS; k++) {
+      const angle = (k / SPARKS) * Math.PI * 2;
+      const dist  = SPARKLE_MIN_DIST + Math.random() * SPARKLE_DIST_VARIANCE;
+      const spark = this.scene.add.rectangle(pos.x, pos.y, 6, 6, color, 0.9);
+      spark.setDepth(56);
+      this.scene.tweens.add({
+        targets: spark,
+        x: pos.x + Math.cos(angle) * dist,
+        y: pos.y + Math.sin(angle) * dist,
+        scaleX: 0.1,
+        scaleY: 0.1,
+        alpha: 0,
+        duration: 400 + Math.random() * 150,
+        ease: 'Power1.easeOut',
+        delay: 40 + k * 20,
+        onComplete: () => spark.destroy(),
+      });
+    }
   }
 
   /** Return the approximate screen position for an entity (used for floating damage numbers). */
@@ -1016,6 +1078,9 @@ export class CombatUI {
       this.selectedMenuIndex = newIdx;
       this.updateMenuHighlight();
       if (this.menuState === 'target') this.updateTargetCursor();
+      // Update the help text to describe the currently highlighted option.
+      const tip = this.menuTooltips[newIdx];
+      if (tip && this.helpText.active) this.helpText.setText(tip);
     }
   }
 
