@@ -3,6 +3,7 @@
     {
       "id": "slime",
       "name": "Slime",
+      "baseFloor": 1,
       "color": 4447556,
       "stats": {
         "hp": 10,
@@ -21,6 +22,7 @@
     {
       "id": "goblin",
       "name": "Goblin",
+      "baseFloor": 2,
       "color": 13404211,
       "stats": {
         "hp": 60,
@@ -39,6 +41,7 @@
     {
       "id": "ironGolem",
       "name": "Iron Golem",
+      "baseFloor": 8,
       "color": 8947848,
       "stats": {
         "hp": 200,
@@ -57,6 +60,7 @@
     {
       "id": "shadowWisp",
       "name": "Shadow Wisp",
+      "baseFloor": 5,
       "color": 4456516,
       "stats": {
         "hp": 80,

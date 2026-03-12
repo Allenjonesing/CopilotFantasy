@@ -53,8 +53,10 @@ describe('GameState', () => {
     expect(result).toBe(false);
   });
 
-  it('starting inventory is empty (roguelike — earn items from battles)', () => {
-    expect(state.data.inventory).toHaveLength(0);
+  it('starts with 2 potions (starting items for the first run)', () => {
+    const potions = state.data.inventory.find((i) => i.id === 'potion');
+    expect(potions).toBeDefined();
+    expect(potions!.quantity).toBe(2);
   });
 
   it('starts at difficulty level 1 with score 0', () => {

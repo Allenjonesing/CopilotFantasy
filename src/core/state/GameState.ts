@@ -131,7 +131,7 @@ export class GameState {
 
     this.state = {
       party,
-      inventory: [],
+      inventory: [{ id: 'potion', quantity: 2 }],
       gold: 0,
       score: 0,
       highScore,
