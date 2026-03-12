@@ -10,108 +10,206 @@
       "description": "A basic physical attack."
     },
     {
-      "id": "fire",
-      "name": "Flame Bolt",
-      "type": "magic",
-      "target": "single_enemy",
-      "mpCost": 8,
-      "power": 1.2,
-      "element": "fire",
-      "description": "A bolt of searing flame."
-    },
-    {
-      "id": "blizzard",
-      "name": "Ice Shard",
-      "type": "magic",
-      "target": "single_enemy",
-      "mpCost": 8,
-      "power": 1.2,
-      "element": "ice",
-      "description": "A jagged shard of ice."
-    },
-    {
-      "id": "thunder",
-      "name": "Thunder Bolt",
-      "type": "magic",
-      "target": "single_enemy",
-      "mpCost": 8,
-      "power": 1.2,
-      "element": "lightning",
-      "description": "A crackling bolt of lightning."
-    },
-    {
-      "id": "cure",
-      "name": "Minor Mend",
-      "type": "heal",
-      "target": "single_ally",
-      "mpCost": 10,
-      "power": 1.0,
-      "description": "Restores a small amount of HP."
-    },
-    {
-      "id": "cura",
-      "name": "Greater Mend",
-      "type": "heal",
-      "target": "single_ally",
-      "mpCost": 22,
-      "power": 2.0,
-      "description": "Restores a moderate amount of HP."
-    },
-    {
-      "id": "esuna",
-      "name": "Cleanse",
-      "type": "status_remove",
-      "target": "single_ally",
-      "mpCost": 12,
-      "power": 0,
-      "description": "Removes a debuff from one ally."
-    },
-    {
-      "id": "reraise",
-      "name": "Life Ward",
-      "type": "status_apply",
-      "target": "single_ally",
-      "mpCost": 40,
-      "power": 0,
-      "statusEffect": "reraise",
-      "description": "Target will auto-revive once after KO."
-    },
-    {
-      "id": "provoke",
-      "name": "Provoke",
-      "type": "status_apply",
-      "target": "single_enemy",
-      "mpCost": 0,
-      "power": 0,
-      "statusEffect": "provoked",
-      "description": "Forces an enemy to target the user."
-    },
-    {
-      "id": "dualcast",
-      "name": "Twin Cast",
-      "type": "special",
-      "target": "self",
-      "mpCost": 0,
-      "power": 0,
-      "description": "Next magic spell is cast twice."
-    },
-    {
       "id": "smash",
       "name": "Smash",
       "type": "physical",
       "target": "single_enemy",
       "mpCost": 0,
       "power": 1.8,
-      "description": "A powerful slam."
+      "description": "A powerful slam dealing heavy physical damage."
     },
     {
       "id": "drain",
-      "name": "Life Drain",
+      "name": "Bio Drain",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 14,
       "power": 0.8,
-      "description": "Drains HP from the target."
+      "description": "Drains HP from the target to restore own HP."
+    },
+    {
+      "id": "fire",
+      "name": "Blaze",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.2,
+      "element": "fire",
+      "description": "A burst of searing flame. Fire-elemental."
+    },
+    {
+      "id": "fira",
+      "name": "Blazra",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 18,
+      "power": 2.0,
+      "element": "fire",
+      "description": "A roaring column of fire. Strong fire-elemental."
+    },
+    {
+      "id": "firaga",
+      "name": "Blazaga",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 32,
+      "power": 3.2,
+      "element": "fire",
+      "description": "An inferno of pure flame. Powerful fire-elemental."
+    },
+    {
+      "id": "blizzard",
+      "name": "Frost",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.2,
+      "element": "ice",
+      "description": "A shard of biting ice. Ice-elemental."
+    },
+    {
+      "id": "blizzara",
+      "name": "Frostra",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 18,
+      "power": 2.0,
+      "element": "ice",
+      "description": "A storm of razor ice crystals. Strong ice-elemental."
+    },
+    {
+      "id": "blizzaga",
+      "name": "Frostaga",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 32,
+      "power": 3.2,
+      "element": "ice",
+      "description": "A glacial freeze that shatters foes. Powerful ice-elemental."
+    },
+    {
+      "id": "thunder",
+      "name": "Spark",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.2,
+      "element": "lightning",
+      "description": "A crackling bolt of electricity. Lightning-elemental."
+    },
+    {
+      "id": "thundara",
+      "name": "Sparkra",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 18,
+      "power": 2.0,
+      "element": "lightning",
+      "description": "A raging lightning storm. Strong lightning-elemental."
+    },
+    {
+      "id": "thundaga",
+      "name": "Sparkaga",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 32,
+      "power": 3.2,
+      "element": "lightning",
+      "description": "A massive thunderstrike from above. Powerful lightning-elemental."
+    },
+    {
+      "id": "water",
+      "name": "Surge",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.2,
+      "element": "water",
+      "description": "A surging wave of water. Water-elemental."
+    },
+    {
+      "id": "watera",
+      "name": "Surgera",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 18,
+      "power": 2.0,
+      "element": "water",
+      "description": "A crashing torrent of water. Strong water-elemental."
+    },
+    {
+      "id": "waterga",
+      "name": "Surgega",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 32,
+      "power": 3.2,
+      "element": "water",
+      "description": "A devastating flood. Powerful water-elemental."
+    },
+    {
+      "id": "cure",
+      "name": "Cure",
+      "type": "heal",
+      "target": "single_ally",
+      "mpCost": 10,
+      "power": 1.0,
+      "description": "Restores a small amount of HP to one ally."
+    },
+    {
+      "id": "cura",
+      "name": "Cura",
+      "type": "heal",
+      "target": "single_ally",
+      "mpCost": 22,
+      "power": 2.0,
+      "description": "Restores a moderate amount of HP to one ally."
+    },
+    {
+      "id": "curaga",
+      "name": "Curaga",
+      "type": "heal",
+      "target": "single_ally",
+      "mpCost": 40,
+      "power": 3.5,
+      "description": "Restores a large amount of HP to one ally."
+    },
+    {
+      "id": "esuna",
+      "name": "Esuna",
+      "type": "status_remove",
+      "target": "single_ally",
+      "mpCost": 12,
+      "power": 0,
+      "description": "Removes all status ailments from one ally."
+    },
+    {
+      "id": "reraise",
+      "name": "Auto-Life",
+      "type": "status_apply",
+      "target": "single_ally",
+      "mpCost": 40,
+      "power": 0,
+      "statusEffect": "reraise",
+      "description": "Grants Auto-Life; target revives automatically with 1 HP once."
+    },
+    {
+      "id": "raise",
+      "name": "Raise",
+      "type": "revive",
+      "target": "single_dead_ally",
+      "mpCost": 30,
+      "power": 0.25,
+      "description": "Revives a KO'd ally with 25% of their max HP."
+    },
+    {
+      "id": "enemyCure",
+      "name": "Mend",
+      "type": "heal",
+      "target": "self",
+      "mpCost": 20,
+      "power": 1.5,
+      "description": "Enemy heals itself."
     }
   ]
 }

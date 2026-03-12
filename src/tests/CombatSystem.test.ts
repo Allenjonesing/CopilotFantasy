@@ -145,9 +145,9 @@ describe('CombatSystem', () => {
     expect(target.stats.hp).toBeGreaterThan(0);
   });
 
-  it('slime base HP is 10', () => {
+  it('slime base HP is 18', () => {
     const slime = new EnemyCombatant('slime');
-    expect(slime.stats.maxHp).toBe(10);
+    expect(slime.stats.maxHp).toBe(18);
   });
 });
 

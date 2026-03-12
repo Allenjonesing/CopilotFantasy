@@ -117,6 +117,11 @@ export class CombatSystem {
       return false;
     }
     this.bus.emit('combat:mpChange', actor);
+    // Emit spell animation event before applying effects
+    const skillElement = (skill as { element?: string }).element ?? null;
+    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive') {
+      this.bus.emit('combat:spellStart', actor, skillElement ?? skill.type, skill.name);
+    }
     const targets = this.resolveTargets(actor, skill.target, target);
     targets.forEach((t) => this.applySkillEffect(actor, skill, t));
     return true;
@@ -131,7 +136,31 @@ export class CombatSystem {
       this.bus.emit('combat:attackStart', actor, target);
       const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
       const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
+      const skillElement = (skill as { element?: string }).element ?? null;
+
+      // Elemental absorption: if the skill's element matches the target's element, heal instead.
+      if (skillElement && target.element === skillElement) {
+        const healed = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
+        target.restoreHp(healed);
+        this.addLog(`${target.name} absorbs ${skill.name}! Healed for ${healed} HP.`);
+        this.bus.emit('combat:heal', target, healed);
+        return;
+      }
+
       const dmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
+
+      // Bio Drain: restore HP to caster equal to half the damage dealt
+      if (skill.id === 'drain') {
+        target.applyDamage(dmg);
+        const restore = Math.floor(dmg / 2);
+        actor.restoreHp(restore);
+        this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (restored ${restore} HP).`);
+        this.bus.emit('combat:damage', target, dmg);
+        this.bus.emit('combat:heal', actor, restore);
+        this.checkDefeated(target);
+        return;
+      }
+
       target.applyDamage(dmg);
       this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage.`);
       this.bus.emit('combat:damage', target, dmg);
@@ -139,8 +168,19 @@ export class CombatSystem {
     } else if (skill.type === 'heal') {
       const healed = Math.floor(actor.stats.magic * 3 * (skill.power ?? 1.0));
       target.restoreHp(healed);
-      this.addLog(`${actor.name} heals ${target.name} for ${healed} HP.`);
+      this.addLog(`${actor.name} uses ${skill.name} on ${target.name}, restoring ${healed} HP.`);
       this.bus.emit('combat:heal', target, healed);
+    } else if (skill.type === 'revive') {
+      if (!target.isDefeated) {
+        this.addLog(`${target.name} doesn't need reviving!`);
+        // Refund MP
+        actor.stats.mp = Math.min(actor.stats.maxMp, actor.stats.mp + skill.mpCost);
+        return;
+      }
+      const hpRestore = Math.max(1, Math.floor(target.stats.maxHp * (skill.power ?? 0.25)));
+      target.stats.hp = hpRestore;
+      this.addLog(`${actor.name} uses ${skill.name} — ${target.name} is revived with ${hpRestore} HP!`);
+      this.bus.emit('combat:heal', target, hpRestore);
     } else if (skill.type === 'status_apply' && skill.statusEffect) {
       this.statusSystem.apply(target, skill.statusEffect);
       this.addLog(`${actor.name} applies ${skill.name} to ${target.name}.`);

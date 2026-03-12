@@ -18,7 +18,7 @@
       "skills": ["attack"],
       "startingItems": [],
       "levelUpStats": { "hp": 8, "mp": 2, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "smash", "5": "provoke" }
+      "levelSkills": { "2": "smash", "5": "drain" }
     },
     {
       "id": "kael",
@@ -38,7 +38,7 @@
       "skills": ["attack"],
       "startingItems": [],
       "levelUpStats": { "hp": 5, "mp": 10, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
-      "levelSkills": { "2": "fire", "3": "thunder", "4": "blizzard", "5": "dualcast" }
+      "levelSkills": { "2": "fire", "3": "thunder", "4": "blizzard", "5": "water", "6": "fira", "7": "thundara", "8": "blizzara" }
     },
     {
       "id": "lyra",
@@ -58,7 +58,7 @@
       "skills": ["attack"],
       "startingItems": [],
       "levelUpStats": { "hp": 6, "mp": 8, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "cure", "3": "cura", "4": "esuna", "5": "reraise" }
+      "levelSkills": { "2": "cure", "3": "cura", "4": "esuna", "5": "reraise", "6": "curaga", "7": "raise" }
     }
   ]
 }

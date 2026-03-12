@@ -17,6 +17,7 @@ interface EnemyDef {
    * without changing the UI weak/buff variant label.
    */
   baseFloor?: number;
+  possibleElements?: Array<string | null>;
   stats: {
     hp: number; mp: number; strength: number; magic: number;
     defense: number; magicDefense: number; agility: number; luck: number;
@@ -74,6 +75,12 @@ export class EnemyCombatant extends CombatEntity {
     const uniqueId = `${enemyId}_${EnemyCombatant.nextId++}`;
     super(uniqueId, displayName ?? def.name, stats);
     this.enemyId = enemyId;
+
+    // Randomly assign elemental affinity from the enemy's possible elements list.
+    // null entries in the array represent "no element", making it weighted toward none.
+    const possibleElements = def.possibleElements ?? [null];
+    const chosenElement = possibleElements[Math.floor(Math.random() * possibleElements.length)];
+    this.element = chosenElement ?? null;
 
     // Roll for random item drops at encounter creation time.
     const rolledItems: string[] = (def.possibleDrops ?? [])
