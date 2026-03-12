@@ -2,7 +2,7 @@
   "items": [
     {
       "id": "potion",
-      "name": "Potion",
+      "name": "Medicinal Herb",
       "type": "consumable",
       "target": "single_ally",
       "effect": { "hp": 100 },
@@ -12,7 +12,7 @@
     },
     {
       "id": "hiPotion",
-      "name": "Hi-Potion",
+      "name": "Potent Herb",
       "type": "consumable",
       "target": "single_ally",
       "effect": { "hp": 300 },
@@ -22,7 +22,7 @@
     },
     {
       "id": "ether",
-      "name": "Ether",
+      "name": "Mana Brew",
       "type": "consumable",
       "target": "single_ally",
       "effect": { "mp": 50 },
@@ -32,7 +32,7 @@
     },
     {
       "id": "phoenix",
-      "name": "Phoenix Down",
+      "name": "Revival Herb",
       "type": "consumable",
       "target": "single_dead_ally",
       "effect": { "revive": true, "hp": 1 },
@@ -42,7 +42,7 @@
     },
     {
       "id": "antidote",
-      "name": "Antidote",
+      "name": "Antitoxin",
       "type": "consumable",
       "target": "single_ally",
       "effect": { "removePoison": true },

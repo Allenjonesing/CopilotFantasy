@@ -225,7 +225,9 @@ export class CombatSystem {
       if (entity.hasStatus('reraise')) {
         entity.restoreHp(1);
         entity.removeStatus('reraise');
-        this.addLog(`${entity.name} is revived by Reraise!`);
+        const skillDef = skillsData.skills.find((s) => s.id === 'reraise');
+        const skillName = skillDef ? skillDef.name : 'Life Ward';
+        this.addLog(`${entity.name} is revived by ${skillName}!`);
       } else {
         this.addLog(`${entity.name} is defeated!`);
         this.bus.emit('combat:defeated', entity);

@@ -11,37 +11,37 @@
     },
     {
       "id": "fire",
-      "name": "Fire",
+      "name": "Flame Bolt",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 8,
       "power": 1.2,
       "element": "fire",
-      "description": "A small burst of flame."
+      "description": "A bolt of searing flame."
     },
     {
       "id": "blizzard",
-      "name": "Blizzard",
+      "name": "Ice Shard",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 8,
       "power": 1.2,
       "element": "ice",
-      "description": "A shard of ice."
+      "description": "A jagged shard of ice."
     },
     {
       "id": "thunder",
-      "name": "Thunder",
+      "name": "Thunder Bolt",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 8,
       "power": 1.2,
       "element": "lightning",
-      "description": "A bolt of lightning."
+      "description": "A crackling bolt of lightning."
     },
     {
       "id": "cure",
-      "name": "Cure",
+      "name": "Minor Mend",
       "type": "heal",
       "target": "single_ally",
       "mpCost": 10,
@@ -50,7 +50,7 @@
     },
     {
       "id": "cura",
-      "name": "Cura",
+      "name": "Greater Mend",
       "type": "heal",
       "target": "single_ally",
       "mpCost": 22,
@@ -59,7 +59,7 @@
     },
     {
       "id": "esuna",
-      "name": "Esuna",
+      "name": "Cleanse",
       "type": "status_remove",
       "target": "single_ally",
       "mpCost": 12,
@@ -68,7 +68,7 @@
     },
     {
       "id": "reraise",
-      "name": "Reraise",
+      "name": "Life Ward",
       "type": "status_apply",
       "target": "single_ally",
       "mpCost": 40,
@@ -88,7 +88,7 @@
     },
     {
       "id": "dualcast",
-      "name": "Dualcast",
+      "name": "Twin Cast",
       "type": "special",
       "target": "self",
       "mpCost": 0,
@@ -106,7 +106,7 @@
     },
     {
       "id": "drain",
-      "name": "Drain",
+      "name": "Life Drain",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 14,

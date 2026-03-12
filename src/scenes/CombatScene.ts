@@ -18,6 +18,7 @@ export class CombatScene extends Phaser.Scene {
   private waitingForInput = false;
 
   private battleType: BattleType = 'normal';
+  private isBossBattle = false;
 
   constructor() {
     super({ key: 'CombatScene' });
@@ -39,6 +40,9 @@ export class CombatScene extends Phaser.Scene {
     });
     this.system = new CombatSystem(players, enemies);
     this.battleType = data.battleType ?? 'normal';
+    this.isBossBattle = enemySpecs.some(
+      (e) => typeof e !== 'string' && (e as CombatEnemySpec).isBoss === true,
+    );
     if (this.battleType !== 'normal') {
       this.system.applyBattleType(this.battleType);
     }
@@ -51,7 +55,7 @@ export class CombatScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.add.rectangle(width / 2, height / 2, width, height, 0x0a0a1a);
 
-    this.ui = new CombatUI(this, this.system, this.battleType);
+    this.ui = new CombatUI(this, this.system, this.battleType, this.isBossBattle);
 
     this.upKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     this.downKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
