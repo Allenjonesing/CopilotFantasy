@@ -348,9 +348,10 @@ export class CombatUI {
       fontFamily: 'monospace',
     });
     this.menuContainer.add(this.menuTitle);
-    this.buildMainMenu();
 
     // ── Help text — just above the nav button strip at the bottom ────────────
+    // Must be initialized BEFORE buildMainMenu() is called, because that method
+    // accesses this.helpText immediately.
     this.helpText = this.scene.add
       .text(this.W / 2, this.H - NAV_BTN_H - 4, HELP_TEXT_DEFAULT, {
         fontSize: '10px',
@@ -361,6 +362,8 @@ export class CombatUI {
       })
       .setOrigin(0.5, 1)
       .setDepth(25);
+
+    this.buildMainMenu();
   }
 
   /** Build the four combat navigation buttons pinned to the very bottom of the screen,
