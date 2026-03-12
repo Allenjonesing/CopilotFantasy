@@ -27,14 +27,15 @@ export class CombatScene extends Phaser.Scene {
     const enemySpecs = data.enemies ?? ['slime'];
     const baseScale = GameState.getInstance().getEnemyScale();
     const state = GameState.getInstance();
+    const currentFloor = state.data.difficultyLevel;
     const players = state.data.party
       .filter((c) => c.alive)
       .map((c) => new PlayerCombatant(c.id));
     const enemies = enemySpecs.map((e) => {
       if (typeof e === 'string') {
-        return new EnemyCombatant(e, baseScale);
+        return new EnemyCombatant(e, baseScale, undefined, currentFloor);
       }
-      return new EnemyCombatant(e.typeId, baseScale * e.variantScale, e.displayName);
+      return new EnemyCombatant(e.typeId, baseScale * e.variantScale, e.displayName, currentFloor);
     });
     this.system = new CombatSystem(players, enemies);
     this.battleType = data.battleType ?? 'normal';

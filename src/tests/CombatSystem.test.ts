@@ -83,13 +83,15 @@ describe('CombatSystem', () => {
 
   it('consumes item from inventory on use', () => {
     const state = GameState.getInstance();
+    // State already starts with 2 potions; add 2 more → 4 total.
     state.addItem('potion', 2);
+    const beforeQty = state.data.inventory.find((i) => i.id === 'potion')!.quantity;
     system.nextTurn();
     const actor = system.currentActor!;
     system.executeAction(actor, { type: 'item', itemId: 'potion', target: actor });
     const remaining = state.data.inventory.find((i) => i.id === 'potion');
-    // Quantity should have dropped from 2 to 1.
-    expect(remaining?.quantity ?? 0).toBe(1);
+    // Quantity should have dropped by exactly 1.
+    expect((remaining?.quantity ?? 0)).toBe(beforeQty - 1);
   });
 
   it('emits combat:heal event when a healing item is used', () => {
