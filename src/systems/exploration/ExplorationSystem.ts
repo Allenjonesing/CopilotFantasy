@@ -450,7 +450,7 @@ export class ExplorationSystem {
       return;
     }
 
-    state.data.pendingShopkeeper = { x: tx, y: ty };
+    state.data.pendingShopkeeper = { x: tx, y: ty, inventory: generateShopInventory() };
     this.placeShopkeeperSprite(tx, ty);
   }
 
@@ -706,7 +706,11 @@ export class ExplorationSystem {
     const state = GameState.getInstance();
     state.data.preCombatX = state.data.playerX;
     state.data.preCombatY = state.data.playerY;
-    this.bus.emit('shop:open', { inventory: generateShopInventory() });
+    // Use the predetermined inventory stored when this shopkeeper was spawned so the
+    // stock does not change on repeated visits within the same floor.
+    const shopkeeper = state.data.pendingShopkeeper;
+    const inventory = shopkeeper ? shopkeeper.inventory : generateShopInventory();
+    this.bus.emit('shop:open', { inventory });
   }
 
   private triggerCombat(enemy: MapEnemy): void {
