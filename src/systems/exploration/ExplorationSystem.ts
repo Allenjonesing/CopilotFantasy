@@ -22,7 +22,11 @@ interface MapEnemy {
   y: number;
   moveTimer: number;
   isMoving: boolean;
-  state: 'wander' | 'chase';
+  state: 'wander' | 'chase' | 'guard';
+  /** Guard enemies stay near their home tile and only chase within range. */
+  isGuard: boolean;
+  homeX: number;
+  homeY: number;
   sprite: EntitySprite;
   label: Phaser.GameObjects.Text;
 }
@@ -48,12 +52,32 @@ const ENEMY_WANDER_INTERVAL = 900;
 const ENEMY_CHASE_INTERVAL = 480;
 const ENEMY_CHASE_RANGE = 6;
 
-/** Enemy types available per difficulty tier. */
+/** Base chance for a 2nd enemy to join the battle (scales with difficulty). */
+const BASE_EXTRA_ENEMY_CHANCE = 0.40;
+/** Per-difficulty increase to the extra-enemy chance. */
+const EXTRA_ENEMY_CHANCE_SCALE = 0.05;
+/** Maximum extra-enemy chance cap above base. */
+const EXTRA_ENEMY_CHANCE_MAX = 0.25;
+/** Chance of a 3rd enemy appearing (floor 3+). */
+const THIRD_ENEMY_CHANCE = 0.25;
+
+/** Enemy types available per difficulty tier, weighted for variety. */
 function enemyTypesForDifficulty(difficulty: number): string[] {
-  if (difficulty <= 3) return ['slime'];
-  if (difficulty <= 6) return ['slime', 'goblin'];
-  if (difficulty <= 10) return ['goblin', 'shadowWisp'];
-  return ['shadowWisp', 'ironGolem'];
+  // Weighted arrays: more copies = higher probability.
+  if (difficulty === 1) return ['slime', 'slime', 'slime', 'goblin'];        // 75% slime, 25% goblin
+  if (difficulty === 2) return ['slime', 'slime', 'goblin'];                 // ~67% slime, ~33% goblin
+  if (difficulty <= 4) return ['slime', 'goblin', 'goblin'];                 // ~33% slime, ~67% goblin
+  if (difficulty <= 6) return ['goblin', 'goblin', 'shadowWisp'];            // ~67% goblin, ~33% wisp
+  if (difficulty <= 9) return ['goblin', 'shadowWisp', 'shadowWisp'];        // ~33% goblin, ~67% wisp
+  if (difficulty <= 12) return ['shadowWisp', 'ironGolem'];                  // 50/50
+  return ['shadowWisp', 'ironGolem', 'ironGolem'];                           // more Iron Golem
+}
+
+/** Boss enemy type placed near the exit per difficulty tier. */
+function bossTypeForDifficulty(difficulty: number): string {
+  if (difficulty <= 3) return 'goblin';
+  if (difficulty <= 6) return 'shadowWisp';
+  return 'ironGolem';
 }
 
 /** Shop inventory: always have these items available. */
@@ -186,6 +210,44 @@ export class ExplorationSystem {
         generated.push({ id: `enemy_${i}`, typeId, displayName, variantScale, x: ex, y: ey });
       }
 
+      // Spawn a floor boss near the exit that guards the way out.
+      const exitTile = mapData.exits[0];
+      if (exitTile) {
+        const bossTypeId = bossTypeForDifficulty(difficulty);
+        const bossBaseName = bossTypeId
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, (s) => s.toUpperCase())
+          .trim();
+        const bossDisplayName = `Floor Boss (${bossBaseName})`;
+        // Try to place boss 1-3 tiles from the exit but on a passable tile.
+        let bx = exitTile.x;
+        let by = exitTile.y;
+        for (let attempt = 0; attempt < 50; attempt++) {
+          const dx = Math.floor(Math.random() * 5) - 2; // -2 to +2
+          const dy = Math.floor(Math.random() * 5) - 2;
+          const tx = exitTile.x + dx;
+          const ty = exitTile.y + dy;
+          if (tx === exitTile.x && ty === exitTile.y) continue;
+          const tile = this.mapManager.getTile(tx, ty);
+          if (!tile?.passable) continue;
+          if (generated.some((e) => e.x === tx && e.y === ty)) continue;
+          bx = tx;
+          by = ty;
+          break;
+        }
+        generated.push({
+          id: 'boss_0',
+          typeId: bossTypeId,
+          displayName: bossDisplayName,
+          variantScale: 2.0,
+          x: bx,
+          y: by,
+          isGuard: true,
+          homeX: exitTile.x,
+          homeY: exitTile.y,
+        });
+      }
+
       state.data.pendingMapEnemies = generated;
       enemiesToSpawn = generated;
     }
@@ -209,8 +271,15 @@ export class ExplorationSystem {
           .setDepth(10);
       }
 
-      // Variant visual cues: weak = faded, buff = brighter tint
-      if (eData.variantScale < 0.82) {
+      // Variant visual cues: weak = faded, buff = brighter tint, boss = red+glow
+      if (eData.isGuard) {
+        sprite.setAlpha(1.0);
+        if (sprite instanceof Phaser.GameObjects.Image) {
+          sprite.setTint(0xff4400); // red-orange tint for boss
+        } else {
+          (sprite as Phaser.GameObjects.Rectangle).setFillStyle(0xdd2200);
+        }
+      } else if (eData.variantScale < 0.82) {
         sprite.setAlpha(0.65);
       } else if (eData.variantScale > 1.18) {
         sprite.setAlpha(1.0);
@@ -224,9 +293,13 @@ export class ExplorationSystem {
         }
       }
 
-      // Label: show variant indicator so the player has a heads-up.
-      const labelText = eData.variantScale < 0.82 ? 'W!' : eData.variantScale > 1.18 ? 'B!' : '!';
-      const labelColor = eData.variantScale < 0.82 ? '#aaaaaa' : eData.variantScale > 1.18 ? '#ff8844' : '#ffaaaa';
+      // Label: boss shows 'BOSS', variant shows W!/B!/!
+      const labelText = eData.isGuard
+        ? 'BOSS'
+        : eData.variantScale < 0.82 ? 'W!' : eData.variantScale > 1.18 ? 'B!' : '!';
+      const labelColor = eData.isGuard
+        ? '#ff4400'
+        : eData.variantScale < 0.82 ? '#aaaaaa' : eData.variantScale > 1.18 ? '#ff8844' : '#ffaaaa';
 
       const label = this.scene.add
         .text(eData.x * tileSize + tileSize / 2, eData.y * tileSize, labelText, {
@@ -241,7 +314,10 @@ export class ExplorationSystem {
         ...eData,
         moveTimer: Math.random() * 600,
         isMoving: false,
-        state: 'wander',
+        state: eData.isGuard ? 'guard' : 'wander',
+        isGuard: eData.isGuard ?? false,
+        homeX: eData.homeX ?? eData.x,
+        homeY: eData.homeY ?? eData.y,
         sprite,
         label,
       });
@@ -435,7 +511,18 @@ export class ExplorationSystem {
       if (enemy.moveTimer < interval) continue;
       if (enemy.isMoving) continue;
       enemy.moveTimer = 0;
-      enemy.state = dist <= ENEMY_CHASE_RANGE ? 'chase' : 'wander';
+
+      // Guard (boss) enemies: chase if player is in range, otherwise return to
+      // home tile near the exit instead of wandering freely.
+      if (enemy.isGuard) {
+        if (dist <= ENEMY_CHASE_RANGE) {
+          enemy.state = 'chase';
+        } else {
+          enemy.state = 'guard';
+        }
+      } else {
+        enemy.state = dist <= ENEMY_CHASE_RANGE ? 'chase' : 'wander';
+      }
 
       let nx = enemy.x;
       let ny = enemy.y;
@@ -448,6 +535,19 @@ export class ExplorationSystem {
         } else {
           ny += Math.sign(dy);
         }
+      } else if (enemy.state === 'guard') {
+        // Move back toward home tile if more than 1 step away.
+        const distFromHome = Math.abs(enemy.x - enemy.homeX) + Math.abs(enemy.y - enemy.homeY);
+        if (distFromHome > 1) {
+          const dx = enemy.homeX - enemy.x;
+          const dy = enemy.homeY - enemy.y;
+          if (Math.abs(dx) >= Math.abs(dy)) {
+            nx += Math.sign(dx);
+          } else {
+            ny += Math.sign(dy);
+          }
+        }
+        // If already at home, stay put (nx/ny remain unchanged).
       } else {
         const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]].sort(() => Math.random() - 0.5);
         for (const [ddx, ddy] of dirs) {
@@ -625,9 +725,21 @@ export class ExplorationSystem {
       { typeId: enemy.typeId, displayName: enemy.displayName, variantScale: enemy.variantScale },
     ];
 
-    // Chance to add a second enemy at higher difficulty.
-    if (difficulty >= 4 && Math.random() < 0.35) {
-      const types = enemyTypesForDifficulty(difficulty);
+    // Chance to add extra enemies (higher chance at higher difficulties).
+    // From floor 1: BASE_EXTRA_ENEMY_CHANCE for a 2nd enemy; from floor 3: THIRD_ENEMY_CHANCE for a 3rd.
+    const types = enemyTypesForDifficulty(difficulty);
+    const extraChance = BASE_EXTRA_ENEMY_CHANCE + Math.min(difficulty * EXTRA_ENEMY_CHANCE_SCALE, EXTRA_ENEMY_CHANCE_MAX);
+    if (Math.random() < extraChance) {
+      const extraTypeId = types[Math.floor(Math.random() * types.length)];
+      const { scale, prefix } = this.rollVariant();
+      const baseName = extraTypeId
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (s) => s.toUpperCase())
+        .trim();
+      enemies.push({ typeId: extraTypeId, displayName: prefix + baseName, variantScale: scale });
+    }
+    // Third enemy from floor 3 onward.
+    if (difficulty >= 3 && Math.random() < THIRD_ENEMY_CHANCE) {
       const extraTypeId = types[Math.floor(Math.random() * types.length)];
       const { scale, prefix } = this.rollVariant();
       const baseName = extraTypeId

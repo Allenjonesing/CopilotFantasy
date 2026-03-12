@@ -45,16 +45,19 @@ export class CombatSystem {
     this.bus = EventBus.getInstance();
   }
 
-  /** Apply battle-type advantages (preemptive/ambush) by adjusting CTB values. */
+  /** Apply battle-type advantages (preemptive/ambush) by adjusting CTB values.
+   *  The advantaged side goes first, but each side only gets one full round of
+   *  turns before the other side acts — no infinite chains of consecutive turns.
+   */
   applyBattleType(type: BattleType): void {
     if (type === 'preemptive') {
-      // Players act immediately; enemies are significantly delayed.
-      this.players.forEach((p) => { p.ctbValue = 0; });
-      this.enemies.forEach((e) => { e.ctbValue = 500; });
+      // Players act first: push every enemy's CTB just past the slowest player.
+      const maxPlayerCtb = Math.max(...this.players.map((p) => p.ctbValue));
+      this.enemies.forEach((e) => { e.ctbValue = maxPlayerCtb + 1; });
     } else if (type === 'ambush') {
-      // Enemies act immediately; players are significantly delayed.
-      this.enemies.forEach((en) => { en.ctbValue = 0; });
-      this.players.forEach((p) => { p.ctbValue = 500; });
+      // Enemies act first: push every player's CTB just past the slowest enemy.
+      const maxEnemyCtb = Math.max(...this.enemies.map((e) => e.ctbValue));
+      this.players.forEach((p) => { p.ctbValue = maxEnemyCtb + 1; });
     }
   }
 
@@ -158,15 +161,27 @@ export class CombatSystem {
     }
     const t = target ?? actor;
     const effect = item.effect as Record<string, unknown>;
-    if (typeof effect['hp'] === 'number') {
-      t.restoreHp(effect['hp']);
-      this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['hp']} HP.`);
-      this.bus.emit('combat:heal', t, effect['hp']);
-    }
-    if (typeof effect['mp'] === 'number') {
-      t.stats.mp = Math.min(t.stats.maxMp, t.stats.mp + (effect['mp'] as number));
-      this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['mp']} MP.`);
-      this.bus.emit('combat:heal', t, effect['mp']);
+    if (effect['revive'] === true) {
+      if (!t.isDefeated) {
+        this.addLog(`${t.name} doesn't need reviving!`);
+        state.addItem(itemId); // refund
+        return;
+      }
+      const hpRestore = typeof effect['hp'] === 'number' ? (effect['hp'] as number) : 1;
+      t.stats.hp = hpRestore; // directly set so defeated check clears
+      this.addLog(`${actor.name} uses ${item.name} — ${t.name} is revived with ${hpRestore} HP!`);
+      this.bus.emit('combat:heal', t, hpRestore);
+    } else {
+      if (typeof effect['hp'] === 'number') {
+        t.restoreHp(effect['hp']);
+        this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['hp']} HP.`);
+        this.bus.emit('combat:heal', t, effect['hp']);
+      }
+      if (typeof effect['mp'] === 'number') {
+        t.stats.mp = Math.min(t.stats.maxMp, t.stats.mp + (effect['mp'] as number));
+        this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['mp']} MP.`);
+        this.bus.emit('combat:heal', t, effect['mp']);
+      }
     }
     this.bus.emit('combat:itemUsed', actor, item.id);
   }
@@ -180,6 +195,9 @@ export class CombatSystem {
     const _allies = isPlayer
       ? this.players.filter((p) => !p.isDefeated)
       : this.enemies.filter((e) => !e.isDefeated);
+    const _deadAllies = isPlayer
+      ? this.players.filter((p) => p.isDefeated)
+      : this.enemies.filter((e) => e.isDefeated);
     const foes = isPlayer
       ? this.enemies.filter((e) => !e.isDefeated)
       : this.players.filter((p) => !p.isDefeated);
@@ -189,6 +207,8 @@ export class CombatSystem {
         return singleTarget ? [singleTarget] : foes.slice(0, 1);
       case 'single_ally':
         return singleTarget ? [singleTarget] : _allies.slice(0, 1);
+      case 'single_dead_ally':
+        return singleTarget ? [singleTarget] : _deadAllies.slice(0, 1);
       case 'all_enemies':
         return foes;
       case 'all_allies':

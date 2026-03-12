@@ -6,6 +6,7 @@ import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
 import skillsData from '../data/skills.json';
 import itemsData from '../data/items.json';
+import charactersData from '../data/characters.json';
 
 // Fixed/animation constants that don't depend on screen size
 const TIMELINE_H = 36;
@@ -16,6 +17,8 @@ const ENEMY_FLASH_MS = 80;
 const ENEMY_FLASH_REPEAT = 2;
 const LOG_STRIP_H = 42;
 const LOG_LINE_COUNT = 3;
+/** Height of each player row in the left status panel (name + HP + MP bars). */
+const PER_PLAYER_PANEL_H = 50;
 
 const HELP_TEXT_DEFAULT = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Tap enemy or ally to target';
 const HELP_TEXT_SKILL    = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover skill to see description';
@@ -88,6 +91,8 @@ export class CombatUI {
   private targetList: CombatEntity[] = [];
   private targetIsPositive = false;
   private targetCursor!: Phaser.GameObjects.Rectangle;
+  /** Semi-transparent highlight drawn over the targeted player's status row. */
+  private targetPanelHighlight!: Phaser.GameObjects.Rectangle;
   // Timeline display
   private timelineContainer!: Phaser.GameObjects.Container;
   private timelineIcons: Phaser.GameObjects.GameObject[] = [];
@@ -224,6 +229,14 @@ export class CombatUI {
     this.targetCursor.setDepth(15);
     this.targetCursor.setVisible(false);
 
+    // ── Target panel highlight (hidden initially) ─────────────────────────────
+    this.targetPanelHighlight = this.scene.add.rectangle(
+      this.LEFT_PANEL_W / 2, 0, this.LEFT_PANEL_W, PER_PLAYER_PANEL_H - 2, 0x44ff88, 0,
+    );
+    this.targetPanelHighlight.setStrokeStyle(2, 0x44ff88);
+    this.targetPanelHighlight.setDepth(20);
+    this.targetPanelHighlight.setVisible(false);
+
     // ── Compact log strip ─────────────────────────────────────────────────────
     this.logStripBg = this.scene.add.rectangle(this.W / 2, this.LOG_STRIP_Y + LOG_STRIP_H / 2, this.W - 10, LOG_STRIP_H, 0x0a0a1a, 0.80);
     this.logStripBg.setStrokeStyle(1, 0x333355);
@@ -243,7 +256,6 @@ export class CombatUI {
     this.scene.add.rectangle(this.W / 2, (this.BOTTOM_Y + this.H - 22) / 2, this.W, this.H - 22 - this.BOTTOM_Y, 0x0d0d1f, 0.95).setDepth(18);
 
     // ── Left panel: player HP + MP bars ──────────────────────────────────────
-    const PER_PLAYER_PANEL_H = 50;
     const barW = this.BAR_HALF_W * 2;
     const barTextX = Math.round(this.LEFT_PANEL_W * 0.58);
     this.system.players.forEach((p, idx) => {
@@ -322,7 +334,7 @@ export class CombatUI {
     const GUTTER = 6;
     const COL1 = Math.round(this.LEFT_PANEL_W * 0.26);
     const COL2 = Math.round(this.LEFT_PANEL_W * 0.74);
-    const ROW1 = this.BOTTOM_Y + this.system.players.length * 50 + 14;
+    const ROW1 = this.BOTTOM_Y + this.system.players.length * PER_PLAYER_PANEL_H + 14;
     const ROW2 = ROW1 + BH + GUTTER;
 
     const makeBtn = (
@@ -411,6 +423,17 @@ export class CombatUI {
     }
   }
 
+  /** Return the skill-menu label appropriate for the current actor's class. */
+  private skillMenuLabel(): string {
+    if (!this.currentActor) return 'Skill';
+    const charDef = (charactersData.characters as Array<{ id: string; class: string }>)
+      .find((c) => c.id === this.currentActor!.id);
+    if (!charDef) return 'Skill';
+    if (charDef.class === 'Mage') return 'Magic';
+    if (charDef.class === 'Healer') return 'White Magic';
+    return 'Skill';
+  }
+
   private buildMainMenu(): void {
     this.menuTitle.setText('ACTION');
     const actor = this.currentActor;
@@ -418,13 +441,13 @@ export class CombatUI {
     const hasSkills = specialSkills.length > 0;
     const hasItems = GameState.getInstance().data.inventory.length > 0;
     this.buildMenuItems(
-      ['Attack', 'Skill', 'Item', 'Defend', 'Flee'],
+      ['Attack', this.skillMenuLabel(), 'Item', 'Defend', 'Flee'],
       [false, !hasSkills, !hasItems, false, false],
     );
   }
 
   private buildSkillMenu(): void {
-    this.menuTitle.setText('SKILL  [BACK: cancel]');
+    this.menuTitle.setText(`${this.skillMenuLabel()}  [BACK: cancel]`);
     const actor = this.currentActor;
     const skillIds = actor ? actor.skills.filter((s) => s !== 'attack') : [];
     const items = skillIds.map((id) => {
@@ -470,9 +493,16 @@ export class CombatUI {
 
     // Determine whether the action targets allies (healing item or ally-targeting skill).
     let preferAlly = false;
+    let revivalItem = false;
     if (actionType === 'item' && this.pendingItemId) {
       const itemDef = itemsData.items.find((it) => it.id === this.pendingItemId);
-      preferAlly = itemDef?.target === 'single_ally';
+      const effect = itemDef?.effect as Record<string, unknown> | undefined;
+      if (effect?.['revive']) {
+        revivalItem = true;
+        preferAlly = true; // green cursor for positive action
+      } else {
+        preferAlly = itemDef?.target === 'single_ally';
+      }
     } else if (actionType === 'skill' && this.pendingSkillId) {
       const skillDef = skillsData.skills.find((s) => s.id === this.pendingSkillId);
       preferAlly = skillDef?.target === 'single_ally' || skillDef?.target === 'all_allies';
@@ -482,14 +512,24 @@ export class CombatUI {
     // hostile actions (attacks, offensive skills) use a red cursor.
     this.targetIsPositive = preferAlly;
 
-    const allies = this.system.players.filter((p) => !p.isDefeated);
-    const foes = this.system.enemies.filter((e) => !e.isDefeated);
-    this.targetList = preferAlly ? [...allies, ...foes] : [...foes, ...allies];
+    if (revivalItem) {
+      // Revival items only show KO'd allies as valid targets.
+      this.targetList = this.system.players.filter((p) => p.isDefeated);
+      if (this.targetList.length === 0) {
+        // No one to revive — fall back to living allies to avoid empty menu.
+        this.targetList = this.system.players.filter((p) => !p.isDefeated);
+      }
+    } else {
+      const allies = this.system.players.filter((p) => !p.isDefeated);
+      const foes = this.system.enemies.filter((e) => !e.isDefeated);
+      this.targetList = preferAlly ? [...allies, ...foes] : [...foes, ...allies];
+    }
 
     this.menuTitle.setText('TARGET [BACK: cancel]');
     const labels = this.targetList.map((t) => {
       const isEnemy = !this.system.players.some((p) => p === t);
-      return `${t.name} ${isEnemy ? '(foe)' : '(ally)'}`;
+      const deadMark = t.isDefeated ? ' ✝' : '';
+      return `${t.name} ${isEnemy ? '(foe)' : '(ally)'}${deadMark}`;
     });
     this.buildMenuItems(labels);
     this.updateTargetCursor();
@@ -516,6 +556,7 @@ export class CombatUI {
     const target = this.targetList[this.selectedMenuIndex];
     if (!target) {
       this.targetCursor.setVisible(false);
+      this.targetPanelHighlight.setVisible(false);
       return;
     }
     const pos = this.entityCenter(target);
@@ -524,10 +565,27 @@ export class CombatUI {
     const cursorColor = this.targetIsPositive ? 0x44ff88 : 0xff4444;
     this.targetCursor.setStrokeStyle(3, cursorColor);
     this.targetCursor.setVisible(true);
+
+    // Also highlight the target's name+HP row in the left status panel if it is a player.
+    if (target instanceof PlayerCombatant) {
+      const pIdx = this.system.players.indexOf(target);
+      if (pIdx !== -1) {
+        const rowY = this.BOTTOM_Y + 8 + pIdx * PER_PLAYER_PANEL_H + PER_PLAYER_PANEL_H / 2 - 4;
+        this.targetPanelHighlight.setPosition(this.LEFT_PANEL_W / 2, rowY);
+        this.targetPanelHighlight.setSize(this.LEFT_PANEL_W - 4, PER_PLAYER_PANEL_H - 4);
+        this.targetPanelHighlight.setStrokeStyle(2, cursorColor);
+        this.targetPanelHighlight.setVisible(true);
+      } else {
+        this.targetPanelHighlight.setVisible(false);
+      }
+    } else {
+      this.targetPanelHighlight.setVisible(false);
+    }
   }
 
   private hideTargetCursor(): void {
     this.targetCursor.setVisible(false);
+    this.targetPanelHighlight.setVisible(false);
   }
 
   private registerEvents(): void {
@@ -980,6 +1038,7 @@ export class CombatUI {
     this.logStripBg.destroy();
     this.logTexts.forEach((t) => t.destroy());
     this.targetCursor.destroy();
+    this.targetPanelHighlight.destroy();
     this.activeTurnIndicator.destroy();
     this.helpText.destroy();
     this.navObjects.forEach((g) => g.destroy());
