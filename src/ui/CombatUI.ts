@@ -17,12 +17,12 @@ const ENEMY_FLASH_MS = 80;
 const ENEMY_FLASH_REPEAT = 2;
 const LOG_STRIP_H = 42;
 const LOG_LINE_COUNT = 3;
-/** Height of the touch-nav bar pinned to the bottom of the combat screen. */
-const NAV_BTN_H = 60;
+/** Height of the touch-nav bar pinned to the bottom of the combat screen (3 rows × 40 px). */
+const NAV_BTN_H = 120;
 
-const HELP_TEXT_DEFAULT = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Tap enemy or ally to target';
-const HELP_TEXT_SKILL    = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover skill to see description';
-const HELP_TEXT_ITEM     = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover item to see description';
+const HELP_TEXT_DEFAULT = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Tap to target';
+const HELP_TEXT_SKILL    = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Hover skill for details';
+const HELP_TEXT_ITEM     = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Hover item for details';
 
 /** Element emoji indicators shown next to enemy names. */
 const ELEMENT_ICONS: Record<string, string> = {
@@ -354,8 +354,8 @@ export class CombatUI {
     // accesses this.helpText immediately.
     this.helpText = this.scene.add
       .text(this.W / 2, this.H - NAV_BTN_H - 4, HELP_TEXT_DEFAULT, {
-        fontSize: '10px',
-        color: '#666688',
+        fontSize: '14px',
+        color: '#ffe066',
         fontFamily: 'monospace',
         wordWrap: { width: this.W - 16 },
         align: 'center',
@@ -366,38 +366,60 @@ export class CombatUI {
     this.buildMainMenu();
   }
 
-  /** Build the four combat navigation buttons pinned to the very bottom of the screen,
-   *  spanning the full portrait width.  Layout mirrors the overworld controls:
-   *    ▲  |  ▼  |  OK  |  BACK
-   *  (navigation on the left half, action buttons on the right half).
+  /** Build the combat navigation buttons pinned to the very bottom of the screen.
+   *  Layout: two equal columns, each consuming the full NAV_BTN_H height.
+   *
+   *  LEFT COLUMN — directional D-pad (3 rows of NAV_BTN_H/3 each):
+   *    Row 1: ▲  (full left-half width)
+   *    Row 2: ◄  |  ►  (split into two quarter-width buttons)
+   *    Row 3: ▼  (full left-half width)
+   *
+   *  RIGHT COLUMN — action buttons (2 rows of NAV_BTN_H/2 each):
+   *    Row 1: OK
+   *    Row 2: BACK
    */
   private buildNavButtons(): void {
-    const BTN_W = Math.floor(this.W / 4);
-    const BTN_H = NAV_BTN_H - 8;
-    const BTN_Y  = this.H - NAV_BTN_H / 2;
+    const HALF_W    = Math.floor(this.W / 2);
+    const QUARTER_W = Math.floor(this.W / 4);
+    const ROW_H     = Math.floor(NAV_BTN_H / 3); // ~40 px each row (left d-pad)
+    const R_ROW_H   = Math.floor(NAV_BTN_H / 2); // 60 px each row (right actions)
+    const NAV_TOP   = this.H - NAV_BTN_H;        // absolute Y of the top of the nav bar
 
-    // Dark background strip for the whole nav row (hidden until player turn).
-    const navBg = this.scene.add.rectangle(this.W / 2, this.H - NAV_BTN_H / 2, this.W, NAV_BTN_H, 0x0a0a1a, 0.95);
+    // Dark background strip for the whole nav bar (hidden until player turn).
+    const navBg = this.scene.add.rectangle(this.W / 2, NAV_TOP + NAV_BTN_H / 2, this.W, NAV_BTN_H, 0x0a0a1a, 0.95);
     navBg.setStrokeStyle(1, 0x333355);
     navBg.setDepth(31);
     navBg.setVisible(false);
     this.navObjects.push(navBg);
 
+    /**
+     * Create a single nav button.
+     * @param label   Display label
+     * @param cx      Horizontal centre of the button
+     * @param cy      Vertical centre of the button
+     * @param bw      Button width
+     * @param bh      Button height
+     * @param color   Background fill colour
+     * @param stroke  Border colour
+     * @param onTap   Callback when pressed
+     */
     const makeBtn = (
       label: string,
-      col: number,          // 0-based column index (0=leftmost)
+      cx: number,
+      cy: number,
+      bw: number,
+      bh: number,
       color: number,
       stroke: number,
       onTap: () => void,
     ): void => {
-      const cx = col * BTN_W + BTN_W / 2;
-      const bg = this.scene.add.rectangle(cx, BTN_Y, BTN_W - 4, BTN_H, color, 0.90);
+      const bg = this.scene.add.rectangle(cx, cy, bw - 4, bh - 4, color, 0.90);
       bg.setStrokeStyle(2, stroke);
       bg.setDepth(32);
       bg.setVisible(false);
       bg.setInteractive({ useHandCursor: true });
       const txt = this.scene.add
-        .text(cx, BTN_Y, label, { fontSize: '22px', color: '#ffffff', fontFamily: 'monospace' })
+        .text(cx, cy, label, { fontSize: '22px', color: '#ffffff', fontFamily: 'monospace' })
         .setOrigin(0.5)
         .setDepth(33)
         .setVisible(false);
@@ -408,12 +430,51 @@ export class CombatUI {
       this.navObjects.push(bg, txt);
     };
 
-    // Left half: navigation (▲ ▼)
-    makeBtn('▲', 0, 0x223355, 0x5577bb, () => this.navigateMenu('up'));
-    makeBtn('▼', 1, 0x223355, 0x5577bb, () => this.navigateMenu('down'));
-    // Right half: action buttons (OK / BACK)
-    makeBtn('OK',   2, 0x1a3322, 0x44aa66, () => this.onMenuTap?.());
-    makeBtn('BACK', 3, 0x331a1a, 0xaa4444, () => this.backMenu());
+    // ── Left column — D-pad ──────────────────────────────────────────────────
+    // Row 1: ▲  (full left-half width)
+    makeBtn('▲',
+      HALF_W / 2, NAV_TOP + ROW_H / 2,
+      HALF_W, ROW_H,
+      0x223355, 0x5577bb,
+      () => this.navigateMenu('up'),
+    );
+    // Row 2: ◄  (left quarter width)
+    makeBtn('◄',
+      QUARTER_W / 2, NAV_TOP + ROW_H + ROW_H / 2,
+      QUARTER_W, ROW_H,
+      0x223355, 0x5577bb,
+      () => this.navigateMenu('left'),
+    );
+    // Row 2: ►  (second quarter width)
+    makeBtn('►',
+      QUARTER_W + QUARTER_W / 2, NAV_TOP + ROW_H + ROW_H / 2,
+      QUARTER_W, ROW_H,
+      0x223355, 0x5577bb,
+      () => this.navigateMenu('right'),
+    );
+    // Row 3: ▼  (full left-half width)
+    makeBtn('▼',
+      HALF_W / 2, NAV_TOP + ROW_H * 2 + ROW_H / 2,
+      HALF_W, ROW_H,
+      0x223355, 0x5577bb,
+      () => this.navigateMenu('down'),
+    );
+
+    // ── Right column — action buttons ────────────────────────────────────────
+    // Top half: OK
+    makeBtn('OK',
+      HALF_W + HALF_W / 2, NAV_TOP + R_ROW_H / 2,
+      HALF_W, R_ROW_H,
+      0x1a3322, 0x44aa66,
+      () => this.onMenuTap?.(),
+    );
+    // Bottom half: BACK
+    makeBtn('BACK',
+      HALF_W + HALF_W / 2, NAV_TOP + R_ROW_H + R_ROW_H / 2,
+      HALF_W, R_ROW_H,
+      0x331a1a, 0xaa4444,
+      () => this.backMenu(),
+    );
   }
 
   /** Handle a tap/click on an entity icon in the battlefield. */
@@ -1067,13 +1128,16 @@ export class CombatUI {
     }
   }
 
-  navigateMenu(direction: 'up' | 'down'): void {
+  navigateMenu(direction: 'up' | 'down' | 'left' | 'right'): void {
     const count = this.menuItems.length;
     if (count === 0) return;
+    // left/right map to previous/next item respectively (same as up/down) so the
+    // full D-pad works with the linear vertical menu list.
+    const goForward = direction === 'down' || direction === 'right';
     let newIdx = this.selectedMenuIndex;
     let iterations = 0;
     do {
-      newIdx = direction === 'down' ? (newIdx + 1) % count : (newIdx - 1 + count) % count;
+      newIdx = goForward ? (newIdx + 1) % count : (newIdx - 1 + count) % count;
       iterations++;
     } while (this.menuDisabled[newIdx] && iterations < count);
 
