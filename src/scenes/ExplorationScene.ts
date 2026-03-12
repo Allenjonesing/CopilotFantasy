@@ -4,6 +4,7 @@ import { ExplorationUI } from '../ui/ExplorationUI';
 import { TouchControls } from '../ui/TouchControls';
 import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
+import itemsData from '../data/items.json';
 
 export class ExplorationScene extends Phaser.Scene {
   private exploration!: ExplorationSystem;
@@ -56,9 +57,14 @@ export class ExplorationScene extends Phaser.Scene {
 
     this.bus.on('pickup:collected', (data) => {
       const d = data as { kind: string; gold: number; itemId?: string };
-      const msg = d.itemId
-        ? `Found ${d.gold} Gold + ${d.itemId}!`
-        : `Collected ${d.gold} Gold!`;
+      let msg: string;
+      if (d.itemId) {
+        const itemDef = itemsData.items.find((it) => it.id === d.itemId);
+        const itemName = itemDef ? itemDef.name : d.itemId;
+        msg = `Found ${d.gold} Gold + ${itemName}!`;
+      } else {
+        msg = `Collected ${d.gold} Gold!`;
+      }
       this.explorationUI.showPickupMessage(msg);
     });
 

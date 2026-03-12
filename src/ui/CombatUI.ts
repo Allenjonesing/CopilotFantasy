@@ -24,6 +24,24 @@ const HELP_TEXT_DEFAULT = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   
 const HELP_TEXT_SKILL    = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover skill to see description';
 const HELP_TEXT_ITEM     = '▲▼ Navigate   OK/Enter Confirm   X/BACK Cancel   Hover item to see description';
 
+/** Element emoji indicators shown next to enemy names. */
+const ELEMENT_ICONS: Record<string, string> = {
+  fire: '🔥',
+  ice: '❄',
+  lightning: '⚡',
+  water: '💧',
+};
+
+/** Element spell colour for animations. */
+const ELEMENT_COLORS: Record<string, number> = {
+  fire: 0xff6600,
+  ice: 0x88ddff,
+  lightning: 0xffff00,
+  water: 0x4488ff,
+  heal: 0x44ff88,
+  revive: 0xffffff,
+};
+
 // Entity icon sizes (fixed pixel sizes)
 const ENEMY_W = 80;
 const ENEMY_H = 80;
@@ -63,6 +81,10 @@ export class CombatUI {
   private readonly ENEMY_SPREAD: number;
   private readonly PLAYER_SPREAD: number;
   private readonly BAR_HALF_W: number; // half of HP bar width (for refresh animation)
+  /** Vertical Y position of the enemy row in the battlefield (top section). */
+  private readonly enemyRowY: number;
+  /** Vertical Y position of the player row in the battlefield (bottom section). */
+  private readonly playerRowY: number;
   // Enemy sprites
   private enemyRects: Map<string, EntityIcon> = new Map();
   private enemyNameTexts: Phaser.GameObjects.Text[] = [];
@@ -105,13 +127,15 @@ export class CombatUI {
   private helpText!: Phaser.GameObjects.Text;
   // Combat nav buttons (touch-friendly)
   private navObjects: Phaser.GameObjects.GameObject[] = [];
+  // Spell animation handler reference (for cleanup)
+  private onCombatSpellStart!: (actor: unknown, element: unknown, name: unknown) => void;
   // State
   private currentActor: CombatEntity | null = null;
   private bus: EventBus;
   // Stored listener references for cleanup
   private onCombatLog!: (msg: unknown) => void;
   private onCombatDamage!: (entity: unknown, dmg: unknown) => void;
-  private onCombatHeal!: (entity: unknown) => void;
+  private onCombatHeal!: (entity: unknown, amount: unknown) => void;
   private onCombatTurnStart!: (actor: unknown) => void;
   private onCombatAttackStart!: (actor: unknown, target: unknown) => void;
   private onCombatMpChange!: (entity: unknown) => void;
@@ -129,29 +153,31 @@ export class CombatUI {
     // combat UI fills the available space on any screen (including portrait).
     this.W = scene.scale.width;
     this.H = scene.scale.height;
-    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.42);
+    this.BATTLEFIELD_BOTTOM = Math.round(this.H * 0.44);
     this.LOG_STRIP_Y = this.BATTLEFIELD_BOTTOM + 4;
     this.BOTTOM_Y = this.LOG_STRIP_Y + LOG_STRIP_H + 4;
     this.LEFT_PANEL_W = Math.round(this.W * 0.31);
     this.MENU_X = this.LEFT_PANEL_W + 8;
     this.MENU_W = this.W - this.MENU_X - 8;
-    this.ICON_Y = Math.round(this.H * 0.292);
 
-    // Layout: LEFT half (0–50%) for players, RIGHT half (50–100%) for enemies.
-    // Players are spread evenly across the left half with good spacing.
-    // Enemies start at ~55% of screen width and spread toward the right edge.
+    // Vertical stacking: enemies occupy top portion of battlefield, players the bottom.
+    const battlefieldH = this.BATTLEFIELD_BOTTOM - TIMELINE_H;
+    this.enemyRowY = TIMELINE_H + Math.round(battlefieldH * 0.32);
+    this.playerRowY = TIMELINE_H + Math.round(battlefieldH * 0.72);
+    this.ICON_Y = this.playerRowY; // used for active-turn indicator fallback
+
     const pCount = system.players.length;
     const eCount = system.enemies.length;
 
-    // Player icons: spread across 10%–48% of screen width.
-    const playerAreaW = Math.round(this.W * 0.38);
+    // Players spread across 10%–90% of screen width in the lower battlefield row.
+    const playerAreaW = Math.round(this.W * 0.80);
     this.PLAYER_SPREAD = Math.max(playerAreaW, (PLAYER_ICON_W + 14) * Math.max(pCount, 1));
     this.PLAYER_BASE_X = Math.round(this.W * 0.10);
 
-    // Enemy icons: spread across 55%–95% of screen width.
-    const enemyAreaW = Math.round(this.W * 0.38);
+    // Enemies spread across 10%–90% of screen width in the upper battlefield row.
+    const enemyAreaW = Math.round(this.W * 0.80);
     this.ENEMY_SPREAD = Math.max(enemyAreaW, (ENEMY_W + 14) * Math.max(eCount, 1));
-    this.ENEMY_BASE_X = Math.round(this.W * 0.57);
+    this.ENEMY_BASE_X = Math.round(this.W * 0.10);
 
     const barW = Math.max(58, Math.round(this.LEFT_PANEL_W * 0.48));
     this.BAR_HALF_W = Math.round(barW / 2);
@@ -176,11 +202,11 @@ export class CombatUI {
     // ── Battlefield background ────────────────────────────────────────────────
     this.scene.add.rectangle(this.W / 2, (TIMELINE_H + this.BATTLEFIELD_BOTTOM) / 2, this.W, this.BATTLEFIELD_BOTTOM - TIMELINE_H, 0x1a1a2e);
 
-    // ── Enemy icons (right side of battlefield) ───────────────────────────────
+    // ── Enemy icons (top portion of battlefield, full-width spread) ──────────
     const eCount = this.system.enemies.length;
     this.system.enemies.forEach((e, idx) => {
       const x = this.ENEMY_BASE_X + idx * Math.floor(this.ENEMY_SPREAD / Math.max(eCount, 1));
-      const y = this.ICON_Y;
+      const y = this.enemyRowY;
       const enemyCombatant = e as EnemyCombatant;
       const textureKey = `enemy_${enemyCombatant.enemyId}`;
       let icon: EntityIcon;
@@ -194,19 +220,25 @@ export class CombatUI {
       }
       icon.setInteractive({ useHandCursor: true });
       icon.on('pointerdown', () => this.onEntityTap(e));
+      // Show element icon next to enemy name
+      const elemIcon = e.element ? (ELEMENT_ICONS[e.element] ?? '') : '';
       const nameText = this.scene.add
-        .text(x, y + ENEMY_H / 2 + 8, e.name, { fontSize: '12px', color: '#ffffff', fontFamily: 'monospace' })
+        .text(x, y + ENEMY_H / 2 + 8, `${e.name}${elemIcon ? ' ' + elemIcon : ''}`, {
+          fontSize: '12px',
+          color: '#ffffff',
+          fontFamily: 'monospace',
+        })
         .setOrigin(0.5)
         .setDepth(6);
       this.enemyRects.set(e.id, icon);
       this.enemyNameTexts.push(nameText);
     });
 
-    // ── Player icons (left side of battlefield) ───────────────────────────────
+    // ── Player icons (lower portion of battlefield, full-width spread) ───────
     const pCount = this.system.players.length;
     this.system.players.forEach((p, idx) => {
       const x = this.PLAYER_BASE_X + idx * Math.floor(this.PLAYER_SPREAD / Math.max(pCount, 1));
-      const y = this.ICON_Y;
+      const y = this.playerRowY;
       let icon: EntityIcon;
       if (this.scene.textures.exists('player')) {
         icon = this.scene.add
@@ -332,12 +364,11 @@ export class CombatUI {
 
   /** Build the four combat navigation buttons in the left panel — large enough for touch. */
   private buildNavButtons(): void {
-    // Minimum 48 px width satisfies Apple/Google touch-target guidelines (44 pt minimum).
-    const MIN_BTN_W = 48;
-    // Buttons fill ~43% of the left panel width to leave room for two columns.
-    const BTN_WIDTH_RATIO = 0.43;
-    const BW = Math.max(MIN_BTN_W, Math.round(this.LEFT_PANEL_W * BTN_WIDTH_RATIO));
-    const BH = 50;
+    // Make buttons large enough for comfortable touch on portrait phones.
+    // Fill the remaining vertical space in the left panel below the HP/MP bars.
+    const availableH = this.H - (this.BOTTOM_Y + this.system.players.length * PER_PLAYER_PANEL_H + 10);
+    const BH = Math.max(54, Math.min(Math.floor(availableH / 2) - 6, 80));
+    const BW = Math.max(64, Math.round(this.LEFT_PANEL_W * 0.46));
     const GUTTER = 6;
     const COL1 = Math.round(this.LEFT_PANEL_W * 0.26);
     const COL2 = Math.round(this.LEFT_PANEL_W * 0.74);
@@ -358,7 +389,7 @@ export class CombatUI {
       bg.setVisible(false);
       bg.setInteractive({ useHandCursor: true });
       const txt = this.scene.add
-        .text(x, y, label, { fontSize: '18px', color: '#ffffff', fontFamily: 'monospace' })
+        .text(x, y, label, { fontSize: '22px', color: '#ffffff', fontFamily: 'monospace' })
         .setOrigin(0.5)
         .setDepth(33)
         .setVisible(false);
@@ -512,15 +543,23 @@ export class CombatUI {
       }
     } else if (actionType === 'skill' && this.pendingSkillId) {
       const skillDef = skillsData.skills.find((s) => s.id === this.pendingSkillId);
-      preferAlly = skillDef?.target === 'single_ally' || skillDef?.target === 'all_allies';
+      preferAlly = skillDef?.target === 'single_ally' || skillDef?.target === 'all_allies'
+        || skillDef?.target === 'single_dead_ally';
     }
 
     // Positive actions (heals, buffs, items on allies) use a green cursor;
     // hostile actions (attacks, offensive skills) use a red cursor.
     this.targetIsPositive = preferAlly;
 
-    if (revivalItem) {
-      // Revival items only show KO'd allies as valid targets.
+    // Check if this is a revival skill (targets dead allies)
+    let revivalSkill = false;
+    if (actionType === 'skill' && this.pendingSkillId) {
+      const skillDef = skillsData.skills.find((s) => s.id === this.pendingSkillId);
+      revivalSkill = skillDef?.target === 'single_dead_ally';
+    }
+
+    if (revivalItem || revivalSkill) {
+      // Revival actions only show KO'd allies as valid targets.
       this.targetList = this.system.players.filter((p) => p.isDefeated);
       if (this.targetList.length === 0) {
         // No one to revive — fall back to living allies to avoid empty menu.
@@ -601,7 +640,27 @@ export class CombatUI {
       this.refreshEntityDisplay(entity as CombatEntity);
       this.playDamageAnimation(entity as CombatEntity, dmg as number);
     };
-    this.onCombatHeal = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
+    this.onCombatHeal = (entity, amount) => {
+      this.refreshEntityDisplay(entity as CombatEntity);
+      if (typeof amount === 'number' && amount > 0) {
+        const pos = this.entityScreenPos(entity as CombatEntity);
+        const healText = this.scene.add.text(pos.x, pos.y, `+${amount}`, {
+          fontSize: '17px',
+          color: '#88ff88',
+          fontFamily: 'monospace',
+          stroke: '#000000',
+          strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(50);
+        this.scene.tweens.add({
+          targets: healText,
+          y: pos.y - 50,
+          alpha: 0,
+          duration: 900,
+          ease: 'Power1',
+          onComplete: () => healText.destroy(),
+        });
+      }
+    };
     this.onCombatMpChange = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
     this.onCombatTurnStart = (actor) => {
       if (!this.menuContainer.active) return;
@@ -624,12 +683,16 @@ export class CombatUI {
     this.onCombatAttackStart = (actor, target) => {
       this.playAttackMoveAnimation(actor as CombatEntity, target as CombatEntity);
     };
+    this.onCombatSpellStart = (actor, element, name) => {
+      this.playSpellAnimation(actor as CombatEntity, element as string, name as string);
+    };
     this.bus.on('combat:log', this.onCombatLog);
     this.bus.on('combat:damage', this.onCombatDamage);
     this.bus.on('combat:heal', this.onCombatHeal);
     this.bus.on('combat:mpChange', this.onCombatMpChange);
     this.bus.on('combat:turnStart', this.onCombatTurnStart);
     this.bus.on('combat:attackStart', this.onCombatAttackStart);
+    this.bus.on('combat:spellStart', this.onCombatSpellStart);
   }
 
   /** Highlight the name of the currently acting player in the status panel. */
@@ -839,6 +902,53 @@ export class CombatUI {
     });
   }
 
+  /** Play a visual spell effect: expanding coloured ring that fades out. */
+  private playSpellAnimation(actor: CombatEntity, element: string, name: string): void {
+    const pos = this.entityScreenPos(actor);
+    const color = ELEMENT_COLORS[element] ?? 0xaaaaff;
+
+    // Spell name flash label
+    const hexColor = `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
+    const spellLabel = this.scene.add.text(pos.x, pos.y - 20, name, {
+      fontSize: '16px',
+      color: hexColor,
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(55).setAlpha(0);
+
+    this.scene.tweens.add({
+      targets: spellLabel,
+      alpha: { from: 0, to: 1 },
+      y: pos.y - 45,
+      duration: 250,
+      yoyo: false,
+      onComplete: () => {
+        this.scene.time.delayedCall(300, () => {
+          this.scene.tweens.add({
+            targets: spellLabel,
+            alpha: 0,
+            duration: 350,
+            onComplete: () => spellLabel.destroy(),
+          });
+        });
+      },
+    });
+
+    // Expanding ring effect
+    const ring = this.scene.add.rectangle(pos.x, pos.y, 10, 10, color, 0.5);
+    ring.setDepth(54);
+    this.scene.tweens.add({
+      targets: ring,
+      scaleX: 9,
+      scaleY: 9,
+      alpha: 0,
+      duration: 550,
+      ease: 'Power2.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+  }
+
   /** Return the approximate screen position for an entity (used for floating damage numbers). */
   private entityScreenPos(entity: CombatEntity): { x: number; y: number } {
     if (entity instanceof PlayerCombatant) {
@@ -1040,6 +1150,7 @@ export class CombatUI {
     this.bus.off('combat:mpChange', this.onCombatMpChange);
     this.bus.off('combat:turnStart', this.onCombatTurnStart);
     this.bus.off('combat:attackStart', this.onCombatAttackStart);
+    this.bus.off('combat:spellStart', this.onCombatSpellStart);
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
     this.logStripBg.destroy();

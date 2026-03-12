@@ -82,8 +82,17 @@ function bossTypeForDifficulty(difficulty: number): string {
   return 'ironGolem';
 }
 
-/** Shop inventory: always have these items available. */
-const SHOP_INVENTORY = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote'];
+/** All possible shop item IDs — each visit picks a random subset. */
+const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote'];
+
+/** Generate a randomised shop inventory for each visit (3–5 items with possible duplicates). */
+function generateShopInventory(): string[] {
+  // Always include potions; randomly add others
+  const pool = [...ALL_SHOP_ITEMS];
+  const numItems = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 unique items
+  const shuffled = pool.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, numItems);
+}
 
 export class ExplorationSystem {
   private scene: Phaser.Scene;
@@ -697,7 +706,7 @@ export class ExplorationSystem {
     const state = GameState.getInstance();
     state.data.preCombatX = state.data.playerX;
     state.data.preCombatY = state.data.playerY;
-    this.bus.emit('shop:open', { inventory: SHOP_INVENTORY });
+    this.bus.emit('shop:open', { inventory: generateShopInventory() });
   }
 
   private triggerCombat(enemy: MapEnemy): void {

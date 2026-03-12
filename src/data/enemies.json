@@ -5,17 +5,18 @@
       "name": "Slime",
       "baseFloor": 1,
       "color": 4447556,
+      "possibleElements": ["fire", "ice", "lightning", "water", null, null, null],
       "stats": {
-        "hp": 10,
-        "mp": 0,
+        "hp": 18,
+        "mp": 10,
         "strength": 4,
-        "magic": 1,
+        "magic": 3,
         "defense": 2,
         "magicDefense": 2,
         "agility": 6,
         "luck": 3
       },
-      "skills": ["attack"],
+      "skills": ["attack", "fire", "blizzard", "thunder", "water"],
       "rewards": { "exp": 12, "gold": 5, "items": [] },
       "possibleDrops": [{ "id": "potion", "chance": 0.60 }]
     },
@@ -24,17 +25,18 @@
       "name": "Goblin",
       "baseFloor": 2,
       "color": 13404211,
+      "possibleElements": ["fire", "lightning", null, null, null],
       "stats": {
         "hp": 60,
-        "mp": 10,
+        "mp": 20,
         "strength": 10,
-        "magic": 3,
+        "magic": 6,
         "defense": 5,
         "magicDefense": 3,
         "agility": 10,
         "luck": 5
       },
-      "skills": ["attack", "powerBreak"],
+      "skills": ["attack", "smash", "fire", "thunder"],
       "rewards": { "exp": 50, "gold": 20, "items": ["potion"] },
       "possibleDrops": [{ "id": "ether", "chance": 0.50 }]
     },
@@ -43,17 +45,18 @@
       "name": "Iron Golem",
       "baseFloor": 8,
       "color": 8947848,
+      "possibleElements": ["fire", null, null, null],
       "stats": {
         "hp": 200,
-        "mp": 0,
+        "mp": 30,
         "strength": 18,
-        "magic": 0,
+        "magic": 6,
         "defense": 20,
         "magicDefense": 7,
         "agility": 5,
         "luck": 4
       },
-      "skills": ["attack", "smash"],
+      "skills": ["attack", "smash", "fire", "enemyCure"],
       "rewards": { "exp": 160, "gold": 70, "items": ["ether"] },
       "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }]
     },
@@ -62,9 +65,10 @@
       "name": "Shadow Wisp",
       "baseFloor": 5,
       "color": 4456516,
+      "possibleElements": ["fire", "ice", "lightning", "water"],
       "stats": {
         "hp": 80,
-        "mp": 70,
+        "mp": 90,
         "strength": 5,
         "magic": 15,
         "defense": 3,
@@ -72,7 +76,7 @@
         "agility": 16,
         "luck": 9
       },
-      "skills": ["attack", "fire", "drain"],
+      "skills": ["attack", "fire", "blizzard", "thunder", "water", "fira", "drain", "enemyCure"],
       "rewards": { "exp": 75, "gold": 35, "items": [] },
       "possibleDrops": [{ "id": "ether", "chance": 0.60 }, { "id": "potion", "chance": 0.50 }]
     }

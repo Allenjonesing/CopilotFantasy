@@ -31,6 +31,9 @@ export class ShopScene extends Phaser.Scene {
   private confirmQtyText!: Phaser.GameObjects.Text;
   private confirmTotalText!: Phaser.GameObjects.Text;
   private confirmGoldText!: Phaser.GameObjects.Text;
+  /** Arrow buttons in the confirm dialog — stored so we can dim them when disabled. */
+  private qtyDecBtn!: Phaser.GameObjects.Text;
+  private qtyIncBtn!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'ShopScene' });
@@ -229,6 +232,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
     qtyDecBtn.on('pointerdown', () => this.changeQty(-1));
     container.add(qtyDecBtn);
+    this.qtyDecBtn = qtyDecBtn;
 
     this.confirmQtyText = this.add.text(0, QY, '1', {
       fontSize: '22px',
@@ -244,6 +248,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
     qtyIncBtn.on('pointerdown', () => this.changeQty(1));
     container.add(qtyIncBtn);
+    this.qtyIncBtn = qtyIncBtn;
 
     // Total price
     this.confirmTotalText = this.add.text(0, -PH / 2 + 128, 'Total: 0 G', {
@@ -324,12 +329,26 @@ export class ShopScene extends Phaser.Scene {
     const state = GameState.getInstance();
     const total = item.buyPrice * this.confirmQty;
     const canAfford = state.data.gold >= total;
+    const canAffordMore = state.data.gold >= total + item.buyPrice;
+    const canDecrement = this.confirmQty > 1;
 
     this.confirmQtyText.setText(String(this.confirmQty));
     this.confirmTotalText
       .setText(`Total: ${total} G`)
       .setColor(canAfford ? '#ffcc44' : '#ff4444');
     this.confirmGoldText.setText(`Your Gold: ${state.data.gold} G`);
+
+    // Visually disable the arrow buttons when they can't do anything
+    if (this.qtyDecBtn?.active) {
+      this.qtyDecBtn.setColor(canDecrement ? '#ffcc44' : '#444444');
+      if (canDecrement) this.qtyDecBtn.setInteractive({ useHandCursor: true });
+      else this.qtyDecBtn.disableInteractive();
+    }
+    if (this.qtyIncBtn?.active) {
+      this.qtyIncBtn.setColor(canAffordMore ? '#ffcc44' : '#444444');
+      if (canAffordMore) this.qtyIncBtn.setInteractive({ useHandCursor: true });
+      else this.qtyIncBtn.disableInteractive();
+    }
   }
 
   private confirmBuy(): void {

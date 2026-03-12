@@ -86,7 +86,12 @@ export class VictoryScene extends Phaser.Scene {
         const def = itemsData.items.find((it) => it.id === id);
         return def ? def.name : id;
       });
-      addLine(`Found: ${names.join(', ')}`, '#aaddff', '20px');
+      // Display items in wrapped rows (max 2 per row) to avoid overflow on portrait screens
+      const ITEMS_PER_ROW = 2;
+      for (let i = 0; i < names.length; i += ITEMS_PER_ROW) {
+        const rowNames = names.slice(i, i + ITEMS_PER_ROW).join('  +  ');
+        addLine(i === 0 ? `Found: ${rowNames}` : `       ${rowNames}`, '#aaddff', '18px');
+      }
     }
 
     cy += lineH * 0.3;

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CombatSystem, CombatResult, BattleType } from '../systems/combat/CombatSystem';
+import { CombatEntity } from '../systems/combat/CombatEntity';
 import { PlayerCombatant } from '../systems/combat/PlayerCombatant';
 import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { CombatUI } from '../ui/CombatUI';
@@ -98,13 +99,71 @@ export class CombatScene extends Phaser.Scene {
     if (isPlayer) {
       this.waitingForInput = true;
     } else {
-      // Enemy AI: always attack first living player
-      const target = this.system.players.find((p) => !p.isDefeated);
-      if (target) {
-        this.system.executeAction(actor, { type: 'attack', target });
-      }
-      this.time.delayedCall(600, () => this.advanceTurn());
+      this.performEnemyAction(actor);
+      this.time.delayedCall(1100, () => this.advanceTurn());
     }
+  }
+
+  /** Intelligent enemy AI: uses elemental skills, self-heals, and targets smartest choice. */
+  private performEnemyAction(actor: CombatEntity): void {
+    const enemy = actor as EnemyCombatant;
+    const livingPlayers = this.system.players.filter((p) => !p.isDefeated);
+    if (livingPlayers.length === 0) return;
+
+    // ── Self-heal check ──────────────────────────────────────────────────────
+    // If enemy can self-heal and is below 35% HP, use heal skill
+    const hpRatio = actor.stats.hp / actor.stats.maxHp;
+    if (hpRatio < 0.35 && actor.skills.includes('enemyCure') && actor.stats.mp >= 20) {
+      this.system.executeAction(actor, { type: 'skill', skillId: 'enemyCure', target: actor });
+      return;
+    }
+
+    // ── Choose target ────────────────────────────────────────────────────────
+    // 50% chance to target the player with the highest max HP (perceived threat),
+    // 50% chance to target randomly.
+    let target: PlayerCombatant;
+    if (Math.random() < 0.5) {
+      target = livingPlayers.reduce((best, p) =>
+        p.stats.maxHp > best.stats.maxHp ? p : best,
+      );
+    } else {
+      target = livingPlayers[Math.floor(Math.random() * livingPlayers.length)];
+    }
+
+    // ── Choose action ─────────────────────────────────────────────────────────
+    // Elemental enemies prefer their element spell (~60% chance if MP available).
+    // Otherwise choose randomly from available offensive skills or basic attack.
+    const elementalSkillIds: Record<string, string[]> = {
+      fire: ['firaga', 'fira', 'fire'],
+      ice: ['blizzaga', 'blizzara', 'blizzard'],
+      lightning: ['thundaga', 'thundara', 'thunder'],
+      water: ['waterga', 'watera', 'water'],
+    };
+
+    const enemyElement = enemy.element;
+    if (enemyElement && Math.random() < 0.60) {
+      // Try to cast the highest-tier elemental spell the enemy knows that it can afford
+      const preferredIds = elementalSkillIds[enemyElement] ?? [];
+      for (const sid of preferredIds) {
+        if (actor.skills.includes(sid)) {
+          const consumed = this.system.executeAction(actor, { type: 'skill', skillId: sid, target });
+          if (consumed) return;
+        }
+      }
+    }
+
+    // Try any random offensive skill (not enemyCure/attack) with 35% chance
+    const offensiveSkills = actor.skills.filter((s) =>
+      s !== 'attack' && s !== 'enemyCure' && s !== 'drain',
+    );
+    if (offensiveSkills.length > 0 && Math.random() < 0.35) {
+      const pick = offensiveSkills[Math.floor(Math.random() * offensiveSkills.length)];
+      const consumed = this.system.executeAction(actor, { type: 'skill', skillId: pick, target });
+      if (consumed) return;
+    }
+
+    // Fallback: basic attack
+    this.system.executeAction(actor, { type: 'attack', target });
   }
 
   update(): void {

@@ -18,6 +18,8 @@ export abstract class CombatEntity {
   ctbValue: number;
   statusEffects: Set<string> = new Set();
   skills: string[] = [];
+  /** Elemental affinity of this entity (enemies may be fire/ice/lightning/water, players have none). */
+  element: string | null = null;
 
   constructor(id: string, name: string, stats: Stats) {
     this.id = id;
