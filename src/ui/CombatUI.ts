@@ -54,6 +54,9 @@ const ATTACK_MOVE_MAX_PX = 70;
 const ATTACK_MOVE_RATIO = 0.45;
 const ATTACK_MOVE_FORWARD_MS = 160;
 const ATTACK_MOVE_RETURN_MS = 200;
+// Spell sparkle burst
+const SPARKLE_MIN_DIST = 28;
+const SPARKLE_DIST_VARIANCE = 20;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
@@ -990,7 +993,7 @@ export class CombatUI {
     const SPARKS = 6;
     for (let k = 0; k < SPARKS; k++) {
       const angle = (k / SPARKS) * Math.PI * 2;
-      const dist  = 28 + Math.random() * 20;
+      const dist  = SPARKLE_MIN_DIST + Math.random() * SPARKLE_DIST_VARIANCE;
       const spark = this.scene.add.rectangle(pos.x, pos.y, 6, 6, color, 0.9);
       spark.setDepth(56);
       this.scene.tweens.add({
