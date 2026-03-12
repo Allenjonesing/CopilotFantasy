@@ -78,6 +78,10 @@ export interface PersistentMapEnemy {
   variantScale: number;
   x: number;
   y: number;
+  /** True for the floor boss that guards the exit. */
+  isGuard?: boolean;
+  homeX?: number;
+  homeY?: number;
 }
 
 export interface PersistentPickup {

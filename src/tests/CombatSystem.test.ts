@@ -114,6 +114,39 @@ describe('CombatSystem', () => {
     expect(consumed).toBe(true);
     expect(actor.hasStatus('sentinel')).toBe(false);
   });
+
+  it('ambush: enemies act before players (all enemy CTB < all player CTB)', () => {
+    system.applyBattleType('ambush');
+    const maxEnemyCtb = Math.max(...system.enemies.map((e) => e.ctbValue));
+    const minPlayerCtb = Math.min(...system.players.map((p) => p.ctbValue));
+    expect(minPlayerCtb).toBeGreaterThan(maxEnemyCtb);
+  });
+
+  it('preemptive: players act before enemies (all player CTB < all enemy CTB)', () => {
+    system.applyBattleType('preemptive');
+    const maxPlayerCtb = Math.max(...system.players.map((p) => p.ctbValue));
+    const minEnemyCtb = Math.min(...system.enemies.map((e) => e.ctbValue));
+    expect(minEnemyCtb).toBeGreaterThan(maxPlayerCtb);
+  });
+
+  it('phoenix down revives a KO\'d ally', () => {
+    const state = GameState.getInstance();
+    state.addItem('phoenix', 1);
+    system.nextTurn();
+    const actor = system.currentActor!;
+    // KO one of the players
+    const target = system.players.find((p) => p !== actor)!;
+    target.applyDamage(target.stats.maxHp);
+    expect(target.isDefeated).toBe(true);
+    system.executeAction(actor, { type: 'item', itemId: 'phoenix', target });
+    expect(target.isDefeated).toBe(false);
+    expect(target.stats.hp).toBeGreaterThan(0);
+  });
+
+  it('slime base HP is 10', () => {
+    const slime = new EnemyCombatant('slime');
+    expect(slime.stats.maxHp).toBe(10);
+  });
 });
 
 describe('StatusEffectSystem', () => {

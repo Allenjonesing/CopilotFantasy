@@ -135,8 +135,25 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * After any battle ends (victory or flee), revive all KO'd party members
+   * with 1 HP so the team stays together. Keeps dead party members from
+   * being silently dropped from the roster between battles.
+   */
+  private reviveDeadPartyMembers(): void {
+    const state = GameState.getInstance();
+    state.data.party.forEach((c) => {
+      if (!c.alive) {
+        c.stats.hp = 1;
+        c.alive = true;
+      }
+    });
+  }
+
   private endCombat(reason: string, result: CombatResult | null): void {
     this.syncHpToState();
+    // After every battle, bring back KO'd allies so no one is silently dropped.
+    this.reviveDeadPartyMembers();
 
     if (reason === 'victory' && result) {
       const state = GameState.getInstance();
