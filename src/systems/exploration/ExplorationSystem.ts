@@ -8,6 +8,8 @@ export interface CombatEnemySpec {
   typeId: string;
   displayName: string;
   variantScale: number;
+  /** True when this enemy is the floor boss (isGuard). Disables flee in combat. */
+  isBoss?: boolean;
 }
 
 /** Union of the two game-object types used for entity sprites. */
@@ -722,7 +724,7 @@ export class ExplorationSystem {
     }
 
     const enemies: CombatEnemySpec[] = [
-      { typeId: enemy.typeId, displayName: enemy.displayName, variantScale: enemy.variantScale },
+      { typeId: enemy.typeId, displayName: enemy.displayName, variantScale: enemy.variantScale, isBoss: enemy.isGuard },
     ];
 
     // Chance to add extra enemies (higher chance at higher difficulties).

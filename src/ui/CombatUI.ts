@@ -45,6 +45,8 @@ type EntityIcon = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
 export class CombatUI {
   private scene: Phaser.Scene;
   private system: CombatSystem;
+  /** True when fighting the floor boss — Flee is disabled during boss battles. */
+  private readonly isBossBattle: boolean;
 
   // Layout constants computed from screen dimensions
   private readonly W: number;
@@ -117,9 +119,10 @@ export class CombatUI {
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
 
-  constructor(scene: Phaser.Scene, system: CombatSystem, battleType: import('../systems/combat/CombatSystem').BattleType = 'normal') {
+  constructor(scene: Phaser.Scene, system: CombatSystem, battleType: import('../systems/combat/CombatSystem').BattleType = 'normal', isBossBattle = false) {
     this.scene = scene;
     this.system = system;
+    this.isBossBattle = isBossBattle;
     this.bus = EventBus.getInstance();
 
     // Compute all layout constants from the actual screen dimensions so the
@@ -289,6 +292,10 @@ export class CombatUI {
       this.playerMpBars.set(p.id, { bg: mpBg, bar: mpBar, text: mpText });
     });
 
+    // Initialise bar scales to match the actual current HP/MP values so the bars
+    // are correct from the very first frame (not just after the first damage/heal event).
+    this.system.players.forEach((p) => this.refreshEntityDisplay(p));
+
     // ── Active turn indicator (battlefield highlight ring) ────────────────────
     this.activeTurnIndicator = this.scene.add.rectangle(0, 0, PLAYER_ICON_W + TURN_INDICATOR_PAD, PLAYER_ICON_H + TURN_INDICATOR_PAD, 0x000000, 0);
     this.activeTurnIndicator.setStrokeStyle(3, 0xffff00);
@@ -442,7 +449,7 @@ export class CombatUI {
     const hasItems = GameState.getInstance().data.inventory.length > 0;
     this.buildMenuItems(
       ['Attack', this.skillMenuLabel(), 'Item', 'Defend', 'Flee'],
-      [false, !hasSkills, !hasItems, false, false],
+      [false, !hasSkills, !hasItems, false, this.isBossBattle],
     );
   }
 
