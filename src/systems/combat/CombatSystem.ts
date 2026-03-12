@@ -80,7 +80,6 @@ export class CombatSystem {
         this.useItem(actor, action.itemId!, action.target ?? null);
         break;
       case 'defend':
-        actor.addStatus('sentinel');
         this.addLog(`${actor.name} takes a defensive stance.`);
         break;
       case 'flee':
@@ -97,8 +96,7 @@ export class CombatSystem {
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
     this.bus.emit('combat:attackStart', actor, target);
     const raw = actor.stats.strength * 2;
-    const reduction = target.hasStatus('sentinel') ? 0.5 : 1.0;
-    const dmg = Math.max(1, Math.floor((raw - target.stats.defense) * reduction));
+    const dmg = Math.max(1, Math.floor(raw - target.stats.defense));
     target.applyDamage(dmg);
     this.addLog(`${actor.name} attacks ${target.name} for ${dmg} damage.`);
     this.bus.emit('combat:damage', target, dmg);
@@ -146,9 +144,6 @@ export class CombatSystem {
     } else if (skill.type === 'status_remove') {
       target.statusEffects.forEach((eff) => this.statusSystem.remove(target, eff));
       this.addLog(`${actor.name} cures ${target.name}'s status effects.`);
-    } else if (skill.type === 'stance') {
-      actor.addStatus(skill.id);
-      this.addLog(`${actor.name} uses ${skill.name}.`);
     }
   }
 

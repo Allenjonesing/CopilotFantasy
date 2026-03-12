@@ -77,15 +77,6 @@
       "description": "Target will auto-revive once after KO."
     },
     {
-      "id": "sentinel",
-      "name": "Sentinel",
-      "type": "stance",
-      "target": "self",
-      "mpCost": 0,
-      "power": 0,
-      "description": "Halves damage taken until next turn."
-    },
-    {
       "id": "provoke",
       "name": "Provoke",
       "type": "status_apply",

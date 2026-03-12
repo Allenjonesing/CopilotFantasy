@@ -107,11 +107,12 @@ describe('CombatSystem', () => {
     expect(healEmitted).toBe(true);
   });
 
-  it('applies sentinel status when the sentinel skill is used', () => {
+  it('defend action consumes the turn without adding sentinel status', () => {
     system.nextTurn();
     const actor = system.currentActor!;
-    system.executeAction(actor, { type: 'skill', skillId: 'sentinel', target: actor });
-    expect(actor.hasStatus('sentinel')).toBe(true);
+    const consumed = system.executeAction(actor, { type: 'defend' });
+    expect(consumed).toBe(true);
+    expect(actor.hasStatus('sentinel')).toBe(false);
   });
 });
 
