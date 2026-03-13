@@ -18,7 +18,7 @@
       "skills": ["attack"],
       "startingItems": [],
       "levelUpStats": { "hp": 8, "mp": 2, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "smash", "5": "drain" }
+      "levelSkills": { "2": "smash", "5": "drain", "7": "hasteBell", "9": "slowBell" }
     },
     {
       "id": "kael",

@@ -216,8 +216,10 @@ export class CombatScene extends Phaser.Scene {
 
   private endCombat(reason: string, result: CombatResult | null): void {
     this.syncHpToState();
-    // After every battle, bring back KO'd allies so no one is silently dropped.
+    // After every battle, bring back KO'd allies so no one is silently dropped,
+    // then fully restore the whole party to 100% HP/MP ready for the next fight.
     this.reviveDeadPartyMembers();
+    GameState.getInstance().fullHealParty();
 
     if (reason === 'victory' && result) {
       const state = GameState.getInstance();

@@ -119,7 +119,7 @@ export class CombatSystem {
     this.bus.emit('combat:mpChange', actor);
     // Emit spell animation event before applying effects
     const skillElement = (skill as { element?: string }).element ?? null;
-    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive') {
+    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply') {
       this.bus.emit('combat:spellStart', actor, skillElement ?? skill.type, skill.name);
     }
     const targets = this.resolveTargets(actor, skill.target, target);

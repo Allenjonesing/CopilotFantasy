@@ -151,6 +151,79 @@ describe('CombatSystem', () => {
   });
 });
 
+describe('Bell Skills', () => {
+  let system: CombatSystem;
+
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+    system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+  });
+
+  it('Haste Bell applies haste status to an ally', () => {
+    const aria = system.players[0];
+    // Give aria enough MP and manually seed the hasteBell skill
+    aria.stats.mp = 50;
+    aria.skills.push('hasteBell');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'hasteBell', target: aria });
+    expect(aria.hasStatus('haste')).toBe(true);
+  });
+
+  it('Slow Bell applies slow status to an enemy', () => {
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.mp = 50;
+    aria.skills.push('slowBell');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'slowBell', target: slime });
+    expect(slime.hasStatus('slow')).toBe(true);
+  });
+
+  it('Haste Bell costs MP', () => {
+    const aria = system.players[0];
+    aria.stats.mp = 50;
+    aria.skills.push('hasteBell');
+    system.nextTurn();
+    const mpBefore = aria.stats.mp;
+    system.executeAction(aria, { type: 'skill', skillId: 'hasteBell', target: aria });
+    expect(aria.stats.mp).toBeLessThan(mpBefore);
+  });
+
+  it('Slow Bell costs MP', () => {
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.mp = 50;
+    aria.skills.push('slowBell');
+    system.nextTurn();
+    const mpBefore = aria.stats.mp;
+    system.executeAction(aria, { type: 'skill', skillId: 'slowBell', target: slime });
+    expect(aria.stats.mp).toBeLessThan(mpBefore);
+  });
+
+  it('Aria learns hasteBell at level 7', () => {
+    const state = GameState.getInstance();
+    // Level up to 7
+    while (state.data.level < 7) {
+      state.gainExp(state.data.expToNext);
+    }
+    const aria = state.getCharacter('aria')!;
+    expect(aria.skills).toContain('hasteBell');
+  });
+
+  it('Aria learns slowBell at level 9', () => {
+    const state = GameState.getInstance();
+    while (state.data.level < 9) {
+      state.gainExp(state.data.expToNext);
+    }
+    const aria = state.getCharacter('aria')!;
+    expect(aria.skills).toContain('slowBell');
+  });
+});
+
 describe('StatusEffectSystem', () => {
   beforeEach(() => {
     GameState.getInstance().reset();

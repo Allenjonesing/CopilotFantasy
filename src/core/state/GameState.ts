@@ -254,7 +254,7 @@ export class GameState {
       p.stats.hp = Math.min(p.stats.hp + (gains['hp'] ?? 0), p.stats.maxHp);
       p.stats.mp = Math.min(p.stats.mp + (gains['mp'] ?? 0), p.stats.maxMp);
 
-      const levelSkills = charDef.levelSkills as Record<string, string>;
+      const levelSkills = charDef.levelSkills as Record<string, string | undefined>;
       const newSkill = levelSkills[String(level)];
       if (newSkill && !p.skills.includes(newSkill)) {
         p.skills.push(newSkill);
@@ -283,6 +283,14 @@ export class GameState {
       console.warn('CopilotFantasy: could not load high score', e);
     }
     return 0;
+  }
+
+  /** Fully restore HP and MP to max for every party member. Called after each battle. */
+  fullHealParty(): void {
+    this.state.party.forEach((c) => {
+      c.stats.hp = c.stats.maxHp;
+      c.stats.mp = c.stats.maxMp;
+    });
   }
 
   reset(): void {
