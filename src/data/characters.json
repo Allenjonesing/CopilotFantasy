@@ -58,7 +58,7 @@
       "skills": ["attack"],
       "startingItems": [],
       "levelUpStats": { "hp": 6, "mp": 8, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "cure", "3": "cura", "4": "esuna", "5": "reraise", "6": "curaga", "7": "raise" }
+      "levelSkills": { "2": "cure", "3": "cura", "4": "esuna", "5": "raise", "6": "curaga", "7": "reraise" }
     }
   ]
 }

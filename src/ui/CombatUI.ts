@@ -97,6 +97,9 @@ export class CombatUI {
   private playerBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
   // Player MP bars (left status panel)
   private playerMpBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
+  // Status effect labels shown under player sprites and next to enemy names
+  private playerStatusTexts: Map<string, Phaser.GameObjects.Text> = new Map();
+  private enemyStatusTexts: Map<string, Phaser.GameObjects.Text> = new Map();
   private playerNameTexts: Phaser.GameObjects.Text[] = [];
   // Active turn indicator (battlefield highlight)
   private activeTurnIndicator!: Phaser.GameObjects.Rectangle;
@@ -143,6 +146,8 @@ export class CombatUI {
   private onCombatTurnStart!: (actor: unknown) => void;
   private onCombatAttackStart!: (actor: unknown, target: unknown) => void;
   private onCombatMpChange!: (entity: unknown) => void;
+  private onStatusApplied!: (entity: unknown, effectId: unknown) => void;
+  private onStatusRemoved!: (entity: unknown, effectId: unknown) => void;
 
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
@@ -239,6 +244,16 @@ export class CombatUI {
         .setDepth(6);
       this.enemyRects.set(e.id, icon);
       this.enemyNameTexts.push(nameText);
+      // Status effect label below enemy name
+      const enemyStatusText = this.scene.add
+        .text(x, y + ENEMY_H / 2 + 21, '', {
+          fontSize: '9px',
+          color: '#ffdd88',
+          fontFamily: 'monospace',
+        })
+        .setOrigin(0.5)
+        .setDepth(6);
+      this.enemyStatusTexts.set(e.id, enemyStatusText);
     });
 
     // ── Player icons (lower portion of battlefield, full-width spread) ───────
@@ -287,6 +302,18 @@ export class CombatUI {
         .setOrigin(0, 0.5)
         .setDepth(7);
       this.playerMpBars.set(p.id, { bg: mpBg, bar: mpBar, text: mpText });
+
+      // Status effect label below the MP bar
+      const statusTextY = mpBarY + 10;
+      const statusText = this.scene.add
+        .text(x, statusTextY, '', {
+          fontSize: '9px',
+          color: '#ffdd88',
+          fontFamily: 'monospace',
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(7);
+      this.playerStatusTexts.set(p.id, statusText);
     });
 
     // ── Target cursor (hidden initially) ─────────────────────────────────────
@@ -782,6 +809,11 @@ export class CombatUI {
     this.bus.on('combat:turnStart', this.onCombatTurnStart);
     this.bus.on('combat:attackStart', this.onCombatAttackStart);
     this.bus.on('combat:spellStart', this.onCombatSpellStart);
+
+    this.onStatusApplied = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
+    this.onStatusRemoved = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
+    this.bus.on('status:applied', this.onStatusApplied);
+    this.bus.on('status:removed', this.onStatusRemoved);
   }
 
   /** Highlight the name of the currently acting player under their battlefield sprite. */
@@ -845,6 +877,34 @@ export class CombatUI {
           (rect as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
         }
       }
+    }
+    // Always sync the status label when entity display is refreshed.
+    this.refreshStatusDisplay(entity);
+  }
+
+  /** Short icons shown for each status effect in the battlefield. */
+  private static readonly STATUS_ICONS: Record<string, string> = {
+    haste: '⚡H',
+    slow: '🐢S',
+    reraise: '✨AL',
+    poison: '☠P',
+    powerDown: '↓STR',
+    provoked: '😡PRV',
+  };
+
+  /** Refresh the status effect label for a player or enemy entity. */
+  private refreshStatusDisplay(entity: CombatEntity): void {
+    const effects = Array.from(entity.statusEffects);
+    const label = effects
+      .map((id) => CombatUI.STATUS_ICONS[id] ?? id.toUpperCase())
+      .join(' ');
+
+    if (entity instanceof PlayerCombatant) {
+      const t = this.playerStatusTexts.get(entity.id);
+      if (t && t.active) t.setText(label);
+    } else {
+      const t = this.enemyStatusTexts.get(entity.id);
+      if (t && t.active) t.setText(label);
     }
   }
 
@@ -1283,6 +1343,8 @@ export class CombatUI {
     this.bus.off('combat:turnStart', this.onCombatTurnStart);
     this.bus.off('combat:attackStart', this.onCombatAttackStart);
     this.bus.off('combat:spellStart', this.onCombatSpellStart);
+    this.bus.off('status:applied', this.onStatusApplied);
+    this.bus.off('status:removed', this.onStatusRemoved);
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
     this.logStripBg.destroy();
@@ -1308,6 +1370,8 @@ export class CombatUI {
       bar.destroy();
       text.destroy();
     });
+    this.playerStatusTexts.forEach((t) => t.destroy());
+    this.enemyStatusTexts.forEach((t) => t.destroy());
   }
 }
 

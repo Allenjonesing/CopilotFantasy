@@ -132,13 +132,16 @@ export class CombatScene extends Phaser.Scene {
 
     // ── Choose action ─────────────────────────────────────────────────────────
     // Elemental enemies prefer their element spell (~60% chance if MP available).
-    // Otherwise choose randomly from available offensive skills or basic attack.
+    // Otherwise choose randomly from available non-elemental offensive skills or basic attack.
     const elementalSkillIds: Record<string, string[]> = {
       fire: ['firaga', 'fira', 'fire'],
       ice: ['blizzaga', 'blizzara', 'blizzard'],
       lightning: ['thundaga', 'thundara', 'thunder'],
       water: ['waterga', 'watera', 'water'],
     };
+
+    // All known elemental spell IDs (across all elements)
+    const allElementalSkillIds = new Set(Object.values(elementalSkillIds).flat());
 
     const enemyElement = enemy.element;
     if (enemyElement && Math.random() < 0.60) {
@@ -152,10 +155,17 @@ export class CombatScene extends Phaser.Scene {
       }
     }
 
-    // Try any random offensive skill (not enemyCure/attack) with 35% chance
-    const offensiveSkills = actor.skills.filter((s) =>
-      s !== 'attack' && s !== 'enemyCure' && s !== 'drain',
-    );
+    // Try any random offensive skill (not enemyCure/attack/drain) with 35% chance.
+    // For elemental enemies, skip any elemental spell that doesn't match their element
+    // to avoid the enemy using the wrong element.
+    const offensiveSkills = actor.skills.filter((s) => {
+      if (s === 'attack' || s === 'enemyCure' || s === 'drain') return false;
+      if (allElementalSkillIds.has(s) && enemyElement) {
+        // Only keep elemental spells that match the enemy's own element
+        return (elementalSkillIds[enemyElement] ?? []).includes(s);
+      }
+      return true; // non-elemental offensive skills (smash, etc.) are always allowed
+    });
     if (offensiveSkills.length > 0 && Math.random() < 0.35) {
       const pick = offensiveSkills[Math.floor(Math.random() * offensiveSkills.length)];
       const consumed = this.system.executeAction(actor, { type: 'skill', skillId: pick, target });

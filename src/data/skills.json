@@ -184,6 +184,15 @@
       "description": "Removes all status ailments from one ally."
     },
     {
+      "id": "raise",
+      "name": "Raise",
+      "type": "revive",
+      "target": "single_dead_ally",
+      "mpCost": 30,
+      "power": 0.5,
+      "description": "Revives a KO'd ally with 50% of their max HP."
+    },
+    {
       "id": "reraise",
       "name": "Auto-Life",
       "type": "status_apply",
@@ -192,15 +201,6 @@
       "power": 0,
       "statusEffect": "reraise",
       "description": "Grants Auto-Life; target revives automatically with 1 HP once."
-    },
-    {
-      "id": "raise",
-      "name": "Raise",
-      "type": "revive",
-      "target": "single_dead_ally",
-      "mpCost": 30,
-      "power": 0.25,
-      "description": "Revives a KO'd ally with 25% of their max HP."
     },
     {
       "id": "enemyCure",
