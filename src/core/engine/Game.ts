@@ -7,6 +7,32 @@ import { VictoryScene } from '../../scenes/VictoryScene';
 import { GameOverScene } from '../../scenes/GameOverScene';
 import { ShopScene } from '../../scenes/ShopScene';
 
+/** Lock the screen to whichever orientation the device is currently in. */
+function lockOrientationToCurrentType(): void {
+  const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+  if (!orientation?.lock) return;
+  const lockTarget = orientation.type.startsWith('portrait') ? 'portrait' : 'landscape';
+  orientation.lock(lockTarget).catch(() => {
+    // May fail on desktop or when the document is not in fullscreen – ignore silently.
+  });
+}
+
+/** Pause the Phaser game when the tab/app is hidden; resume when it becomes visible again. */
+function setupVisibilityHandler(game: Phaser.Game): void {
+  const handler = () => {
+    if (document.hidden) {
+      game.pause();
+    } else {
+      game.resume();
+    }
+  };
+  document.addEventListener('visibilitychange', handler);
+  // Clean up if the Phaser game instance is ever destroyed.
+  game.events.once(Phaser.Core.Events.DESTROY, () => {
+    document.removeEventListener('visibilitychange', handler);
+  });
+}
+
 export function createGame(): Phaser.Game {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -19,5 +45,11 @@ export function createGame(): Phaser.Game {
     scene: [BootScene, MainMenuScene, ExplorationScene, CombatScene, VictoryScene, GameOverScene, ShopScene],
     audio: { disableWebAudio: false },
   };
-  return new Phaser.Game(config);
+
+  const game = new Phaser.Game(config);
+
+  lockOrientationToCurrentType();
+  setupVisibilityHandler(game);
+
+  return game;
 }
