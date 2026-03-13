@@ -90,4 +90,17 @@ describe('GameState', () => {
     state.increaseDifficulty();
     expect(state.getEnemyScale()).toBeGreaterThan(1.0);
   });
+
+  it('fullHealParty restores all party HP and MP to max', () => {
+    // Damage and drain MP from party members
+    state.data.party.forEach((c) => {
+      c.stats.hp = 1;
+      c.stats.mp = 0;
+    });
+    state.fullHealParty();
+    state.data.party.forEach((c) => {
+      expect(c.stats.hp).toBe(c.stats.maxHp);
+      expect(c.stats.mp).toBe(c.stats.maxMp);
+    });
+  });
 });

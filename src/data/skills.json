@@ -210,6 +210,26 @@
       "mpCost": 20,
       "power": 1.5,
       "description": "Enemy heals itself."
+    },
+    {
+      "id": "hasteBell",
+      "name": "Haste Bell",
+      "type": "status_apply",
+      "target": "single_ally",
+      "mpCost": 18,
+      "power": 0,
+      "statusEffect": "haste",
+      "description": "Rings a bell that doubles one ally's speed for 3 turns."
+    },
+    {
+      "id": "slowBell",
+      "name": "Slow Bell",
+      "type": "status_apply",
+      "target": "single_enemy",
+      "mpCost": 12,
+      "power": 0,
+      "statusEffect": "slow",
+      "description": "Rings a bell that halves one enemy's speed for 3 turns."
     }
   ]
 }
