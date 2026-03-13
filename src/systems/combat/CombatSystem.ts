@@ -134,12 +134,12 @@ export class CombatSystem {
   ): void {
     if (skill.type === 'physical' || skill.type === 'magic') {
       this.bus.emit('combat:attackStart', actor, target);
-      const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
-      const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
       const skillElement = (skill as { element?: string }).element ?? null;
 
       // Elemental absorption: if the skill's element matches the target's element, heal instead.
       if (skillElement && target.element === skillElement) {
+        const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
+        const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
         const healed = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
         target.restoreHp(healed);
         this.addLog(`${target.name} absorbs ${skill.name}! Healed for ${healed} HP.`);
@@ -147,12 +147,23 @@ export class CombatSystem {
         return;
       }
 
-      const dmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
+      // Elemental weakness: hitting an enemy's opposing element deals double damage.
+      const weaknessMap: Record<string, string[]> = {
+        fire: ['ice', 'water'],
+        ice: ['fire'],
+        lightning: ['water'],
+        water: ['lightning'],
+      };
+      const targetWeaknesses = target.element ? (weaknessMap[target.element] ?? []) : [];
+      const weaknessMultiplier = skillElement && targetWeaknesses.includes(skillElement) ? 2.0 : 1.0;
 
-      // Bio Drain: restore HP to caster equal to half the damage dealt
+      // Bio Drain: use the caster's strongest offensive stat as the base.
       if (skill.id === 'drain') {
+        const base = Math.max(actor.stats.strength, actor.stats.magic);
+        const def = target.stats.magicDefense;
+        const dmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
         target.applyDamage(dmg);
-        const restore = Math.floor(dmg / 2);
+        const restore = Math.max(1, Math.floor(dmg / 2));
         actor.restoreHp(restore);
         this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (restored ${restore} HP).`);
         this.bus.emit('combat:damage', target, dmg);
@@ -161,8 +172,17 @@ export class CombatSystem {
         return;
       }
 
+      const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
+      const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
+      const rawDmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
+      const dmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+
+      if (weaknessMultiplier > 1.0) {
+        this.addLog(`${actor.name} uses ${skill.name} on ${target.name} — WEAKNESS! ${dmg} damage!`);
+      } else {
+        this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage.`);
+      }
       target.applyDamage(dmg);
-      this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage.`);
       this.bus.emit('combat:damage', target, dmg);
       this.checkDefeated(target);
     } else if (skill.type === 'heal') {
@@ -266,8 +286,10 @@ export class CombatSystem {
         entity.restoreHp(1);
         entity.removeStatus('reraise');
         const skillDef = skillsData.skills.find((s) => s.id === 'reraise');
-        const skillName = skillDef ? skillDef.name : 'Life Ward';
+        const skillName = skillDef ? skillDef.name : 'Auto-Life';
         this.addLog(`${entity.name} is revived by ${skillName}!`);
+        // Emit heal so the UI re-renders the entity as alive.
+        this.bus.emit('combat:heal', entity, 1);
       } else {
         this.addLog(`${entity.name} is defeated!`);
         this.bus.emit('combat:defeated', entity);

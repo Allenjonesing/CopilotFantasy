@@ -7,12 +7,11 @@ import { VictoryScene } from '../../scenes/VictoryScene';
 import { GameOverScene } from '../../scenes/GameOverScene';
 import { ShopScene } from '../../scenes/ShopScene';
 
-/** Lock the screen to whichever orientation the device is currently in. */
-function lockOrientationToCurrentType(): void {
+/** Lock the screen to portrait mode. */
+function lockOrientationToPortrait(): void {
   const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
   if (!orientation?.lock) return;
-  const lockTarget = orientation.type.startsWith('portrait') ? 'portrait' : 'landscape';
-  orientation.lock(lockTarget).catch(() => {
+  orientation.lock('portrait').catch(() => {
     // May fail on desktop or when the document is not in fullscreen – ignore silently.
   });
 }
@@ -48,7 +47,7 @@ export function createGame(): Phaser.Game {
 
   const game = new Phaser.Game(config);
 
-  lockOrientationToCurrentType();
+  lockOrientationToPortrait();
   setupVisibilityHandler(game);
 
   return game;

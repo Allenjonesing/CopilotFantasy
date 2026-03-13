@@ -83,6 +83,42 @@ export function generateOverworldMap(seed: number, floorNumber: number): MapData
     }
   }
 
+  // Guarantee a passable path from spawn to exit so the floor is always
+  // completable regardless of random obstacle placement.
+  // Pick a random waypoint in the interior (away from borders) using the RNG
+  // so the path is deterministic for the same seed.
+  const waypointX = 3 + Math.floor(rng() * (MAP_W - 6));
+  const waypointY = 3 + Math.floor(rng() * (MAP_H - 6));
+
+  // Carve an L-shaped corridor: spawn → waypoint (horizontal then vertical)
+  // → exit (vertical then horizontal).
+  const corridorSegments: Array<[number, number]> = [];
+
+  // Segment 1: spawn (SPAWN_X, SPAWN_Y) → waypoint, horizontal then vertical
+  const minX1 = Math.min(SPAWN_X, waypointX);
+  const maxX1 = Math.max(SPAWN_X, waypointX);
+  for (let x = minX1; x <= maxX1; x++) corridorSegments.push([x, SPAWN_Y]);
+  const minY1 = Math.min(SPAWN_Y, waypointY);
+  const maxY1 = Math.max(SPAWN_Y, waypointY);
+  for (let y = minY1; y <= maxY1; y++) corridorSegments.push([waypointX, y]);
+
+  // Segment 2: waypoint → exit, vertical then horizontal
+  const minY2 = Math.min(waypointY, EXIT_Y);
+  const maxY2 = Math.max(waypointY, EXIT_Y);
+  for (let y = minY2; y <= maxY2; y++) corridorSegments.push([waypointX, y]);
+  const minX2 = Math.min(waypointX, EXIT_X);
+  const maxX2 = Math.max(waypointX, EXIT_X);
+  for (let x = minX2; x <= maxX2; x++) corridorSegments.push([x, EXIT_Y]);
+
+  // Apply the corridor: any impassable tile along the path becomes a floor tile.
+  const corridorSet = new Set(corridorSegments.map(([x, y]) => y * MAP_W + x));
+  for (const tile of tiles) {
+    if (corridorSet.has(tile.y * MAP_W + tile.x) && !tile.passable) {
+      tile.type = 'floor';
+      tile.passable = true;
+    }
+  }
+
   return {
     id: 'overworld',
     name: `Floor ${floorNumber}`,
