@@ -20,6 +20,10 @@ const LOG_STRIP_H = 42;
 const LOG_LINE_COUNT = 3;
 /** Height of the touch-nav bar pinned to the bottom of the combat screen (3 rows × 40 px). */
 const NAV_BTN_H = 120;
+/** Height of the menu title row in pixels. */
+const MENU_TITLE_H = 34;
+/** Height of each menu item row in pixels. */
+const MENU_ITEM_H = 26;
 
 const HELP_TEXT_DEFAULT = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Tap to target';
 const HELP_TEXT_SKILL    = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Hover skill for details';
@@ -542,7 +546,7 @@ export class CombatUI {
     this.menuScrollOffset = 0;
     // Compute max visible items from the available menu area height (minus title row)
     const menuAreaH = this.H - NAV_BTN_H - this.BOTTOM_Y;
-    this.menuMaxVisible = Math.max(3, Math.floor((menuAreaH - 34) / 26));
+    this.menuMaxVisible = Math.max(3, Math.floor((menuAreaH - MENU_TITLE_H) / MENU_ITEM_H));
     // Show the tooltip for the first (auto-selected) item immediately.
     if (this.menuTooltips[0] && this.helpText?.active) {
       this.helpText.setText(this.menuTooltips[0]);
@@ -562,7 +566,7 @@ export class CombatUI {
       const isDisabled = this.menuDisabled[gi];
       const isSelected = gi === this.selectedMenuIndex;
       const color = isDisabled ? '#555555' : isSelected ? '#ffff00' : '#ffffff';
-      const t = this.scene.add.text(12, 26 + vi * 26, label, {
+      const t = this.scene.add.text(12, MENU_ITEM_H * (vi + 1), label, {
         fontSize: '16px',
         color,
         fontFamily: 'monospace',
@@ -598,7 +602,7 @@ export class CombatUI {
     if (this.menuTitle.active) this.menuTitle.setText(this.menuTitleBase + scrollHint);
     // Resize background to fit visible items (capped to menu area)
     const visibleCount = end - start;
-    const h = Math.max(70, 26 + visibleCount * 26 + 14);
+    const h = Math.max(70, MENU_ITEM_H + visibleCount * MENU_ITEM_H + 14);
     if (this.menuBg.active) {
       this.menuBg.setSize(this.MENU_W, h);
       this.menuBg.setPosition(this.MENU_W / 2, h / 2);
