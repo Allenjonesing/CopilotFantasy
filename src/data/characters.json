@@ -15,10 +15,10 @@
         "agility": 6,
         "luck": 5
       },
-      "skills": ["attack"],
+      "skills": ["attack", "smash"],
       "startingItems": [],
       "levelUpStats": { "hp": 8, "mp": 2, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "smash", "5": "drain", "7": "hasteBell", "9": "slowBell" }
+      "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" }
     },
     {
       "id": "kael",
@@ -35,10 +35,10 @@
         "agility": 9,
         "luck": 5
       },
-      "skills": ["attack"],
+      "skills": ["attack", "fire", "thunder", "blizzard", "water"],
       "startingItems": [],
       "levelUpStats": { "hp": 5, "mp": 10, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
-      "levelSkills": { "2": "fire", "3": "thunder", "4": "blizzard", "5": "water", "6": "fira", "7": "thundara", "8": "blizzara" }
+      "levelSkills": { "2": "fira", "3": "blizzara", "4": "thundara", "5": "watera", "6": "firaga", "7": "blizzaga", "8": "thundaga", "9": "waterga" }
     },
     {
       "id": "lyra",
@@ -52,13 +52,13 @@
         "magic": 10,
         "defense": 10,
         "magicDefense": 11,
-        "agility": 10,
+        "agility": 12,
         "luck": 6
       },
-      "skills": ["attack"],
+      "skills": ["attack", "cure"],
       "startingItems": [],
       "levelUpStats": { "hp": 6, "mp": 8, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "cure", "3": "cura", "4": "esuna", "5": "raise", "6": "curaga", "7": "reraise" }
+      "levelSkills": { "2": "cura", "3": "esuna", "4": "raise", "5": "curaga", "6": "reraise", "7": "pray" }
     }
   ]
 }

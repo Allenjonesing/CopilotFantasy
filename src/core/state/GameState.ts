@@ -131,7 +131,11 @@ export class GameState {
 
     this.state = {
       party,
-      inventory: [{ id: 'potion', quantity: 2 }],
+      inventory: [
+        { id: 'potion', quantity: 3 },
+        { id: 'phoenix', quantity: 2 },
+        { id: 'ether', quantity: 1 },
+      ],
       gold: 0,
       score: 0,
       highScore,
@@ -219,7 +223,7 @@ export class GameState {
 
   /** Scale factor applied to enemy stats based on current difficulty. */
   getEnemyScale(): number {
-    return 1 + (this.state.difficultyLevel - 1) * 0.18;
+    return 1 + (this.state.difficultyLevel - 1) * 0.10;
   }
 
   gainExp(amount: number): LevelUpResult {
@@ -227,7 +231,7 @@ export class GameState {
     if (this.state.exp >= this.state.expToNext) {
       this.state.exp -= this.state.expToNext;
       this.state.level++;
-      this.state.expToNext = Math.floor(this.state.expToNext * 1.6 + 20);
+      this.state.expToNext = Math.floor(this.state.expToNext * 1.3 + 10);
       const skillsGained = this.applyLevelUp();
       return { leveledUp: true, newLevel: this.state.level, skillsGained };
     }

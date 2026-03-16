@@ -203,6 +203,24 @@
       "description": "Grants Auto-Life; target revives automatically with 1 HP once."
     },
     {
+      "id": "groundSlam",
+      "name": "Ground Slam",
+      "type": "physical",
+      "target": "all_enemies",
+      "mpCost": 8,
+      "power": 1.0,
+      "description": "Slams the ground with crushing force, dealing physical damage to all enemies."
+    },
+    {
+      "id": "pray",
+      "name": "Pray",
+      "type": "heal",
+      "target": "all_allies",
+      "mpCost": 24,
+      "power": 1.2,
+      "description": "A heartfelt prayer that restores a moderate amount of HP to the entire party."
+    },
+    {
       "id": "enemyCure",
       "name": "Mend",
       "type": "heal",

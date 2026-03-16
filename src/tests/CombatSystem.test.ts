@@ -83,7 +83,7 @@ describe('CombatSystem', () => {
 
   it('consumes item from inventory on use', () => {
     const state = GameState.getInstance();
-    // State already starts with 2 potions; add 2 more → 4 total.
+    // State already starts with 3 potions; add 2 more → 5 total.
     state.addItem('potion', 2);
     const beforeQty = state.data.inventory.find((i) => i.id === 'potion')!.quantity;
     system.nextTurn();
