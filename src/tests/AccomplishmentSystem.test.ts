@@ -1,25 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AccomplishmentSystem, ALL_ACCOMPLISHMENTS } from '../core/state/AccomplishmentSystem';
 
-// Reset the singleton between tests by clearing its internal unlocked set via the
-// public API.  Since localStorage is stubbed (undefined) in the test environment
-// the system never actually persists, which makes isolation easy.
-function resetSystem(): AccomplishmentSystem {
-  const sys = AccomplishmentSystem.getInstance();
-  // Unlock nothing check — just calling getUnlocked() to verify clean state
-  // after the counters are reset by re-importing is not straightforward with
-  // singletons, so we rely on the fact that in the test environment
-  // localStorage is always unavailable and the set stays in memory.
-  return sys;
-}
-
 describe('AccomplishmentSystem', () => {
   let sys: AccomplishmentSystem;
 
   beforeEach(() => {
-    sys = resetSystem();
-    // Clear internal state for isolation between tests.
-    (sys as unknown as { unlocked: Set<string> }).unlocked = new Set();
+    sys = AccomplishmentSystem.getInstance();
+    sys.reset();
   });
 
   it('has a complete list of accomplishments', () => {
@@ -31,7 +18,7 @@ describe('AccomplishmentSystem', () => {
     });
   });
 
-  it('starts with no unlocked accomplishments', () => {
+  it('starts with no unlocked accomplishments after reset', () => {
     expect(sys.getUnlocked()).toHaveLength(0);
   });
 

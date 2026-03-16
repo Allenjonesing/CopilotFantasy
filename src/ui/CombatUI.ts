@@ -1081,9 +1081,8 @@ export class CombatUI {
         onComplete: () => fatalText.destroy(),
       });
 
-      // Check for overkill accomplishment (damage exceeded max HP by 50%).
-      const overkillThreshold = entity.stats.maxHp * 0.5;
-      if (dmg > entity.stats.maxHp + overkillThreshold) {
+      // Check for overkill accomplishment (damage exceeded 150% of the enemy's max HP).
+      if (dmg > entity.stats.maxHp * 1.5) {
         AccomplishmentSystem.getInstance().recordOverkill();
       }
     }

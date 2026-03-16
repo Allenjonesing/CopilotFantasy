@@ -123,6 +123,11 @@ export class AccomplishmentSystem {
     return this.getCounter(BATTLES_KEY);
   }
 
+  /** Clear all unlocked accomplishments (primarily for testing). */
+  reset(): void {
+    this.unlocked = new Set();
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
 
   private load(): Set<string> {
