@@ -66,8 +66,9 @@ export class EnemyCombatant extends CombatEntity {
       magic: Math.ceil(def.stats.magic * s),
       defense: Math.ceil(def.stats.defense * s),
       magicDefense: Math.ceil(def.stats.magicDefense * s),
-      // Agility scales with difficulty so buff enemies get noticeably more turns
-      agility: Math.ceil(def.stats.agility * s),
+      // Agility is NOT scaled with difficulty — faster enemies should stay fast
+      // but not get extra turns beyond their natural speed advantage.
+      agility: def.stats.agility,
       luck: def.stats.luck,
     };
     // Use a unique per-instance ID so that multiple enemies of the same type

@@ -53,10 +53,16 @@ describe('GameState', () => {
     expect(result).toBe(false);
   });
 
-  it('starts with 2 potions (starting items for the first run)', () => {
+  it('starts with potions, a mana brew, and revival herbs', () => {
     const potions = state.data.inventory.find((i) => i.id === 'potion');
     expect(potions).toBeDefined();
-    expect(potions!.quantity).toBe(2);
+    expect(potions!.quantity).toBe(3);
+    const phoenix = state.data.inventory.find((i) => i.id === 'phoenix');
+    expect(phoenix).toBeDefined();
+    expect(phoenix!.quantity).toBe(2);
+    const ether = state.data.inventory.find((i) => i.id === 'ether');
+    expect(ether).toBeDefined();
+    expect(ether!.quantity).toBe(1);
   });
 
   it('starts at difficulty level 1 with score 0', () => {
