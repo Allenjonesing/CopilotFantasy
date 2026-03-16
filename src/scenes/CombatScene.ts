@@ -6,6 +6,7 @@ import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { CombatUI } from '../ui/CombatUI';
 import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
+import { AccomplishmentSystem } from '../core/state/AccomplishmentSystem';
 import { CombatEnemySpec } from '../systems/exploration/ExplorationSystem';
 
 export class CombatScene extends Phaser.Scene {
@@ -233,14 +234,21 @@ export class CombatScene extends Phaser.Scene {
 
     if (reason === 'victory' && result) {
       const state = GameState.getInstance();
+      const accomplishments = AccomplishmentSystem.getInstance();
       const scoreMultiplier = state.data.difficultyLevel;
       const scoreGained = result.expGained * scoreMultiplier;
       state.addScore(scoreGained);
       const levelResult = state.gainExp(result.expGained);
       state.addGold(result.goldGained);
       result.itemsGained.forEach((id) => state.addItem(id));
-      // Difficulty only increases when the player reaches the floor exit,
-      // NOT on every combat victory.
+
+      // ── Accomplishment tracking ──────────────────────────────────────────
+      const enemiesDefeated = this.system.enemies.filter((e) => e.isDefeated).length;
+      for (let i = 0; i < enemiesDefeated; i++) accomplishments.recordKill();
+      accomplishments.recordBattleWin();
+      if (levelResult.leveledUp) accomplishments.recordLevel(levelResult.newLevel);
+      accomplishments.recordScore(state.data.score);
+      if (this.isBossBattle) accomplishments.recordBossKill();
 
       this.scene.start('VictoryScene', {
         expGained: result.expGained,

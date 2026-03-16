@@ -4,6 +4,7 @@ import { PlayerCombatant } from '../systems/combat/PlayerCombatant';
 import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
+import { AccomplishmentSystem } from '../core/state/AccomplishmentSystem';
 import skillsData from '../data/skills.json';
 import itemsData from '../data/items.json';
 import charactersData from '../data/characters.json';
@@ -12,9 +13,9 @@ import charactersData from '../data/characters.json';
 const TIMELINE_H = 36;
 const TIMELINE_SLOT_W = 72;
 const TIMELINE_NAME_LEN = 7;
-const DAMAGE_FLASH_MS = 200;
-const ENEMY_FLASH_MS = 80;
-const ENEMY_FLASH_REPEAT = 2;
+const DAMAGE_FLASH_MS = 350;
+const ENEMY_FLASH_MS = 150;
+const ENEMY_FLASH_REPEAT = 3;
 const LOG_STRIP_H = 42;
 const LOG_LINE_COUNT = 3;
 /** Height of the touch-nav bar pinned to the bottom of the combat screen (3 rows × 40 px). */
@@ -52,11 +53,11 @@ const TURN_INDICATOR_PAD = 12; // px added around entity icon for the active-tur
 // Attack movement animation
 const ATTACK_MOVE_MAX_PX = 70;
 const ATTACK_MOVE_RATIO = 0.45;
-const ATTACK_MOVE_FORWARD_MS = 160;
-const ATTACK_MOVE_RETURN_MS = 200;
+const ATTACK_MOVE_FORWARD_MS = 240;
+const ATTACK_MOVE_RETURN_MS = 300;
 // Spell sparkle burst
-const SPARKLE_MIN_DIST = 28;
-const SPARKLE_DIST_VARIANCE = 20;
+const SPARKLE_MIN_DIST = 36;
+const SPARKLE_DIST_VARIANCE = 28;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
@@ -769,9 +770,9 @@ export class CombatUI {
         }).setOrigin(0.5).setDepth(50);
         this.scene.tweens.add({
           targets: healText,
-          y: pos.y - 50,
+          y: pos.y - 65,
           alpha: 0,
-          duration: 900,
+          duration: 1300,
           ease: 'Power1',
           onComplete: () => healText.destroy(),
         });
@@ -949,6 +950,8 @@ export class CombatUI {
   /** Flash the damaged game object and show a floating damage number. */
   private playDamageAnimation(entity: CombatEntity, dmg: number): void {
     const isPlayer = entity instanceof PlayerCombatant;
+    const isKillingBlow = entity.isDefeated;
+
     if (isPlayer) {
       // Flash the HP bar red briefly.
       const bars = this.playerBars.get(entity.id);
@@ -995,60 +998,95 @@ export class CombatUI {
         }
       }
     } else {
+      // Enemy damage flash — always runs even on a killing blow so the player
+      // can see the hit before the sprite fades to a defeated state.
       const icon = this.enemyRects.get(entity.id);
-      if (!icon || !icon.active || entity.isDefeated) return;
-      if (icon instanceof Phaser.GameObjects.Image) {
-        // Flash to white tint then restore
-        icon.setTint(0xffffff);
-        this.scene.tweens.add({
-          targets: icon,
-          alpha: { from: 1, to: 0.4 },
-          duration: ENEMY_FLASH_MS,
-          yoyo: true,
-          repeat: ENEMY_FLASH_REPEAT,
-          onComplete: () => {
-            if (icon.active) {
-              icon.setAlpha(1);
-              icon.setTint(entity.isDefeated ? 0x333333 : 0xffffff);
-            }
-          },
-        });
-      } else {
-        const rect = icon as Phaser.GameObjects.Rectangle;
-        rect.setFillStyle(0xffffff);
-        this.scene.tweens.add({
-          targets: rect,
-          alpha: { from: 1, to: 0.4 },
-          duration: ENEMY_FLASH_MS,
-          yoyo: true,
-          repeat: ENEMY_FLASH_REPEAT,
-          onComplete: () => {
-            if (rect.active) {
-              rect.setAlpha(1);
-              rect.setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
-            }
-          },
-        });
+      if (icon && icon.active) {
+        if (icon instanceof Phaser.GameObjects.Image) {
+          icon.setTint(isKillingBlow ? 0xff2222 : 0xffffff);
+          this.scene.tweens.add({
+            targets: icon,
+            alpha: { from: 1, to: 0.25 },
+            duration: ENEMY_FLASH_MS,
+            yoyo: !isKillingBlow,
+            repeat: isKillingBlow ? 0 : ENEMY_FLASH_REPEAT,
+            onComplete: () => {
+              if (icon.active) {
+                icon.setAlpha(isKillingBlow ? 0.4 : 1);
+                icon.setTint(isKillingBlow ? 0x333333 : 0xffffff);
+              }
+            },
+          });
+        } else {
+          const rect = icon as Phaser.GameObjects.Rectangle;
+          rect.setFillStyle(isKillingBlow ? 0xff2222 : 0xffffff);
+          this.scene.tweens.add({
+            targets: rect,
+            alpha: { from: 1, to: 0.25 },
+            duration: ENEMY_FLASH_MS,
+            yoyo: !isKillingBlow,
+            repeat: isKillingBlow ? 0 : ENEMY_FLASH_REPEAT,
+            onComplete: () => {
+              if (rect.active) {
+                rect.setAlpha(isKillingBlow ? 0.4 : 1);
+                rect.setFillStyle(isKillingBlow ? 0x333333 : 0xcc4444);
+              }
+            },
+          });
+        }
       }
     }
 
-    // Floating damage number
+    // ── Floating damage number ─────────────────────────────────────────────
     const pos = this.entityScreenPos(entity);
+    // Killing blows get a larger, brighter colour to make them stand out.
+    const fontSize  = isKillingBlow && !isPlayer ? '26px' : '18px';
+    const textColor = isPlayer ? '#ff8888'
+                    : isKillingBlow ? '#ff4400'
+                    : '#ffff44';
+
     const dmgText = this.scene.add.text(pos.x, pos.y, `-${dmg}`, {
-      fontSize: '18px',
-      color: isPlayer ? '#ff8888' : '#ffff44',
+      fontSize,
+      color: textColor,
       fontFamily: 'monospace',
       stroke: '#000000',
-      strokeThickness: 3,
+      strokeThickness: isKillingBlow && !isPlayer ? 4 : 3,
     }).setOrigin(0.5).setDepth(50);
+
     this.scene.tweens.add({
       targets: dmgText,
-      y: pos.y - 55,
+      y: pos.y - 75,
       alpha: 0,
-      duration: 900,
+      duration: 1400,
       ease: 'Power1',
       onComplete: () => dmgText.destroy(),
     });
+
+    // Killing-blow banner: show "FATAL!" above the damage number.
+    if (isKillingBlow && !isPlayer) {
+      const fatalText = this.scene.add.text(pos.x, pos.y - 30, '✦ FATAL ✦', {
+        fontSize: '20px',
+        color: '#ff6600',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(51);
+
+      this.scene.tweens.add({
+        targets: fatalText,
+        y: pos.y - 80,
+        alpha: 0,
+        duration: 1600,
+        ease: 'Power2',
+        onComplete: () => fatalText.destroy(),
+      });
+
+      // Check for overkill accomplishment (damage exceeded max HP by 50%).
+      const overkillThreshold = entity.stats.maxHp * 0.5;
+      if (dmg > entity.stats.maxHp + overkillThreshold) {
+        AccomplishmentSystem.getInstance().recordOverkill();
+      }
+    }
   }
 
   /** Play a visual spell effect: expanding rings, sparkles and a spell name banner. */
@@ -1070,15 +1108,15 @@ export class CombatUI {
       targets: spellLabel,
       alpha: { from: 0, to: 1 },
       y: pos.y - 50,
-      duration: 220,
+      duration: 280,
       ease: 'Back.Out',
       onComplete: () => {
-        this.scene.time.delayedCall(350, () => {
+        this.scene.time.delayedCall(500, () => {
           this.scene.tweens.add({
             targets: spellLabel,
             alpha: 0,
-            y: pos.y - 70,
-            duration: 380,
+            y: pos.y - 75,
+            duration: 480,
             onComplete: () => spellLabel.destroy(),
           });
         });
@@ -1090,31 +1128,31 @@ export class CombatUI {
     ring1.setDepth(54);
     this.scene.tweens.add({
       targets: ring1,
-      scaleX: 9,
-      scaleY: 9,
+      scaleX: 11,
+      scaleY: 11,
       alpha: 0,
-      duration: 560,
+      duration: 720,
       ease: 'Power2.easeOut',
       onComplete: () => ring1.destroy(),
     });
 
     // ── Secondary ring (slightly delayed, narrower) ────────────────────────
-    this.scene.time.delayedCall(100, () => {
+    this.scene.time.delayedCall(120, () => {
       const ring2 = this.scene.add.rectangle(pos.x, pos.y, 8, 8, color, 0.35);
       ring2.setDepth(53);
       this.scene.tweens.add({
         targets: ring2,
-        scaleX: 6,
-        scaleY: 6,
+        scaleX: 7,
+        scaleY: 7,
         alpha: 0,
-        duration: 420,
+        duration: 560,
         ease: 'Power2.easeOut',
         onComplete: () => ring2.destroy(),
       });
     });
 
-    // ── Sparkle burst: 6 small circles radiate outward ────────────────────
-    const SPARKS = 6;
+    // ── Sparkle burst: 8 small circles radiate outward ────────────────────
+    const SPARKS = 8;
     for (let k = 0; k < SPARKS; k++) {
       const angle = (k / SPARKS) * Math.PI * 2;
       const dist  = SPARKLE_MIN_DIST + Math.random() * SPARKLE_DIST_VARIANCE;
@@ -1127,7 +1165,7 @@ export class CombatUI {
         scaleX: 0.1,
         scaleY: 0.1,
         alpha: 0,
-        duration: 400 + Math.random() * 150,
+        duration: 560 + Math.random() * 200,
         ease: 'Power1.easeOut',
         delay: 40 + k * 20,
         onComplete: () => spark.destroy(),

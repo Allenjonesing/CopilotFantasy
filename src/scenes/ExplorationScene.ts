@@ -4,6 +4,7 @@ import { ExplorationUI } from '../ui/ExplorationUI';
 import { TouchControls } from '../ui/TouchControls';
 import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
+import { AccomplishmentSystem } from '../core/state/AccomplishmentSystem';
 import itemsData from '../data/items.json';
 
 export class ExplorationScene extends Phaser.Scene {
@@ -75,6 +76,7 @@ export class ExplorationScene extends Phaser.Scene {
       this.exitTriggered = true;
       // Advance to next floor.
       GameState.getInstance().increaseDifficulty();
+      AccomplishmentSystem.getInstance().recordFloor(GameState.getInstance().data.difficultyLevel);
       this.scene.restart();
     });
   }
