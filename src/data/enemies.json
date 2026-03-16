@@ -16,7 +16,7 @@
         "agility": 6,
         "luck": 3
       },
-      "skills": ["attack", "fire", "blizzard", "thunder", "water"],
+      "skills": ["attack", "fire", "blizzard", "thunder", "water", "venomStrike"],
       "rewards": { "exp": 12, "gold": 5, "items": [] },
       "possibleDrops": [{ "id": "potion", "chance": 0.60 }]
     },

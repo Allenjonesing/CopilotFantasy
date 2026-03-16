@@ -227,7 +227,9 @@ export class CombatSystem {
         state.addItem(itemId); // refund
         return;
       }
-      const hpRestore = typeof effect['hp'] === 'number' ? (effect['hp'] as number) : 1;
+      const hpRestore = typeof effect['hpPercent'] === 'number'
+        ? Math.max(1, Math.floor(t.stats.maxHp * (effect['hpPercent'] as number)))
+        : typeof effect['hp'] === 'number' ? (effect['hp'] as number) : 1;
       t.stats.hp = hpRestore; // directly set so defeated check clears
       this.addLog(`${actor.name} uses ${item.name} — ${t.name} is revived with ${hpRestore} HP!`);
       this.bus.emit('combat:heal', t, hpRestore);
@@ -241,6 +243,11 @@ export class CombatSystem {
         t.stats.mp = Math.min(t.stats.maxMp, t.stats.mp + (effect['mp'] as number));
         this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['mp']} MP.`);
         this.bus.emit('combat:heal', t, effect['mp']);
+      }
+      if (effect['removePoison'] === true) {
+        this.statusSystem.remove(t, 'poison');
+        this.addLog(`${actor.name} uses ${item.name} on ${t.name}, curing Poison.`);
+        this.bus.emit('combat:heal', t, 0);
       }
     }
     this.bus.emit('combat:itemUsed', actor, item.id);

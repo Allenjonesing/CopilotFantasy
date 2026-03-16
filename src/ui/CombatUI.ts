@@ -113,6 +113,12 @@ export class CombatUI {
   private selectedMenuIndex = 0;
   /** Tooltips for each menu item in the current menu — used to update help text on navigation. */
   private menuTooltips: string[] = [];
+  // Scrolling menu support
+  private fullMenuItems: string[] = [];
+  private menuScrollOffset = 0;
+  private menuMaxVisible = 6;
+  /** Base text of the menu title without scroll indicators. */
+  private menuTitleBase = '';
   // Menu state machine
   private menuState: MenuState = 'main';
   private menuStateBeforeTarget: MenuState = 'main';
@@ -122,6 +128,8 @@ export class CombatUI {
   // Target selection
   private targetList: CombatEntity[] = [];
   private targetIsPositive = false;
+  /** True when the pending action targets all enemies or all allies (no per-entity selection). */
+  private pendingTargetsAll = false;
   private targetCursor!: Phaser.GameObjects.Rectangle;
   /** Semi-transparent highlight drawn over the targeted player's status row. */
   private targetPanelHighlight!: Phaser.GameObjects.Rectangle;
@@ -233,13 +241,17 @@ export class CombatUI {
       }
       icon.setInteractive({ useHandCursor: true });
       icon.on('pointerdown', () => this.onEntityTap(e));
-      // Show element icon next to enemy name
+      // Show element icon next to enemy name; clamp x so text stays within screen bounds
       const elemIcon = e.element ? (ELEMENT_ICONS[e.element] ?? '') : '';
+      const rawEnemyName = `${e.name}${elemIcon ? ' ' + elemIcon : ''}`;
+      // Clamp the text center-x so the text box (up to 90px wide) never clips the screen edge
+      const nameTextX = Math.max(46, Math.min(this.W - 46, x));
       const nameText = this.scene.add
-        .text(x, y + ENEMY_H / 2 + 8, `${e.name}${elemIcon ? ' ' + elemIcon : ''}`, {
-          fontSize: '12px',
+        .text(nameTextX, y + ENEMY_H / 2 + 8, rawEnemyName, {
+          fontSize: '10px',
           color: '#ffffff',
           fontFamily: 'monospace',
+          wordWrap: { width: 90 },
         })
         .setOrigin(0.5)
         .setDepth(6);
@@ -264,8 +276,10 @@ export class CombatUI {
       const y = this.playerRowY;
       let icon: EntityIcon;
       if (this.scene.textures.exists('player')) {
+        // Use character-specific texture if available (player_kael, player_lyra), else 'player'
+        const charTex = this.scene.textures.exists(`player_${p.id}`) ? `player_${p.id}` : 'player';
         icon = this.scene.add
-          .image(x, y, 'player')
+          .image(x, y, charTex)
           .setDisplaySize(PLAYER_ICON_W, PLAYER_ICON_H)
           .setDepth(5);
       } else {
@@ -516,38 +530,58 @@ export class CombatUI {
     this.onMenuTap?.();
   }
 
-  /** Rebuild the visible menu items inside the container. */
+  /** Rebuild the visible menu items inside the container. Supports scrolling for long lists. */
   private buildMenuItems(items: string[], disabled: boolean[] = [], tooltips: string[] = []): void {
     this.menuItems.forEach((t) => t.destroy());
     this.menuItems = [];
+    // Store full lists for scroll window rendering
+    this.fullMenuItems = [...items];
     this.menuDisabled = disabled.length === items.length ? [...disabled] : items.map(() => false);
     this.menuTooltips = tooltips.length === items.length ? [...tooltips] : items.map(() => '');
     this.selectedMenuIndex = 0;
+    this.menuScrollOffset = 0;
+    // Compute max visible items from the available menu area height (minus title row)
+    const menuAreaH = this.H - NAV_BTN_H - this.BOTTOM_Y;
+    this.menuMaxVisible = Math.max(3, Math.floor((menuAreaH - 34) / 26));
     // Show the tooltip for the first (auto-selected) item immediately.
     if (this.menuTooltips[0] && this.helpText?.active) {
       this.helpText.setText(this.menuTooltips[0]);
     }
-    items.forEach((label, i) => {
-      const isDisabled = this.menuDisabled[i];
-      const color = isDisabled ? '#555555' : i === 0 ? '#ffff00' : '#ffffff';
-      const t = this.scene.add.text(12, 26 + i * 26, label, {
+    this.renderMenuWindow();
+  }
+
+  /** Render only the currently visible window of menu items. */
+  private renderMenuWindow(): void {
+    this.menuItems.forEach((t) => t.destroy());
+    this.menuItems = [];
+    const start = this.menuScrollOffset;
+    const end = Math.min(start + this.menuMaxVisible, this.fullMenuItems.length);
+    for (let vi = 0; vi < end - start; vi++) {
+      const gi = start + vi; // global index into fullMenuItems
+      const label = this.fullMenuItems[gi];
+      const isDisabled = this.menuDisabled[gi];
+      const isSelected = gi === this.selectedMenuIndex;
+      const color = isDisabled ? '#555555' : isSelected ? '#ffff00' : '#ffffff';
+      const t = this.scene.add.text(12, 26 + vi * 26, label, {
         fontSize: '16px',
         color,
         fontFamily: 'monospace',
       });
       if (!isDisabled) {
+        const capturedGi = gi;
         t.setInteractive({ useHandCursor: true });
         t.on('pointerover', () => {
-          if (!this.menuDisabled[i] && this.menuContainer.visible) {
-            this.selectedMenuIndex = i;
+          if (!this.menuDisabled[capturedGi] && this.menuContainer.visible) {
+            this.selectedMenuIndex = capturedGi;
             this.updateMenuHighlight();
             if (this.menuState === 'target') this.updateTargetCursor();
-            if (tooltips[i] && this.helpText.active) this.helpText.setText(tooltips[i]);
+            const tip = this.menuTooltips[capturedGi];
+            if (tip && this.helpText.active) this.helpText.setText(tip);
           }
         });
         t.on('pointerdown', () => {
-          if (!this.menuDisabled[i] && this.menuContainer.visible) {
-            this.selectedMenuIndex = i;
+          if (!this.menuDisabled[capturedGi] && this.menuContainer.visible) {
+            this.selectedMenuIndex = capturedGi;
             this.updateMenuHighlight();
             if (this.menuState === 'target') this.updateTargetCursor();
             this.onMenuTap?.();
@@ -556,9 +590,15 @@ export class CombatUI {
       }
       this.menuContainer.add(t);
       this.menuItems.push(t);
-    });
-    // Resize background to fit items
-    const h = Math.max(70, 26 + items.length * 26 + 14);
+    }
+    // Update the title with scroll indicators (▲/▼) when the list is longer than the visible window
+    const canScrollUp = this.menuScrollOffset > 0;
+    const canScrollDown = this.menuScrollOffset + this.menuMaxVisible < this.fullMenuItems.length;
+    const scrollHint = canScrollUp && canScrollDown ? ' ▲▼' : canScrollUp ? ' ▲' : canScrollDown ? ' ▼' : '';
+    if (this.menuTitle.active) this.menuTitle.setText(this.menuTitleBase + scrollHint);
+    // Resize background to fit visible items (capped to menu area)
+    const visibleCount = end - start;
+    const h = Math.max(70, 26 + visibleCount * 26 + 14);
     if (this.menuBg.active) {
       this.menuBg.setSize(this.MENU_W, h);
       this.menuBg.setPosition(this.MENU_W / 2, h / 2);
@@ -577,7 +617,8 @@ export class CombatUI {
   }
 
   private buildMainMenu(): void {
-    this.menuTitle.setText('ACTION');
+    this.menuTitleBase = 'ACTION';
+    this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
     const specialSkills = actor ? actor.skills.filter((s) => s !== 'attack') : [];
     const hasSkills = specialSkills.length > 0;
@@ -599,7 +640,8 @@ export class CombatUI {
   }
 
   private buildSkillMenu(): void {
-    this.menuTitle.setText(`${this.skillMenuLabel()}  [BACK: cancel]`);
+    this.menuTitleBase = `${this.skillMenuLabel()}  [BACK: cancel]`;
+    this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
     const skillIds = actor ? actor.skills.filter((s) => s !== 'attack') : [];
     const items = skillIds.map((id) => {
@@ -622,7 +664,8 @@ export class CombatUI {
   }
 
   private buildItemMenu(): void {
-    this.menuTitle.setText('ITEM   [BACK: cancel]');
+    this.menuTitleBase = 'ITEM   [BACK: cancel]';
+    this.menuTitle.setText(this.menuTitleBase);
     const inv = GameState.getInstance().data.inventory;
     const items = inv.map((i) => {
       const def = itemsData.items.find((it) => it.id === i.id);
@@ -642,34 +685,55 @@ export class CombatUI {
     this.menuStateBeforeTarget = this.menuState;
     this.menuState = 'target';
     this.pendingActionType = actionType;
+    this.pendingTargetsAll = false;
 
-    // Determine whether the action targets allies (healing item or ally-targeting skill).
+    // Determine the effective targeting type for this action
+    let effectiveTarget = 'single_enemy';
     let preferAlly = false;
     let revivalItem = false;
+    let revivalSkill = false;
     if (actionType === 'item' && this.pendingItemId) {
       const itemDef = itemsData.items.find((it) => it.id === this.pendingItemId);
+      effectiveTarget = itemDef?.target ?? 'single_ally';
       const effect = itemDef?.effect as Record<string, unknown> | undefined;
       if (effect?.['revive']) {
         revivalItem = true;
         preferAlly = true; // green cursor for positive action
       } else {
-        preferAlly = itemDef?.target === 'single_ally';
+        preferAlly = effectiveTarget === 'single_ally' || effectiveTarget === 'all_allies';
       }
     } else if (actionType === 'skill' && this.pendingSkillId) {
       const skillDef = skillsData.skills.find((s) => s.id === this.pendingSkillId);
-      preferAlly = skillDef?.target === 'single_ally' || skillDef?.target === 'all_allies'
-        || skillDef?.target === 'single_dead_ally';
+      effectiveTarget = skillDef?.target ?? 'single_enemy';
+      preferAlly = effectiveTarget === 'single_ally' || effectiveTarget === 'all_allies'
+        || effectiveTarget === 'single_dead_ally';
+      revivalSkill = effectiveTarget === 'single_dead_ally';
     }
 
     // Positive actions (heals, buffs, items on allies) use a green cursor;
     // hostile actions (attacks, offensive skills) use a red cursor.
     this.targetIsPositive = preferAlly;
 
-    // Check if this is a revival skill (targets dead allies)
-    let revivalSkill = false;
-    if (actionType === 'skill' && this.pendingSkillId) {
-      const skillDef = skillsData.skills.find((s) => s.id === this.pendingSkillId);
-      revivalSkill = skillDef?.target === 'single_dead_ally';
+    // All-enemies: show a single "All Enemies" confirmation option
+    if (effectiveTarget === 'all_enemies') {
+      this.pendingTargetsAll = true;
+      this.targetList = this.system.enemies.filter((e) => !e.isDefeated);
+      this.menuTitleBase = 'TARGET [BACK: cancel]';
+      this.menuTitle.setText(this.menuTitleBase);
+      this.buildMenuItems(['⚔ All Enemies (everyone)']);
+      this.hideTargetCursor();
+      return;
+    }
+
+    // All-allies: show a single "All Allies" confirmation option
+    if (effectiveTarget === 'all_allies') {
+      this.pendingTargetsAll = true;
+      this.targetList = this.system.players.filter((p) => !p.isDefeated);
+      this.menuTitleBase = 'TARGET [BACK: cancel]';
+      this.menuTitle.setText(this.menuTitleBase);
+      this.buildMenuItems(['✨ All Allies (everyone)']);
+      this.hideTargetCursor();
+      return;
     }
 
     if (revivalItem || revivalSkill) {
@@ -685,7 +749,8 @@ export class CombatUI {
       this.targetList = preferAlly ? [...allies, ...foes] : [...foes, ...allies];
     }
 
-    this.menuTitle.setText('TARGET [BACK: cancel]');
+    this.menuTitleBase = 'TARGET [BACK: cancel]';
+    this.menuTitle.setText(this.menuTitleBase);
     const labels = this.targetList.map((t) => {
       const isEnemy = !this.system.players.some((p) => p === t);
       const deadMark = t.isDefeated ? ' ✝' : '';
@@ -701,18 +766,26 @@ export class CombatUI {
     this.pendingActionType = null;
     this.pendingSkillId = null;
     this.pendingItemId = null;
+    this.pendingTargetsAll = false;
     this.hideTargetCursor();
     this.buildMainMenu();
   }
 
   private updateMenuHighlight(): void {
-    this.menuItems.forEach((t, i) => {
-      const disabled = this.menuDisabled[i];
-      t.setColor(disabled ? '#555555' : i === this.selectedMenuIndex ? '#ffff00' : '#ffffff');
+    this.menuItems.forEach((t, vi) => {
+      const gi = this.menuScrollOffset + vi;
+      const disabled = this.menuDisabled[gi];
+      t.setColor(disabled ? '#555555' : gi === this.selectedMenuIndex ? '#ffff00' : '#ffffff');
     });
   }
 
   private updateTargetCursor(): void {
+    // All-targets actions don't have a per-entity cursor — keep it hidden.
+    if (this.pendingTargetsAll) {
+      this.targetCursor.setVisible(false);
+      this.targetPanelHighlight.setVisible(false);
+      return;
+    }
     const target = this.targetList[this.selectedMenuIndex];
     if (!target) {
       this.targetCursor.setVisible(false);
@@ -1226,7 +1299,7 @@ export class CombatUI {
   }
 
   navigateMenu(direction: 'up' | 'down' | 'left' | 'right'): void {
-    const count = this.menuItems.length;
+    const count = this.fullMenuItems.length;
     if (count === 0) return;
     // left/right map to previous/next item respectively (same as up/down) so the
     // full D-pad works with the linear vertical menu list.
@@ -1240,7 +1313,16 @@ export class CombatUI {
 
     if (!this.menuDisabled[newIdx]) {
       this.selectedMenuIndex = newIdx;
-      this.updateMenuHighlight();
+      // Scroll the visible window to keep the selected item in view
+      if (newIdx < this.menuScrollOffset) {
+        this.menuScrollOffset = newIdx;
+        this.renderMenuWindow();
+      } else if (newIdx >= this.menuScrollOffset + this.menuMaxVisible) {
+        this.menuScrollOffset = newIdx - this.menuMaxVisible + 1;
+        this.renderMenuWindow();
+      } else {
+        this.updateMenuHighlight();
+      }
       if (this.menuState === 'target') this.updateTargetCursor();
       // Update the help text to describe the currently highlighted option.
       const tip = this.menuTooltips[newIdx];

@@ -24,8 +24,8 @@
       "color": 16768324,
       "type": "buff",
       "agilityMod": 2.0,
-      "duration": 3,
-      "description": "Doubles Agility for 3 turns."
+      "duration": -1,
+      "description": "Doubles Agility for the rest of the battle."
     },
     {
       "id": "reraise",

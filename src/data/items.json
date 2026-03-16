@@ -35,8 +35,8 @@
       "name": "Revival Herb",
       "type": "consumable",
       "target": "single_dead_ally",
-      "effect": { "revive": true, "hp": 1 },
-      "description": "Revives a KO'd ally with 1 HP.",
+      "effect": { "revive": true, "hpPercent": 0.5 },
+      "description": "Revives a KO'd ally with 50% HP.",
       "buyPrice": 200,
       "sellPrice": 100
     },
