@@ -5,6 +5,7 @@ import { TouchControls } from '../ui/TouchControls';
 import { EventBus } from '../core/events/EventBus';
 import { GameState } from '../core/state/GameState';
 import { AccomplishmentSystem } from '../core/state/AccomplishmentSystem';
+import { BattleType } from '../systems/combat/CombatSystem';
 import itemsData from '../data/items.json';
 
 export class ExplorationScene extends Phaser.Scene {
@@ -26,9 +27,25 @@ export class ExplorationScene extends Phaser.Scene {
   create(): void {
     this.bus = EventBus.getInstance();
 
+    const state = GameState.getInstance();
+
+    // ── Mid-battle resume ───────────────────────────────────────────────────
+    // If the game was closed while a battle was in progress, a pendingBattle
+    // record is present in the save.  Go straight back to CombatScene so the
+    // player can continue the fight from where they left off.
+    if (state.data.pendingBattle) {
+      const battle = state.data.pendingBattle;
+      this.scene.start('CombatScene', {
+        enemies: battle.enemies,
+        difficultyLevel: battle.difficultyLevel,
+        battleType: battle.battleType as BattleType,
+        isResume: true,
+      });
+      return;
+    }
+
     // Restore player to pre-combat position if returning from a mid-floor
     // battle; otherwise reset to spawn for a fresh floor.
-    const state = GameState.getInstance();
     if (state.data.preCombatX !== null && state.data.preCombatY !== null) {
       state.data.playerX = state.data.preCombatX;
       state.data.playerY = state.data.preCombatY;
@@ -38,6 +55,9 @@ export class ExplorationScene extends Phaser.Scene {
       state.data.playerX = 2;
       state.data.playerY = 2;
     }
+    // Persist the restored position so a reload here doesn't re-apply
+    // preCombatX/Y a second time and keeps the save consistent.
+    state.saveGame();
 
     this.exploration = new ExplorationSystem(this);
     this.explorationUI = new ExplorationUI(this);
@@ -86,6 +106,10 @@ export class ExplorationScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // Guard: exploration is not initialised when create() returned early to
+    // resume a pending battle in CombatScene.
+    if (!this.exploration) return;
+
     this.exploration.updateEnemies(delta);
     this.explorationUI.updatePickupMsg(delta);
 
@@ -119,9 +143,9 @@ export class ExplorationScene extends Phaser.Scene {
   }
 
   shutdown(): void {
-    this.exploration.destroy();
-    this.explorationUI.destroy();
-    this.touchControls.destroy();
+    this.exploration?.destroy();
+    this.explorationUI?.destroy();
+    this.touchControls?.destroy();
     this.bus.clear();
   }
 }

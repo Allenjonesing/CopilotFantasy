@@ -26,7 +26,13 @@ export class CombatScene extends Phaser.Scene {
     super({ key: 'CombatScene' });
   }
 
-  init(data: { enemies?: Array<string | CombatEnemySpec>; difficultyLevel?: number; battleType?: BattleType }): void {
+  init(data: {
+    enemies?: Array<string | CombatEnemySpec>;
+    difficultyLevel?: number;
+    battleType?: BattleType;
+    /** True when resuming an autosaved mid-battle state. */
+    isResume?: boolean;
+  }): void {
     const enemySpecs = data.enemies ?? ['slime'];
     const baseScale = GameState.getInstance().getEnemyScale();
     const state = GameState.getInstance();
@@ -40,6 +46,21 @@ export class CombatScene extends Phaser.Scene {
       }
       return new EnemyCombatant(e.typeId, baseScale * e.variantScale, e.displayName, currentFloor);
     });
+
+    // When resuming from an autosave, restore the saved enemy HP/MP so the
+    // battle continues at the exact state it was in when the game was closed.
+    if (data.isResume && state.data.pendingBattle) {
+      const saved = state.data.pendingBattle;
+      enemies.forEach((e, i) => {
+        if (saved.enemyHp[i] !== undefined) {
+          e.stats.hp = saved.enemyHp[i];
+        }
+        if (saved.enemyMp[i] !== undefined) {
+          e.stats.mp = saved.enemyMp[i];
+        }
+      });
+    }
+
     this.system = new CombatSystem(players, enemies);
     this.battleType = data.battleType ?? 'normal';
     this.isBossBattle = enemySpecs.some(
@@ -48,6 +69,22 @@ export class CombatScene extends Phaser.Scene {
     if (this.battleType !== 'normal') {
       this.system.applyBattleType(this.battleType);
     }
+
+    // Persist battle state so the game can resume if closed mid-fight.
+    // On a fresh battle this overwrites any stale pendingBattle; on a resume
+    // it refreshes with the current (already-restored) enemy HP values.
+    state.data.pendingBattle = {
+      enemies: enemySpecs.map((e) =>
+        typeof e === 'string'
+          ? { typeId: e, displayName: e, variantScale: 1.0 }
+          : { typeId: e.typeId, displayName: e.displayName, variantScale: e.variantScale, isBoss: e.isBoss },
+      ),
+      battleType: this.battleType,
+      difficultyLevel: currentFloor,
+      enemyHp: enemies.map((e) => e.stats.hp),
+      enemyMp: enemies.map((e) => e.stats.mp),
+    };
+    state.saveGame();
   }
 
   create(): void {
@@ -90,6 +127,10 @@ export class CombatScene extends Phaser.Scene {
         this.endCombat('victory', result);
       } else if (result.defeat) {
         this.syncHpToState();
+        // Clear pending battle — a defeat ends the run; don't resume it.
+        const state = GameState.getInstance();
+        state.data.pendingBattle = null;
+        state.saveGame();
         this.scene.start('GameOverScene');
       }
       return;
@@ -98,6 +139,9 @@ export class CombatScene extends Phaser.Scene {
     const actor = this.system.nextTurn();
     const isPlayer = this.system.players.includes(actor as PlayerCombatant);
     if (isPlayer) {
+      // Autosave at the start of every player turn so a forced close can be
+      // resumed with up-to-date HP values for both party and enemies.
+      this.saveBattleState();
       this.waitingForInput = true;
     } else {
       this.performEnemyAction(actor);
@@ -211,6 +255,21 @@ export class CombatScene extends Phaser.Scene {
   }
 
   /**
+   * Sync current HP/MP to GameState and update the pendingBattle enemy
+   * snapshot, then write everything to localStorage.  Called at the start of
+   * every player turn so a forced close can always be resumed mid-fight.
+   */
+  private saveBattleState(): void {
+    this.syncHpToState();
+    const state = GameState.getInstance();
+    if (state.data.pendingBattle) {
+      state.data.pendingBattle.enemyHp = this.system.enemies.map((e) => e.stats.hp);
+      state.data.pendingBattle.enemyMp = this.system.enemies.map((e) => e.stats.mp);
+    }
+    state.saveGame();
+  }
+
+  /**
    * After any battle ends (victory or flee), revive all KO'd party members
    * with 1 HP so the team stays together. Keeps dead party members from
    * being silently dropped from the roster between battles.
@@ -231,6 +290,10 @@ export class CombatScene extends Phaser.Scene {
     // then fully restore the whole party to 100% HP/MP ready for the next fight.
     this.reviveDeadPartyMembers();
     GameState.getInstance().fullHealParty();
+
+    // Battle is over — clear the mid-battle autosave so the game doesn't try
+    // to resume a finished fight on next load.
+    GameState.getInstance().data.pendingBattle = null;
 
     if (reason === 'victory' && result) {
       const state = GameState.getInstance();
