@@ -122,6 +122,18 @@ export interface PendingBattle {
   enemyHp: number[];
   /** Current MP for each enemy (parallel array, updated after every player turn). */
   enemyMp: number[];
+  /** CTB countdown value for each enemy at save time (parallel array). */
+  enemyCtb?: number[];
+  /** Active status-effect IDs for each enemy at save time (parallel array). */
+  enemyStatuses?: string[][];
+  /** Remaining duration in turns per status-effect for each enemy (parallel array). */
+  enemyStatusDurations?: Record<string, number>[];
+  /** CTB countdown value for each living player at save time (parallel to system.players). */
+  playerCtb?: number[];
+  /** Active status-effect IDs for each player at save time (parallel array). */
+  playerStatuses?: string[][];
+  /** Remaining duration in turns per status-effect for each player (parallel array). */
+  playerStatusDurations?: Record<string, number>[];
 }
 
 export class GameState {

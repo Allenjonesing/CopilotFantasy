@@ -69,6 +69,32 @@ export class CombatSystem {
     return this.currentActor;
   }
 
+  /**
+   * Return the remaining turn-durations for all active status effects on an entity.
+   * Used by CombatScene when autosaving mid-battle state.
+   */
+  getStatusDurationsFor(entity: CombatEntity): Record<string, number> {
+    return this.statusSystem.getDurations(entity.id);
+  }
+
+  /**
+   * Restore saved status effects and their remaining durations onto a set of entities.
+   * Used by CombatScene when resuming a mid-battle autosave.
+   */
+  restoreEntityStatuses(
+    entities: CombatEntity[],
+    statusLists: string[][],
+    durationLists: Record<string, number>[],
+  ): void {
+    entities.forEach((entity, i) => {
+      const statuses = statusLists[i] ?? [];
+      const durations = durationLists[i] ?? {};
+      statuses.forEach((effectId) => {
+        this.statusSystem.restoreStatus(entity, effectId, durations[effectId] ?? 1);
+      });
+    });
+  }
+
   /** Execute an action for the current actor. Returns true if the turn was consumed, false if not (e.g. insufficient MP). */
   executeAction(actor: CombatEntity, action: CombatAction): boolean {
     let turnConsumed = true;
