@@ -177,6 +177,12 @@ describe('GameState', () => {
       difficultyLevel: 1,
       enemyHp: [18],
       enemyMp: [0],
+      enemyCtb: [125],
+      enemyStatuses: [['poison']],
+      enemyStatusDurations: [{ poison: 2 }],
+      playerCtb: [111, 143],
+      playerStatuses: [[], []],
+      playerStatusDurations: [{}, {}],
     };
     state.saveGame();
     const snapshot = localStorageStore['cf_save'];
@@ -189,6 +195,11 @@ describe('GameState', () => {
     expect(state.data.pendingBattle).not.toBeNull();
     expect(state.data.pendingBattle!.enemies[0].typeId).toBe('slime');
     expect(state.data.pendingBattle!.enemyHp[0]).toBe(18);
+    expect(state.data.pendingBattle!.enemyCtb![0]).toBe(125);
+    expect(state.data.pendingBattle!.enemyStatuses![0]).toEqual(['poison']);
+    expect(state.data.pendingBattle!.enemyStatusDurations![0]).toEqual({ poison: 2 });
+    expect(state.data.pendingBattle!.playerCtb![0]).toBe(111);
+    expect(state.data.pendingBattle!.playerCtb![1]).toBe(143);
   });
 
   it('increaseDifficulty clears pendingBattle', () => {

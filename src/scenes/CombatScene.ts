@@ -66,13 +66,46 @@ export class CombatScene extends Phaser.Scene {
     this.isBossBattle = enemySpecs.some(
       (e) => typeof e !== 'string' && (e as CombatEnemySpec).isBoss === true,
     );
-    if (this.battleType !== 'normal') {
+    // On a fresh battle apply any turn-order advantage; on a resume the
+    // saved CTB values already encode the original advantage so we skip this.
+    if (!data.isResume && this.battleType !== 'normal') {
       this.system.applyBattleType(this.battleType);
+    }
+
+    // Restore CTB values and status effects after the CombatSystem (and its
+    // CTBTimeline) has been created so we overwrite the freshly-calculated
+    // agility-based values with the exact values from the save.
+    if (data.isResume && state.data.pendingBattle) {
+      const saved = state.data.pendingBattle;
+      if (saved.enemyCtb) {
+        enemies.forEach((e, i) => {
+          if (saved.enemyCtb![i] !== undefined) e.ctbValue = saved.enemyCtb![i];
+        });
+      }
+      if (saved.playerCtb) {
+        players.forEach((p, i) => {
+          if (saved.playerCtb![i] !== undefined) p.ctbValue = saved.playerCtb![i];
+        });
+      }
+      if (saved.enemyStatuses) {
+        this.system.restoreEntityStatuses(
+          enemies,
+          saved.enemyStatuses,
+          saved.enemyStatusDurations ?? [],
+        );
+      }
+      if (saved.playerStatuses) {
+        this.system.restoreEntityStatuses(
+          players,
+          saved.playerStatuses,
+          saved.playerStatusDurations ?? [],
+        );
+      }
     }
 
     // Persist battle state so the game can resume if closed mid-fight.
     // On a fresh battle this overwrites any stale pendingBattle; on a resume
-    // it refreshes with the current (already-restored) enemy HP values.
+    // it refreshes with the current (already-restored) values.
     state.data.pendingBattle = {
       enemies: enemySpecs.map((e) =>
         typeof e === 'string'
@@ -83,6 +116,12 @@ export class CombatScene extends Phaser.Scene {
       difficultyLevel: currentFloor,
       enemyHp: enemies.map((e) => e.stats.hp),
       enemyMp: enemies.map((e) => e.stats.mp),
+      enemyCtb: enemies.map((e) => e.ctbValue),
+      enemyStatuses: enemies.map((e) => [...e.statusEffects]),
+      enemyStatusDurations: enemies.map((e) => this.system.getStatusDurationsFor(e)),
+      playerCtb: players.map((p) => p.ctbValue),
+      playerStatuses: players.map((p) => [...p.statusEffects]),
+      playerStatusDurations: players.map((p) => this.system.getStatusDurationsFor(p)),
     };
     state.saveGame();
   }
@@ -257,14 +296,22 @@ export class CombatScene extends Phaser.Scene {
   /**
    * Sync current HP/MP to GameState and update the pendingBattle enemy
    * snapshot, then write everything to localStorage.  Called at the start of
-   * every player turn so a forced close can always be resumed mid-fight.
+   * every player turn so a forced close can always be resumed mid-fight with
+   * the exact turn order and status effects preserved.
    */
   private saveBattleState(): void {
     this.syncHpToState();
     const state = GameState.getInstance();
     if (state.data.pendingBattle) {
-      state.data.pendingBattle.enemyHp = this.system.enemies.map((e) => e.stats.hp);
-      state.data.pendingBattle.enemyMp = this.system.enemies.map((e) => e.stats.mp);
+      const pb = state.data.pendingBattle;
+      pb.enemyHp = this.system.enemies.map((e) => e.stats.hp);
+      pb.enemyMp = this.system.enemies.map((e) => e.stats.mp);
+      pb.enemyCtb = this.system.enemies.map((e) => e.ctbValue);
+      pb.enemyStatuses = this.system.enemies.map((e) => [...e.statusEffects]);
+      pb.enemyStatusDurations = this.system.enemies.map((e) => this.system.getStatusDurationsFor(e));
+      pb.playerCtb = this.system.players.map((p) => p.ctbValue);
+      pb.playerStatuses = this.system.players.map((p) => [...p.statusEffects]);
+      pb.playerStatusDurations = this.system.players.map((p) => this.system.getStatusDurationsFor(p));
     }
     state.saveGame();
   }

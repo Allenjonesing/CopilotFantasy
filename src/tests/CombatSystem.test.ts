@@ -257,3 +257,72 @@ describe('StatusEffectSystem', () => {
     expect(kael.effectiveAgility()).toBe(18); // 9 * 2 = 18
   });
 });
+
+describe('Battle save/resume – CTB and status round-trip', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('getStatusDurationsFor returns empty record when no statuses are active', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const durations = system.getStatusDurationsFor(system.enemies[0]);
+    expect(durations).toEqual({});
+  });
+
+  it('getStatusDurationsFor reflects remaining duration after apply', () => {
+    const aria = new PlayerCombatant('aria');
+    const ses = new StatusEffectSystem();
+    ses.apply(aria, 'slow'); // duration = 3 per statusEffects.json
+    const durations = ses.getDurations(aria.id);
+    expect(durations['slow']).toBe(3);
+  });
+
+  it('restoreEntityStatuses restores status effects and their durations', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const slime = system.enemies[0];
+    // Simulate restoring 'poison' with 2 turns remaining
+    system.restoreEntityStatuses([slime], [['poison']], [{ poison: 2 }]);
+    expect(slime.hasStatus('poison')).toBe(true);
+    // After one turn the duration should tick down (not expire yet)
+    const durations = system.getStatusDurationsFor(slime);
+    expect(durations['poison']).toBe(2);
+  });
+
+  it('restored CTB values are used for turn order instead of recalculated agility CTBs', () => {
+    // Create a system; manually set CTB values to simulate a mid-battle snapshot
+    // where the slime is about to act (ctbValue = 0) and the player is far away.
+    const aria = new PlayerCombatant('aria');
+    const slime = new EnemyCombatant('slime');
+    const system = new CombatSystem([aria], [slime]);
+
+    // Simulate the snapshot: it's aria's turn (ctbValue 0), slime is far away
+    aria.ctbValue = 0;
+    slime.ctbValue = 200;
+
+    // nextTurn should select aria (ctbValue = 0)
+    const actor = system.nextTurn();
+    expect(actor).toBe(aria);
+  });
+
+  it('CTBTimeline.next picks the entity with ctbValue 0 when one is already at 0', () => {
+    const aria = new PlayerCombatant('aria');
+    const slime = new EnemyCombatant('slime');
+    const timeline = new CTBTimeline([aria, slime]);
+
+    // Force aria to ctbValue 0 (as if restored from a save at start of her turn)
+    aria.ctbValue = 0;
+    slime.ctbValue = 150;
+
+    const next = timeline.next();
+    expect(next).toBe(aria);
+    // slime should be unchanged (min subtracted was 0)
+    expect(slime.ctbValue).toBe(150);
+  });
+});

@@ -35,6 +35,27 @@ export class StatusEffectSystem {
     this.bus.emit('status:removed', entity, effectId);
   }
 
+  /** Return a snapshot of remaining turn-durations for all active effects on the given entity. */
+  getDurations(entityId: string): Record<string, number> {
+    const entityDurations = this.durations.get(entityId);
+    if (!entityDurations) return {};
+    const result: Record<string, number> = {};
+    entityDurations.forEach((duration, effectId) => {
+      result[effectId] = duration;
+    });
+    return result;
+  }
+
+  /**
+   * Restore a status effect with a specific remaining duration (used when resuming a saved
+   * battle).  Does NOT emit 'status:applied' since this is a restore, not a fresh application.
+   */
+  restoreStatus(entity: CombatEntity, effectId: string, remainingDuration: number): void {
+    entity.addStatus(effectId);
+    if (!this.durations.has(entity.id)) this.durations.set(entity.id, new Map());
+    this.durations.get(entity.id)!.set(effectId, remainingDuration);
+  }
+
   processTurn(entity: CombatEntity): void {
     const entityDurations = this.durations.get(entity.id);
     if (!entityDurations) return;
