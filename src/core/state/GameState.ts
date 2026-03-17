@@ -96,6 +96,7 @@ export interface PersistentPickup {
 export class GameState {
   private static instance: GameState;
   private state!: GameStateData;
+  private static readonly SAVE_KEY = 'cf_save';
 
   private constructor() {
     this.init();
@@ -268,6 +269,57 @@ export class GameState {
     return skillsGained;
   }
 
+  /** Returns true if a persisted save exists in localStorage. */
+  hasSavedGame(): boolean {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(GameState.SAVE_KEY) !== null;
+      }
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  /** Serialise the full game state to localStorage. */
+  saveGame(): void {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(GameState.SAVE_KEY, JSON.stringify(this.state));
+      }
+    } catch (e) {
+      console.warn('CopilotFantasy: could not save game', e);
+    }
+  }
+
+  /**
+   * Deserialise game state from localStorage.
+   * Returns true when a save was found and successfully loaded.
+   */
+  loadSavedGame(): boolean {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(GameState.SAVE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as GameStateData;
+          // Merge to ensure any new fields added after the save are present.
+          this.state = { ...this.state, ...parsed };
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('CopilotFantasy: could not load saved game', e);
+    }
+    return false;
+  }
+
+  /** Remove the persisted save from localStorage. */
+  clearSavedGame(): void {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(GameState.SAVE_KEY);
+      }
+    } catch { /* ignore */ }
+  }
+
   private saveHighScore(): void {
     try {
       if (typeof localStorage !== 'undefined') {
@@ -298,6 +350,7 @@ export class GameState {
   }
 
   reset(): void {
+    this.clearSavedGame();
     this.init();
   }
 }

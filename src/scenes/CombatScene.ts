@@ -250,6 +250,7 @@ export class CombatScene extends Phaser.Scene {
       accomplishments.recordScore(state.data.score);
       if (this.isBossBattle) accomplishments.recordBossKill();
 
+      GameState.getInstance().saveGame();
       this.scene.start('VictoryScene', {
         expGained: result.expGained,
         goldGained: result.goldGained,
@@ -264,6 +265,7 @@ export class CombatScene extends Phaser.Scene {
     } else {
       // Fled: preCombatX/Y was set when combat started, so ExplorationScene
       // will restore the player to their pre-battle position automatically.
+      GameState.getInstance().saveGame();
       this.scene.start('ExplorationScene');
     }
   }
