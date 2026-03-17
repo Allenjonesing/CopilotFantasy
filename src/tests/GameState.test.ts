@@ -164,4 +164,59 @@ describe('GameState', () => {
     state.reset();
     expect(state.hasSavedGame()).toBe(false);
   });
+
+  // ── pendingBattle (mid-battle autosave) ─────────────────────────────────
+  it('starts with pendingBattle null', () => {
+    expect(state.data.pendingBattle).toBeNull();
+  });
+
+  it('pendingBattle is saved and loaded correctly', () => {
+    state.data.pendingBattle = {
+      enemies: [{ typeId: 'slime', displayName: 'Slime', variantScale: 1.0 }],
+      battleType: 'normal',
+      difficultyLevel: 1,
+      enemyHp: [18],
+      enemyMp: [0],
+    };
+    state.saveGame();
+    const snapshot = localStorageStore['cf_save'];
+
+    state.reset();
+    localStorageStore['cf_save'] = snapshot;
+
+    const loaded = state.loadSavedGame();
+    expect(loaded).toBe(true);
+    expect(state.data.pendingBattle).not.toBeNull();
+    expect(state.data.pendingBattle!.enemies[0].typeId).toBe('slime');
+    expect(state.data.pendingBattle!.enemyHp[0]).toBe(18);
+  });
+
+  it('increaseDifficulty clears pendingBattle', () => {
+    state.data.pendingBattle = {
+      enemies: [{ typeId: 'slime', displayName: 'Slime', variantScale: 1.0 }],
+      battleType: 'normal',
+      difficultyLevel: 1,
+      enemyHp: [18],
+      enemyMp: [0],
+    };
+    state.increaseDifficulty();
+    expect(state.data.pendingBattle).toBeNull();
+  });
+
+  it('flee positions are restored from preCombatX/Y after save/load', () => {
+    // Simulate entering combat from tile (5,7)
+    state.data.playerX = 5;
+    state.data.playerY = 7;
+    state.data.preCombatX = 5;
+    state.data.preCombatY = 7;
+    state.saveGame();
+    const snapshot = localStorageStore['cf_save'];
+
+    state.reset();
+    localStorageStore['cf_save'] = snapshot;
+    state.loadSavedGame();
+
+    expect(state.data.preCombatX).toBe(5);
+    expect(state.data.preCombatY).toBe(7);
+  });
 });

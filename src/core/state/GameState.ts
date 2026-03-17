@@ -58,6 +58,13 @@ export interface GameStateData {
    * {x,y,inventory} = shopkeeper at this tile with a fixed predetermined inventory.
    */
   pendingShopkeeper: { x: number; y: number; inventory: string[] } | false | null;
+  /**
+   * Active battle state captured when entering combat and updated each player
+   * turn.  Non-null while a battle is in progress; cleared when the battle ends
+   * (victory, flee, or defeat).  Allows the game to resume mid-battle after a
+   * page refresh or forced close.
+   */
+  pendingBattle: PendingBattle | null;
 }
 
 export interface SkillGain {
@@ -91,6 +98,30 @@ export interface PersistentPickup {
   itemId?: string;
   x: number;
   y: number;
+}
+
+/** Per-enemy snapshot stored inside PendingBattle. */
+export interface PendingBattleEnemy {
+  typeId: string;
+  displayName: string;
+  variantScale: number;
+  isBoss?: boolean;
+}
+
+/**
+ * State captured at the start of (and throughout) an active battle so that if
+ * the player closes the game mid-fight the session can be resumed exactly where
+ * it left off instead of starting the battle over.
+ */
+export interface PendingBattle {
+  enemies: PendingBattleEnemy[];
+  /** BattleType string ('normal' | 'preemptive' | 'ambush'). */
+  battleType: string;
+  difficultyLevel: number;
+  /** Current HP for each enemy (parallel array, updated after every player turn). */
+  enemyHp: number[];
+  /** Current MP for each enemy (parallel array, updated after every player turn). */
+  enemyMp: number[];
 }
 
 export class GameState {
@@ -154,6 +185,7 @@ export class GameState {
       pendingMapEnemies: null,
       pendingPickups: null,
       pendingShopkeeper: null,
+      pendingBattle: null,
     };
   }
 
@@ -220,6 +252,7 @@ export class GameState {
     this.state.pendingShopkeeper = null;
     this.state.preCombatX = null;
     this.state.preCombatY = null;
+    this.state.pendingBattle = null;
   }
 
   /** Scale factor applied to enemy stats based on current difficulty. */
