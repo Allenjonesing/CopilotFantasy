@@ -248,6 +248,16 @@
       "power": 0,
       "statusEffect": "slow",
       "description": "Rings a bell that halves one enemy's speed for 3 turns."
+    },
+    {
+      "id": "venomStrike",
+      "name": "Venom Strike",
+      "type": "status_apply",
+      "target": "single_enemy",
+      "mpCost": 6,
+      "power": 0,
+      "statusEffect": "poison",
+      "description": "Injects venom into a single target, inflicting Poison."
     }
   ]
 }
