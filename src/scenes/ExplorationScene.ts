@@ -49,10 +49,12 @@ export class ExplorationScene extends Phaser.Scene {
 
     this.bus.on('combat:start', (data) => {
       const d = data as { enemies: string[]; difficultyLevel: number; battleType?: string };
+      GameState.getInstance().saveGame();
       this.scene.start('CombatScene', d);
     });
 
     this.bus.on('shop:open', (data) => {
+      GameState.getInstance().saveGame();
       this.scene.start('ShopScene', data as object);
     });
 
@@ -67,6 +69,7 @@ export class ExplorationScene extends Phaser.Scene {
         msg = `Collected ${d.gold} Gold!`;
       }
       this.explorationUI.showPickupMessage(msg);
+      GameState.getInstance().saveGame();
     });
 
     this.bus.on('map:exit', () => {
@@ -77,6 +80,7 @@ export class ExplorationScene extends Phaser.Scene {
       // Advance to next floor.
       GameState.getInstance().increaseDifficulty();
       AccomplishmentSystem.getInstance().recordFloor(GameState.getInstance().data.difficultyLevel);
+      GameState.getInstance().saveGame();
       this.scene.restart();
     });
   }
@@ -95,15 +99,19 @@ export class ExplorationScene extends Phaser.Scene {
       if (upDown) {
         this.exploration.movePlayer(0, -1);
         this.moveTimer = 0;
+        GameState.getInstance().saveGame();
       } else if (downDown) {
         this.exploration.movePlayer(0, 1);
         this.moveTimer = 0;
+        GameState.getInstance().saveGame();
       } else if (leftDown) {
         this.exploration.movePlayer(-1, 0);
         this.moveTimer = 0;
+        GameState.getInstance().saveGame();
       } else if (rightDown) {
         this.exploration.movePlayer(1, 0);
         this.moveTimer = 0;
+        GameState.getInstance().saveGame();
       }
     }
 

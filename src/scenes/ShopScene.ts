@@ -364,6 +364,7 @@ export class ShopScene extends Phaser.Scene {
     }
     state.removeGold(total);
     state.addItem(item.id, this.confirmQty);
+    state.saveGame();
     const qtyStr = this.confirmQty > 1 ? ` x${this.confirmQty}` : '';
     this.setStatus(`Bought ${item.name}${qtyStr}!`, '#88ff88');
     this.closeConfirmDialog();

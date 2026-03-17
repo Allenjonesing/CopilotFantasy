@@ -1,10 +1,21 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GameState } from '../core/state/GameState';
 
+// ── localStorage mock ────────────────────────────────────────────────────────
+const localStorageStore: Record<string, string> = {};
+const localStorageMock = {
+  getItem: (key: string) => localStorageStore[key] ?? null,
+  setItem: (key: string, value: string) => { localStorageStore[key] = value; },
+  removeItem: (key: string) => { delete localStorageStore[key]; },
+};
+Object.defineProperty(global, 'localStorage', { value: localStorageMock, writable: true });
+
 describe('GameState', () => {
   let state: GameState;
 
   beforeEach(() => {
+    // Clear localStorage and reset state before each test.
+    Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
     state = GameState.getInstance();
     state.reset();
   });
@@ -108,5 +119,49 @@ describe('GameState', () => {
       expect(c.stats.hp).toBe(c.stats.maxHp);
       expect(c.stats.mp).toBe(c.stats.maxMp);
     });
+  });
+
+  // ── Autosave / persistence ──────────────────────────────────────────────
+  it('hasSavedGame returns false when no save exists', () => {
+    expect(state.hasSavedGame()).toBe(false);
+  });
+
+  it('saveGame persists state and hasSavedGame returns true afterwards', () => {
+    state.addGold(999);
+    state.saveGame();
+    expect(state.hasSavedGame()).toBe(true);
+  });
+
+  it('loadSavedGame restores previously saved state', () => {
+    state.addGold(777);
+    state.saveGame();
+    const snapshot = localStorageStore['cf_save'];
+
+    // Reset wipes memory AND the save; restore the snapshot manually.
+    state.reset();
+    localStorageStore['cf_save'] = snapshot;
+
+    const loaded = state.loadSavedGame();
+    expect(loaded).toBe(true);
+    expect(state.data.gold).toBe(777);
+  });
+
+  it('loadSavedGame returns false when no save exists', () => {
+    const result = state.loadSavedGame();
+    expect(result).toBe(false);
+  });
+
+  it('clearSavedGame removes the save', () => {
+    state.saveGame();
+    expect(state.hasSavedGame()).toBe(true);
+    state.clearSavedGame();
+    expect(state.hasSavedGame()).toBe(false);
+  });
+
+  it('reset clears the saved game', () => {
+    state.saveGame();
+    expect(state.hasSavedGame()).toBe(true);
+    state.reset();
+    expect(state.hasSavedGame()).toBe(false);
   });
 });
