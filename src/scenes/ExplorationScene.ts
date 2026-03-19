@@ -20,6 +20,12 @@ export class ExplorationScene extends Phaser.Scene {
    *  increaseDifficulty() a second time before the scene restart completes. */
   private exitTriggered = false;
 
+  /** Stored listener references so they can be individually unregistered on shutdown. */
+  private onCombatStart: (data: unknown) => void = () => {};
+  private onShopOpen: (data: unknown) => void = () => {};
+  private onPickupCollected: (data: unknown) => void = () => {};
+  private onMapExit: () => void = () => {};
+
   constructor() {
     super({ key: 'ExplorationScene' });
   }
@@ -67,18 +73,20 @@ export class ExplorationScene extends Phaser.Scene {
 
     this.exitTriggered = false;
 
-    this.bus.on('combat:start', (data) => {
+    this.onCombatStart = (data) => {
       const d = data as { enemies: string[]; difficultyLevel: number; battleType?: string };
       GameState.getInstance().saveGame();
       this.scene.start('CombatScene', d);
-    });
+    };
+    this.bus.on('combat:start', this.onCombatStart);
 
-    this.bus.on('shop:open', (data) => {
+    this.onShopOpen = (data) => {
       GameState.getInstance().saveGame();
       this.scene.start('ShopScene', data as object);
-    });
+    };
+    this.bus.on('shop:open', this.onShopOpen);
 
-    this.bus.on('pickup:collected', (data) => {
+    this.onPickupCollected = (data) => {
       const d = data as { kind: string; gold: number; itemId?: string };
       let msg: string;
       if (d.itemId) {
@@ -90,9 +98,10 @@ export class ExplorationScene extends Phaser.Scene {
       }
       this.explorationUI.showPickupMessage(msg);
       GameState.getInstance().saveGame();
-    });
+    };
+    this.bus.on('pickup:collected', this.onPickupCollected);
 
-    this.bus.on('map:exit', () => {
+    this.onMapExit = () => {
       // Guard prevents multiple difficulty increments if the event somehow fires
       // more than once before the scene restart completes.
       if (this.exitTriggered) return;
@@ -102,7 +111,8 @@ export class ExplorationScene extends Phaser.Scene {
       AccomplishmentSystem.getInstance().recordFloor(GameState.getInstance().data.difficultyLevel);
       GameState.getInstance().saveGame();
       this.scene.restart();
-    });
+    };
+    this.bus.on('map:exit', this.onMapExit);
   }
 
   update(_time: number, delta: number): void {
@@ -146,6 +156,9 @@ export class ExplorationScene extends Phaser.Scene {
     this.exploration?.destroy();
     this.explorationUI?.destroy();
     this.touchControls?.destroy();
-    this.bus.clear();
+    this.bus.off('combat:start', this.onCombatStart);
+    this.bus.off('shop:open', this.onShopOpen);
+    this.bus.off('pickup:collected', this.onPickupCollected);
+    this.bus.off('map:exit', this.onMapExit);
   }
 }

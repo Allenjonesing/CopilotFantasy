@@ -779,6 +779,8 @@ export class ExplorationSystem {
   }
 
   destroy(): void {
+    // Kill movement tweens for the player and enemies before destroying their sprites.
+    this.scene.tweens.killAll();
     this.mapManager.destroy();
     this.playerSprite?.destroy();
     this.mapEnemies.forEach((e) => {

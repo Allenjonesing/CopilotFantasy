@@ -22,6 +22,9 @@ export class CombatScene extends Phaser.Scene {
   private battleType: BattleType = 'normal';
   private isBossBattle = false;
 
+  /** Stored reference so we can unregister the flee listener precisely in shutdown(). */
+  private onFled = () => {};
+
   constructor() {
     super({ key: 'CombatScene' });
   }
@@ -153,7 +156,8 @@ export class CombatScene extends Phaser.Scene {
       }
     };
 
-    this.bus.on('combat:fled', () => this.endCombat('fled', null));
+    this.onFled = () => this.endCombat('fled', null);
+    this.bus.on('combat:fled', this.onFled);
 
     // Defer the first turn until after the first render frame.
     this.time.delayedCall(50, () => this.advanceTurn());
@@ -381,7 +385,7 @@ export class CombatScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.bus.off('combat:fled', this.onFled);
     this.ui.destroy();
-    this.bus.clear();
   }
 }
