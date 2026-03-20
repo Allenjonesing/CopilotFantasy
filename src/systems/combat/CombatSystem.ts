@@ -149,6 +149,11 @@ export class CombatSystem {
       this.bus.emit('combat:spellStart', actor, skillElement ?? skill.type, skill.name);
     }
     const targets = this.resolveTargets(actor, skill.target, target);
+    // Physical skills use an attack-move animation; emit it once toward the first
+    // target rather than once per target to avoid redundant animations on AoE hits.
+    if (skill.type === 'physical' && targets.length > 0) {
+      this.bus.emit('combat:attackStart', actor, targets[0]);
+    }
     targets.forEach((t) => this.applySkillEffect(actor, skill, t));
     return true;
   }
@@ -159,7 +164,6 @@ export class CombatSystem {
     target: CombatEntity,
   ): void {
     if (skill.type === 'physical' || skill.type === 'magic') {
-      this.bus.emit('combat:attackStart', actor, target);
       const skillElement = (skill as { element?: string }).element ?? null;
 
       // Elemental absorption: if the skill's element matches the target's element, heal instead.

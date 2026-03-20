@@ -129,6 +129,8 @@ export class CombatUI {
   private pendingActionType: 'attack' | 'skill' | 'item' | null = null;
   private pendingSkillId: string | null = null;
   private pendingItemId: string | null = null;
+  /** Remembered main-menu cursor index per character — restored on each character's turn. */
+  private lastMainMenuIndex: Map<string, number> = new Map();
   // Target selection
   private targetList: CombatEntity[] = [];
   private targetIsPositive = false;
@@ -641,6 +643,17 @@ export class CombatUI {
       [false, !hasSkills, !hasItems, false, this.isBossBattle],
       tooltips,
     );
+    // Restore this character's remembered cursor position (if the saved option is
+    // still enabled — e.g. Skills may have become unavailable since last turn).
+    if (actor) {
+      const savedIdx = this.lastMainMenuIndex.get(actor.id);
+      if (savedIdx !== undefined && savedIdx < this.fullMenuItems.length && !this.menuDisabled[savedIdx]) {
+        this.selectedMenuIndex = savedIdx;
+        this.updateMenuHighlight();
+        const tip = this.menuTooltips[savedIdx];
+        if (tip && this.helpText.active) this.helpText.setText(tip);
+      }
+    }
   }
 
   private buildSkillMenu(): void {
@@ -920,6 +933,11 @@ export class CombatUI {
         const ratio = entity.stats.hp / entity.stats.maxHp;
         bars.bar.setScale(ratio, 1);
         bars.bar.setPosition(bars.bg.x - this.BAR_HALF_W * (1 - ratio), bars.bg.y);
+        // Always sync bar color with alive state so a revived character's bar
+        // immediately turns green instead of remaining the defeated dark color.
+        if (bars.bar.active) {
+          bars.bar.setFillStyle(entity.isDefeated ? 0x222222 : 0x44aa44);
+        }
         if (bars.text.active) {
           bars.text.setText(`${entity.stats.hp}/${entity.stats.maxHp}`);
         }
@@ -1342,6 +1360,8 @@ export class CombatUI {
       if (this.menuDisabled[idx]) return null;
       const mainOptions = ['attack', 'skill', 'item', 'defend', 'flee'] as const;
       const choice = mainOptions[idx];
+      // Persist this choice so the cursor returns here on the character's next turn.
+      this.lastMainMenuIndex.set(this.currentActor.id, idx);
       if (choice === 'attack') {
         this.enterTargetMode('attack');
         return null;
