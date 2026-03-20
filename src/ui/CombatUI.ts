@@ -1459,6 +1459,9 @@ export class CombatUI {
   }
 
   destroy(): void {
+    // Stop all active tweens (damage numbers, spell rings, attack animations, etc.)
+    // before destroying their target objects to prevent stale callbacks and free memory.
+    this.scene.tweens.killAll();
     this.bus.off('combat:log', this.onCombatLog);
     this.bus.off('combat:damage', this.onCombatDamage);
     this.bus.off('combat:heal', this.onCombatHeal);
