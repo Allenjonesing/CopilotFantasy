@@ -7,18 +7,18 @@
       "color": 4447556,
       "possibleElements": ["fire", "ice", "lightning", "water", null, null, null],
       "stats": {
-        "hp": 18,
-        "mp": 10,
-        "strength": 4,
-        "magic": 3,
-        "defense": 2,
-        "magicDefense": 2,
-        "agility": 6,
+        "hp": 28,
+        "mp": 40,
+        "strength": 6,
+        "magic": 5,
+        "defense": 3,
+        "magicDefense": 3,
+        "agility": 7,
         "luck": 3
       },
       "skills": ["attack", "fire", "blizzard", "thunder", "water", "venomStrike"],
-      "rewards": { "exp": 12, "gold": 5, "items": [] },
-      "possibleDrops": [{ "id": "potion", "chance": 0.60 }]
+      "rewards": { "exp": 18, "gold": 8, "items": [] },
+      "possibleDrops": [{ "id": "potion", "chance": 0.55 }]
     },
     {
       "id": "goblin",
@@ -27,18 +27,18 @@
       "color": 13404211,
       "possibleElements": ["fire", "lightning", null, null, null],
       "stats": {
-        "hp": 60,
-        "mp": 20,
-        "strength": 10,
-        "magic": 6,
-        "defense": 5,
-        "magicDefense": 3,
-        "agility": 10,
+        "hp": 90,
+        "mp": 35,
+        "strength": 14,
+        "magic": 8,
+        "defense": 8,
+        "magicDefense": 5,
+        "agility": 11,
         "luck": 5
       },
       "skills": ["attack", "smash", "fire", "thunder"],
-      "rewards": { "exp": 50, "gold": 20, "items": ["potion"] },
-      "possibleDrops": [{ "id": "ether", "chance": 0.50 }]
+      "rewards": { "exp": 70, "gold": 28, "items": ["potion"] },
+      "possibleDrops": [{ "id": "ether", "chance": 0.45 }]
     },
     {
       "id": "ironGolem",
@@ -47,18 +47,18 @@
       "color": 8947848,
       "possibleElements": ["fire", null, null, null],
       "stats": {
-        "hp": 200,
-        "mp": 30,
-        "strength": 18,
-        "magic": 6,
-        "defense": 20,
-        "magicDefense": 7,
-        "agility": 5,
+        "hp": 320,
+        "mp": 50,
+        "strength": 28,
+        "magic": 10,
+        "defense": 30,
+        "magicDefense": 12,
+        "agility": 10,
         "luck": 4
       },
       "skills": ["attack", "smash", "fire", "enemyCure"],
-      "rewards": { "exp": 160, "gold": 70, "items": ["ether"] },
-      "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }]
+      "rewards": { "exp": 220, "gold": 95, "items": ["ether"] },
+      "possibleDrops": [{ "id": "hiPotion", "chance": 0.55 }]
     },
     {
       "id": "shadowWisp",
@@ -67,18 +67,98 @@
       "color": 4456516,
       "possibleElements": ["fire", "ice", "lightning", "water"],
       "stats": {
-        "hp": 80,
-        "mp": 90,
-        "strength": 5,
-        "magic": 15,
-        "defense": 3,
-        "magicDefense": 18,
-        "agility": 16,
+        "hp": 120,
+        "mp": 110,
+        "strength": 8,
+        "magic": 22,
+        "defense": 6,
+        "magicDefense": 26,
+        "agility": 18,
         "luck": 9
       },
       "skills": ["attack", "fire", "blizzard", "thunder", "water", "fira", "drain", "enemyCure"],
-      "rewards": { "exp": 75, "gold": 35, "items": [] },
-      "possibleDrops": [{ "id": "ether", "chance": 0.60 }, { "id": "potion", "chance": 0.50 }]
+      "rewards": { "exp": 105, "gold": 48, "items": [] },
+      "possibleDrops": [{ "id": "ether", "chance": 0.55 }, { "id": "potion", "chance": 0.40 }]
+    },
+    {
+      "id": "caveBat",
+      "name": "Cave Bat",
+      "baseFloor": 3,
+      "color": 7829337,
+      "possibleElements": [null, null, null],
+      "stats": {
+        "hp": 55,
+        "mp": 25,
+        "strength": 12,
+        "magic": 5,
+        "defense": 4,
+        "magicDefense": 7,
+        "agility": 20,
+        "luck": 7
+      },
+      "skills": ["attack", "smash", "venomStrike", "slowBell"],
+      "rewards": { "exp": 45, "gold": 18, "items": [] },
+      "possibleDrops": [{ "id": "antidote", "chance": 0.50 }]
+    },
+    {
+      "id": "stoneTroll",
+      "name": "Stone Troll",
+      "baseFloor": 4,
+      "color": 10053171,
+      "possibleElements": [null, null, null, null],
+      "stats": {
+        "hp": 160,
+        "mp": 20,
+        "strength": 18,
+        "magic": 5,
+        "defense": 22,
+        "magicDefense": 6,
+        "agility": 6,
+        "luck": 4
+      },
+      "skills": ["attack", "smash", "enemyCure"],
+      "rewards": { "exp": 90, "gold": 40, "items": [] },
+      "possibleDrops": [{ "id": "hiPotion", "chance": 0.35 }]
+    },
+    {
+      "id": "darkWraith",
+      "name": "Dark Wraith",
+      "baseFloor": 7,
+      "color": 3407965,
+      "possibleElements": ["ice", "lightning", null],
+      "stats": {
+        "hp": 150,
+        "mp": 80,
+        "strength": 16,
+        "magic": 24,
+        "defense": 10,
+        "magicDefense": 20,
+        "agility": 16,
+        "luck": 8
+      },
+      "skills": ["attack", "drain", "blizzara", "thundara", "venomStrike", "enemyCure"],
+      "rewards": { "exp": 175, "gold": 75, "items": [] },
+      "possibleDrops": [{ "id": "ether", "chance": 0.55 }, { "id": "antidote", "chance": 0.30 }]
+    },
+    {
+      "id": "voidDrake",
+      "name": "Void Drake",
+      "baseFloor": 10,
+      "color": 2228245,
+      "possibleElements": ["fire", "ice", "lightning"],
+      "stats": {
+        "hp": 380,
+        "mp": 100,
+        "strength": 30,
+        "magic": 28,
+        "defense": 22,
+        "magicDefense": 22,
+        "agility": 13,
+        "luck": 10
+      },
+      "skills": ["attack", "smash", "firaga", "blizzaga", "thundaga", "drain", "enemyCure"],
+      "rewards": { "exp": 320, "gold": 130, "items": ["ether"] },
+      "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }, { "id": "ether", "chance": 0.40 }]
     }
   ]
 }

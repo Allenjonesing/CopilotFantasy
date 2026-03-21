@@ -66,21 +66,28 @@ const THIRD_ENEMY_CHANCE = 0.25;
 /** Enemy types available per difficulty tier, weighted for variety. */
 function enemyTypesForDifficulty(difficulty: number): string[] {
   // Weighted arrays: more copies = higher probability.
-  if (difficulty === 1) return ['slime', 'slime', 'slime', 'goblin'];        // 75% slime, 25% goblin
-  if (difficulty === 2) return ['slime', 'slime', 'goblin'];                 // ~67% slime, ~33% goblin
-  if (difficulty <= 4) return ['slime', 'goblin', 'goblin'];                 // ~33% slime, ~67% goblin
-  if (difficulty <= 6) return ['goblin', 'goblin', 'shadowWisp'];            // ~67% goblin, ~33% wisp
-  if (difficulty <= 9) return ['goblin', 'shadowWisp', 'shadowWisp'];        // ~33% goblin, ~67% wisp
-  if (difficulty <= 12) return ['shadowWisp', 'ironGolem'];                  // 50/50
-  return ['shadowWisp', 'ironGolem', 'ironGolem'];                           // more Iron Golem
+  if (difficulty === 1) return ['slime', 'slime', 'slime', 'goblin'];              // 75% slime, 25% goblin
+  if (difficulty === 2) return ['slime', 'slime', 'goblin'];                       // ~67% slime, ~33% goblin
+  if (difficulty === 3) return ['slime', 'goblin', 'caveBat'];                     // mixed early
+  if (difficulty <= 5) return ['goblin', 'goblin', 'caveBat', 'stoneTroll'];       // goblins + new types
+  if (difficulty === 6) return ['caveBat', 'stoneTroll', 'shadowWisp'];            // mid tier
+  if (difficulty <= 8) return ['stoneTroll', 'shadowWisp', 'shadowWisp'];          // ~33% troll, ~67% wisp
+  if (difficulty <= 10) return ['shadowWisp', 'ironGolem', 'darkWraith'];          // three-way
+  if (difficulty <= 12) return ['ironGolem', 'darkWraith', 'darkWraith'];          // wraith-heavy
+  return ['darkWraith', 'voidDrake', 'ironGolem'];                                 // late game
 }
 
 /** Boss enemy type placed near the exit per difficulty tier. */
 function bossTypeForDifficulty(difficulty: number): string {
-  if (difficulty <= 3) return 'goblin';
+  if (difficulty <= 2) return 'goblin';
+  if (difficulty <= 4) return 'stoneTroll';
   if (difficulty <= 6) return 'shadowWisp';
-  return 'ironGolem';
+  if (difficulty <= 9) return 'darkWraith';
+  return 'voidDrake';
 }
+
+/** Scale multiplier applied to the floor boss on top of variant scale. */
+const BOSS_SCALE = 3.0;
 
 /** All possible shop item IDs — each visit picks a random subset. */
 const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote'];
@@ -250,7 +257,7 @@ export class ExplorationSystem {
           id: 'boss_0',
           typeId: bossTypeId,
           displayName: bossDisplayName,
-          variantScale: 2.0,
+          variantScale: BOSS_SCALE,
           x: bx,
           y: by,
           isGuard: true,
@@ -504,6 +511,10 @@ export class ExplorationSystem {
       goblin: 0xcc7733,
       shadowWisp: 0x884488,
       ironGolem: 0x888899,
+      caveBat: 0x775577,
+      stoneTroll: 0x997755,
+      darkWraith: 0x334466,
+      voidDrake: 0x220033,
     };
     return colors[typeId] ?? 0xcc4444;
   }

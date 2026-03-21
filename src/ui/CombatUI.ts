@@ -131,6 +131,10 @@ export class CombatUI {
   private pendingItemId: string | null = null;
   /** Remembered main-menu cursor index per character — restored on each character's turn. */
   private lastMainMenuIndex: Map<string, number> = new Map();
+  /** Remembered skill sub-menu cursor index per character — restored when skill menu opens. */
+  private lastSkillMenuIndex: Map<string, number> = new Map();
+  /** Remembered item sub-menu cursor index — restored when item menu opens. */
+  private lastItemMenuIndex = 0;
   // Target selection
   private targetList: CombatEntity[] = [];
   private targetIsPositive = false;
@@ -374,6 +378,9 @@ export class CombatUI {
     // Initialise bar scales to match the actual current HP/MP values so the bars
     // are correct from the very first frame (not just after the first damage/heal event).
     this.system.players.forEach((p) => this.refreshEntityDisplay(p));
+    // Initialise enemy display state — critical for resumed battles where some
+    // enemies may already be dead (hp=0) and must appear dimmed from the start.
+    this.system.enemies.forEach((e) => this.refreshEntityDisplay(e));
 
     // ── Active turn indicator (battlefield highlight ring) ────────────────────
     this.activeTurnIndicator = this.scene.add.rectangle(0, 0, PLAYER_ICON_W + TURN_INDICATOR_PAD, PLAYER_ICON_H + TURN_INDICATOR_PAD, 0x000000, 0);
@@ -678,6 +685,16 @@ export class CombatUI {
       this.helpText.setText(HELP_TEXT_SKILL);
     }
     this.buildMenuItems(items, disabled, tooltips);
+    // Restore this character's remembered skill cursor (if valid and not disabled).
+    if (actor) {
+      const savedIdx = this.lastSkillMenuIndex.get(actor.id);
+      if (savedIdx !== undefined && savedIdx < this.fullMenuItems.length && !this.menuDisabled[savedIdx]) {
+        this.selectedMenuIndex = savedIdx;
+        this.updateMenuHighlight();
+        const tip = this.menuTooltips[savedIdx];
+        if (tip && this.helpText.active) this.helpText.setText(tip);
+      }
+    }
   }
 
   private buildItemMenu(): void {
@@ -696,6 +713,14 @@ export class CombatUI {
       this.helpText.setText(HELP_TEXT_ITEM);
     }
     this.buildMenuItems(items, [], tooltips);
+    // Restore the remembered item cursor (clamped to current inventory size).
+    const clampedIdx = Math.min(this.lastItemMenuIndex, Math.max(0, this.fullMenuItems.length - 1));
+    if (clampedIdx < this.fullMenuItems.length) {
+      this.selectedMenuIndex = clampedIdx;
+      this.updateMenuHighlight();
+      const tip = this.menuTooltips[clampedIdx];
+      if (tip && this.helpText.active) this.helpText.setText(tip);
+    }
   }
 
   private enterTargetMode(actionType: 'attack' | 'skill' | 'item'): void {
@@ -971,7 +996,15 @@ export class CombatUI {
           rect.setAlpha(entity.isDefeated ? 0.4 : 1.0);
         } else {
           (rect as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
+          (rect as Phaser.GameObjects.Rectangle).setAlpha(entity.isDefeated ? 0.4 : 1.0);
         }
+      }
+      // Dim the enemy name text when defeated so state visually matches the sprite.
+      const enemyIdx = this.system.enemies.indexOf(entity as EnemyCombatant);
+      const nameText = enemyIdx >= 0 ? this.enemyNameTexts[enemyIdx] : null;
+      if (nameText && nameText.active) {
+        nameText.setAlpha(entity.isDefeated ? 0.35 : 1.0);
+        nameText.setColor(entity.isDefeated ? '#888888' : '#ffffff');
       }
     }
     // Always sync the status label when entity display is refreshed.
@@ -1384,6 +1417,8 @@ export class CombatUI {
       const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
       const skillId = skillIds[idx];
       if (!skillId) return null;
+      // Remember the cursor position in the skill sub-menu for this character.
+      this.lastSkillMenuIndex.set(this.currentActor.id, idx);
       const skillDef = skillsData.skills.find((s) => s.id === skillId);
       // Self-targeting skills execute immediately without target selection.
       if (skillDef?.target === 'self') {
@@ -1399,6 +1434,8 @@ export class CombatUI {
       const inv = GameState.getInstance().data.inventory;
       const item = inv[idx];
       if (!item) return null;
+      // Remember the cursor position in the item sub-menu globally.
+      this.lastItemMenuIndex = idx;
       this.pendingItemId = item.id;
       this.enterTargetMode('item');
       return null;
