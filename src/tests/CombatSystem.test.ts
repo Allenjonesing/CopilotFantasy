@@ -145,9 +145,31 @@ describe('CombatSystem', () => {
     expect(target.stats.hp).toBeGreaterThan(0);
   });
 
-  it('slime base HP is 18', () => {
+  it('slime base HP is 28', () => {
     const slime = new EnemyCombatant('slime');
-    expect(slime.stats.maxHp).toBe(18);
+    expect(slime.stats.maxHp).toBe(28);
+  });
+
+  it('iron golem agility is at least 10', () => {
+    const golem = new EnemyCombatant('ironGolem');
+    expect(golem.stats.agility).toBeGreaterThanOrEqual(10);
+  });
+
+  it('new enemy types exist: caveBat, stoneTroll, darkWraith, voidDrake', () => {
+    // Create enemies at their natural floor to avoid floor-penalty downscaling.
+    const bat = new EnemyCombatant('caveBat', 1.0, undefined, 3);
+    const troll = new EnemyCombatant('stoneTroll', 1.0, undefined, 4);
+    const wraith = new EnemyCombatant('darkWraith', 1.0, undefined, 7);
+    const drake = new EnemyCombatant('voidDrake', 1.0, undefined, 10);
+    expect(bat.stats.agility).toBeGreaterThan(15); // cave bat is fast
+    expect(troll.stats.defense).toBeGreaterThan(15); // stone troll is tanky
+    expect(wraith.stats.magic).toBeGreaterThan(20); // dark wraith is magical
+    expect(drake.stats.hp).toBeGreaterThan(300);    // void drake has massive HP
+  });
+
+  it('slime has enough MP to use venomStrike (cost 6)', () => {
+    const slime = new EnemyCombatant('slime');
+    expect(slime.stats.mp).toBeGreaterThanOrEqual(6);
   });
 });
 
