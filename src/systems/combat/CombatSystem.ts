@@ -64,7 +64,6 @@ export class CombatSystem {
   /** Advance to the next actor's turn. */
   nextTurn(): CombatEntity {
     this.currentActor = this.timeline.next();
-    this.statusSystem.processTurn(this.currentActor);
     this.bus.emit('combat:turnStart', this.currentActor);
     return this.currentActor;
   }
@@ -118,6 +117,9 @@ export class CombatSystem {
     if (turnConsumed) {
       this.timeline.endTurn(actor);
       this.bus.emit('combat:actionEnd', actor);
+      // Process end-of-turn status effects (DoT, duration ticks) AFTER the actor has acted.
+      this.statusSystem.processTurn(actor);
+      this.checkDefeated(actor);
     }
     return turnConsumed;
   }
@@ -143,12 +145,16 @@ export class CombatSystem {
       return false;
     }
     this.bus.emit('combat:mpChange', actor);
-    // Emit spell animation event before applying effects
-    const skillElement = (skill as { element?: string }).element ?? null;
-    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply') {
-      this.bus.emit('combat:spellStart', actor, skillElement ?? skill.type, skill.name);
-    }
+    // Resolve targets first so the primary target can be included in the spell animation.
     const targets = this.resolveTargets(actor, skill.target, target);
+    const skillElement = (skill as { element?: string }).element ?? null;
+    // For status-apply skills (e.g. Venom Strike), use the statusEffect id as the animation
+    // element so the animation can use a distinctive colour and shape for that effect.
+    const animElement = skillElement ?? (skill as { statusEffect?: string }).statusEffect ?? skill.type;
+    const animTarget = targets.length > 0 ? targets[0] : null;
+    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply') {
+      this.bus.emit('combat:spellStart', actor, animTarget, animElement, skill.name);
+    }
     // Physical skills use an attack-move animation; emit it once toward the first
     // target rather than once per target to avoid redundant animations on AoE hits.
     if (skill.type === 'physical' && targets.length > 0) {

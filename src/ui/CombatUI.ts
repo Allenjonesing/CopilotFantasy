@@ -45,6 +45,10 @@ const ELEMENT_COLORS: Record<string, number> = {
   water: 0x4488ff,
   heal: 0x44ff88,
   revive: 0xffffff,
+  poison: 0x44cc44,
+  haste: 0xffdd44,
+  slow: 0x8844cc,
+  reraise: 0xaaaaff,
 };
 
 // Entity icon sizes (fixed pixel sizes)
@@ -154,7 +158,7 @@ export class CombatUI {
   // Combat nav buttons (touch-friendly)
   private navObjects: Phaser.GameObjects.GameObject[] = [];
   // Spell animation handler reference (for cleanup)
-  private onCombatSpellStart!: (actor: unknown, element: unknown, name: unknown) => void;
+  private onCombatSpellStart!: (actor: unknown, target: unknown, element: unknown, name: unknown) => void;
   // State
   private currentActor: CombatEntity | null = null;
   private bus: EventBus;
@@ -167,6 +171,7 @@ export class CombatUI {
   private onCombatMpChange!: (entity: unknown) => void;
   private onStatusApplied!: (entity: unknown, effectId: unknown) => void;
   private onStatusRemoved!: (entity: unknown, effectId: unknown) => void;
+  private onStatusDot!: (entity: unknown, effectId: unknown, dmg: unknown) => void;
 
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
@@ -915,8 +920,13 @@ export class CombatUI {
     this.onCombatAttackStart = (actor, target) => {
       this.playAttackMoveAnimation(actor as CombatEntity, target as CombatEntity);
     };
-    this.onCombatSpellStart = (actor, element, name) => {
-      this.playSpellAnimation(actor as CombatEntity, element as string, name as string);
+    this.onCombatSpellStart = (actor, target, element, name) => {
+      this.playSpellAnimation(
+        actor as CombatEntity,
+        target as CombatEntity | null,
+        element as string,
+        name as string,
+      );
     };
     this.bus.on('combat:log', this.onCombatLog);
     this.bus.on('combat:damage', this.onCombatDamage);
@@ -928,8 +938,12 @@ export class CombatUI {
 
     this.onStatusApplied = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
     this.onStatusRemoved = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
+    this.onStatusDot = (entity, _effectId, dmg) => {
+      this.playPoisonDotAnimation(entity as CombatEntity, dmg as number);
+    };
     this.bus.on('status:applied', this.onStatusApplied);
     this.bus.on('status:removed', this.onStatusRemoved);
+    this.bus.on('status:dot', this.onStatusDot);
   }
 
   /** Highlight the name of the currently acting player under their battlefield sprite. */
@@ -1216,14 +1230,23 @@ export class CombatUI {
     }
   }
 
-  /** Play a visual spell effect: expanding rings, sparkles and a spell name banner. */
-  private playSpellAnimation(actor: CombatEntity, element: string, name: string): void {
-    const pos = this.entityScreenPos(actor);
+
+  /** Play a visual spell effect: a cast ring at the caster, then a projectile
+   *  that travels to the target with an element-specific shape and colour, and
+   *  an impact burst when it arrives.  When no specific target is supplied the
+   *  old expanding-ring / sparkle effect is used (covers AoE fallback). */
+  private playSpellAnimation(
+    actor: CombatEntity,
+    target: CombatEntity | null,
+    element: string,
+    name: string,
+  ): void {
+    const actorPos = this.entityScreenPos(actor);
     const color = ELEMENT_COLORS[element] ?? 0xaaaaff;
     const hexColor = `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
 
-    // ── Spell name banner ──────────────────────────────────────────────────
-    const spellLabel = this.scene.add.text(pos.x, pos.y - 20, name, {
+    // ── Spell name banner (floats up from caster) ──────────────────────────
+    const spellLabel = this.scene.add.text(actorPos.x, actorPos.y - 20, name, {
       fontSize: '18px',
       color: hexColor,
       fontFamily: 'monospace',
@@ -1234,7 +1257,7 @@ export class CombatUI {
     this.scene.tweens.add({
       targets: spellLabel,
       alpha: { from: 0, to: 1 },
-      y: pos.y - 50,
+      y: actorPos.y - 50,
       duration: 280,
       ease: 'Back.Out',
       onComplete: () => {
@@ -1242,7 +1265,7 @@ export class CombatUI {
           this.scene.tweens.add({
             targets: spellLabel,
             alpha: 0,
-            y: pos.y - 75,
+            y: actorPos.y - 75,
             duration: 480,
             onComplete: () => spellLabel.destroy(),
           });
@@ -1250,35 +1273,135 @@ export class CombatUI {
       },
     });
 
-    // ── Primary expanding ring ─────────────────────────────────────────────
-    const ring1 = this.scene.add.rectangle(pos.x, pos.y, 12, 12, color, 0.55);
-    ring1.setDepth(54);
+    // ── Cast ring at caster (indicates spell release) ──────────────────────
+    const castRing = this.scene.add.rectangle(actorPos.x, actorPos.y, 10, 10, color, 0.7);
+    castRing.setDepth(54);
     this.scene.tweens.add({
-      targets: ring1,
-      scaleX: 11,
-      scaleY: 11,
+      targets: castRing,
+      scaleX: 5,
+      scaleY: 5,
       alpha: 0,
-      duration: 720,
+      duration: 380,
       ease: 'Power2.easeOut',
-      onComplete: () => ring1.destroy(),
+      onComplete: () => castRing.destroy(),
     });
 
-    // ── Secondary ring (slightly delayed, narrower) ────────────────────────
-    this.scene.time.delayedCall(120, () => {
-      const ring2 = this.scene.add.rectangle(pos.x, pos.y, 8, 8, color, 0.35);
-      ring2.setDepth(53);
-      this.scene.tweens.add({
-        targets: ring2,
-        scaleX: 7,
-        scaleY: 7,
-        alpha: 0,
-        duration: 560,
-        ease: 'Power2.easeOut',
-        onComplete: () => ring2.destroy(),
+    const targetPos = target ? this.entityScreenPos(target) : null;
+
+    if (!targetPos) {
+      // ── AoE fallback: original expanding rings + sparkle burst at caster ──
+      this.scene.time.delayedCall(120, () => {
+        const ring2 = this.scene.add.rectangle(actorPos.x, actorPos.y, 8, 8, color, 0.35);
+        ring2.setDepth(53);
+        this.scene.tweens.add({
+          targets: ring2,
+          scaleX: 7,
+          scaleY: 7,
+          alpha: 0,
+          duration: 560,
+          ease: 'Power2.easeOut',
+          onComplete: () => ring2.destroy(),
+        });
       });
+      const SPARKS = 8;
+      for (let k = 0; k < SPARKS; k++) {
+        const angle = (k / SPARKS) * Math.PI * 2;
+        const dist  = SPARKLE_MIN_DIST + Math.random() * SPARKLE_DIST_VARIANCE;
+        const spark = this.scene.add.rectangle(actorPos.x, actorPos.y, 6, 6, color, 0.9);
+        spark.setDepth(56);
+        this.scene.tweens.add({
+          targets: spark,
+          x: actorPos.x + Math.cos(angle) * dist,
+          y: actorPos.y + Math.sin(angle) * dist,
+          scaleX: 0.1,
+          scaleY: 0.1,
+          alpha: 0,
+          duration: 560 + Math.random() * 200,
+          ease: 'Power1.easeOut',
+          delay: 40 + k * 20,
+          onComplete: () => spark.destroy(),
+        });
+      }
+      return;
+    }
+
+    // ── Projectile: element-specific shape flies from caster to target ─────
+    // Lightning is very fast; all others travel at a steady pace.
+    const travelMs = element === 'lightning' ? 200 : 400;
+
+    let proj: Phaser.GameObjects.Arc | Phaser.GameObjects.Rectangle;
+    if (element === 'ice') {
+      // Diamond shard: rotated square
+      proj = this.scene.add.rectangle(actorPos.x, actorPos.y, 14, 14, color, 1);
+      proj.setAngle(45);
+    } else if (element === 'lightning') {
+      // Narrow bolt oriented toward the target
+      const angleDeg =
+        Math.atan2(targetPos.y - actorPos.y, targetPos.x - actorPos.x) * (180 / Math.PI);
+      proj = this.scene.add.rectangle(actorPos.x, actorPos.y, 28, 5, color, 1);
+      proj.setAngle(angleDeg);
+    } else {
+      // Fireball / water drop / poison bubble / heal orb — all circular
+      const radius = element === 'fire' ? 11 : 9;
+      proj = this.scene.add.circle(actorPos.x, actorPos.y, radius, color, 1);
+    }
+    proj.setDepth(58);
+
+    this.scene.tweens.add({
+      targets: proj,
+      x: targetPos.x,
+      y: targetPos.y,
+      duration: travelMs,
+      ease: element === 'lightning' ? 'Power3' : 'Power2',
+      onComplete: () => {
+        proj.destroy();
+        this.playSpellImpact(element, color, targetPos);
+      },
     });
 
-    // ── Sparkle burst: 8 small circles radiate outward ────────────────────
+    // Ice shard spins while travelling
+    if (element === 'ice') {
+      this.scene.tweens.add({
+        targets: proj,
+        angle: proj.angle + 360,
+        duration: travelMs,
+        ease: 'Linear',
+      });
+    }
+
+    // Lightning leaves a brief afterimage flash along the path
+    if (element === 'lightning') {
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        const fx = actorPos.x + (targetPos.x - actorPos.x) * t;
+        const fy = actorPos.y + (targetPos.y - actorPos.y) * t;
+        const flash = this.scene.add.rectangle(fx, fy, 18, 4, color, 0.6);
+        flash.setDepth(57);
+        this.scene.tweens.add({
+          targets: flash,
+          alpha: 0,
+          duration: 180,
+          delay: (travelMs / 4) * k,
+          onComplete: () => flash.destroy(),
+        });
+      }
+    }
+  }
+
+  /** Burst of sparkles and an expanding ring at the spell's impact point. */
+  private playSpellImpact(_element: string, color: number, pos: { x: number; y: number }): void {
+    const impactRing = this.scene.add.rectangle(pos.x, pos.y, 10, 10, color, 0.7);
+    impactRing.setDepth(54);
+    this.scene.tweens.add({
+      targets: impactRing,
+      scaleX: 9,
+      scaleY: 9,
+      alpha: 0,
+      duration: 500,
+      ease: 'Power2.easeOut',
+      onComplete: () => impactRing.destroy(),
+    });
+
     const SPARKS = 8;
     for (let k = 0; k < SPARKS; k++) {
       const angle = (k / SPARKS) * Math.PI * 2;
@@ -1292,10 +1415,53 @@ export class CombatUI {
         scaleX: 0.1,
         scaleY: 0.1,
         alpha: 0,
-        duration: 560 + Math.random() * 200,
+        duration: 450 + Math.random() * 150,
         ease: 'Power1.easeOut',
-        delay: 40 + k * 20,
+        delay: k * 15,
         onComplete: () => spark.destroy(),
+      });
+    }
+  }
+
+  /** Floating poison damage number + green bubbles rising from the afflicted entity. */
+  private playPoisonDotAnimation(entity: CombatEntity, dmg: number): void {
+    this.refreshEntityDisplay(entity);
+    const pos = this.entityScreenPos(entity);
+
+    // Damage number in toxic green
+    const dotText = this.scene.add.text(pos.x + 10, pos.y - 10, `-${dmg}☠`, {
+      fontSize: '15px',
+      color: '#88ff44',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(50);
+
+    this.scene.tweens.add({
+      targets: dotText,
+      y: pos.y - 65,
+      alpha: 0,
+      duration: 1200,
+      ease: 'Power1',
+      onComplete: () => dotText.destroy(),
+    });
+
+    // Rising poison bubbles
+    const BUBBLES = 4;
+    for (let k = 0; k < BUBBLES; k++) {
+      this.scene.time.delayedCall(k * 90, () => {
+        const bx = pos.x + (Math.random() - 0.5) * 30;
+        const by = pos.y + (Math.random() - 0.5) * 20;
+        const bubble = this.scene.add.circle(bx, by, 4, 0x44cc44, 0.8);
+        bubble.setDepth(52);
+        this.scene.tweens.add({
+          targets: bubble,
+          y: by - 22 - Math.random() * 14,
+          alpha: 0,
+          duration: 520 + Math.random() * 200,
+          ease: 'Power1',
+          onComplete: () => bubble.destroy(),
+        });
       });
     }
   }
@@ -1528,6 +1694,7 @@ export class CombatUI {
     this.bus.off('combat:spellStart', this.onCombatSpellStart);
     this.bus.off('status:applied', this.onStatusApplied);
     this.bus.off('status:removed', this.onStatusRemoved);
+    this.bus.off('status:dot', this.onStatusDot);
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
     this.logStripBg.destroy();
