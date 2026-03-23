@@ -4,6 +4,7 @@ import statusData from '../../data/statusEffects.json';
 
 interface StatusDef {
   id: string;
+  name?: string;
   dotPercent?: number;
   agilityMod?: number;
   strengthMod?: number;
@@ -69,6 +70,7 @@ export class StatusEffectSystem {
         const dmg = Math.floor(entity.stats.maxHp * def.dotPercent);
         entity.applyDamage(dmg);
         this.bus.emit('status:dot', entity, effectId, dmg);
+        this.bus.emit('combat:log', `${entity.name} takes ${dmg} damage from ${def.name ?? effectId}!`);
       }
 
       // Tick duration
