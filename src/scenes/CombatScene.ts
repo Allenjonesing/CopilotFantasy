@@ -9,6 +9,13 @@ import { GameState } from '../core/state/GameState';
 import { AccomplishmentSystem } from '../core/state/AccomplishmentSystem';
 import { CombatEnemySpec } from '../systems/exploration/ExplorationSystem';
 
+/**
+ * Delay (ms) between the end of an action and advancing to the next turn.
+ * Long enough to let the longest animations (damage floats, spell impacts)
+ * finish before the next actor moves, preventing overlapping visuals.
+ */
+const TURN_ADVANCE_DELAY_MS = 1500;
+
 export class CombatScene extends Phaser.Scene {
   private system!: CombatSystem;
   private ui!: CombatUI;
@@ -151,7 +158,7 @@ export class CombatScene extends Phaser.Scene {
         const consumed = this.system.executeAction(this.system.currentActor, action);
         if (consumed) {
           this.waitingForInput = false;
-          this.time.delayedCall(400, () => this.advanceTurn());
+          this.time.delayedCall(TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
         }
       }
     };
@@ -188,7 +195,7 @@ export class CombatScene extends Phaser.Scene {
       this.waitingForInput = true;
     } else {
       this.performEnemyAction(actor);
-      this.time.delayedCall(1100, () => this.advanceTurn());
+      this.time.delayedCall(TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
     }
   }
 
@@ -278,7 +285,7 @@ export class CombatScene extends Phaser.Scene {
         const consumed = this.system.executeAction(this.system.currentActor, action);
         if (consumed) {
           this.waitingForInput = false;
-          this.time.delayedCall(400, () => this.advanceTurn());
+          this.time.delayedCall(TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
         }
       }
     }
