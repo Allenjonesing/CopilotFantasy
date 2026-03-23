@@ -151,13 +151,17 @@ export class CombatSystem {
     // For status-apply skills (e.g. Venom Strike), use the statusEffect id as the animation
     // element so the animation can use a distinctive colour and shape for that effect.
     const animElement = skillElement ?? (skill as { statusEffect?: string }).statusEffect ?? skill.type;
-    const animTarget = targets.length > 0 ? targets[0] : null;
+    // For AoE skills (multiple targets), use null animTarget so the AoE fallback
+    // animation (expanding rings at caster) plays instead of a misleading
+    // single-target projectile.  For single-target skills, point at the target.
+    const animTarget = targets.length === 1 ? targets[0] : null;
     if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply') {
       this.bus.emit('combat:spellStart', actor, animTarget, animElement, skill.name);
     }
-    // Physical skills use an attack-move animation; emit it once toward the first
-    // target rather than once per target to avoid redundant animations on AoE hits.
-    if (skill.type === 'physical' && targets.length > 0) {
+    // Physical skills use an attack-move animation; only fire it for single-target
+    // skills to avoid the misleading visual of moving toward one enemy while all
+    // enemies take damage (e.g. Ground Slam).
+    if (skill.type === 'physical' && targets.length === 1) {
       this.bus.emit('combat:attackStart', actor, targets[0]);
     }
     targets.forEach((t) => this.applySkillEffect(actor, skill, t));
