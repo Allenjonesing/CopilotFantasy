@@ -348,3 +348,56 @@ describe('Battle save/resume – CTB and status round-trip', () => {
     expect(slime.ctbValue).toBe(150);
   });
 });
+
+describe('Spell animation event – no duplicate emissions', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('combat:spellStart fires exactly once when a magic skill is used', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const slime = system.enemies[0] as EnemyCombatant;
+    const player = system.players[0];
+    let spellStartCount = 0;
+    EventBus.getInstance().on('combat:spellStart', () => { spellStartCount++; });
+    // Force the slime to have enough MP
+    slime.stats.mp = 40;
+    system.executeAction(slime, { type: 'skill', skillId: 'water', target: player });
+    expect(spellStartCount).toBe(1);
+  });
+
+  it('combat:damage fires exactly once per target for a single-target spell', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const slime = system.enemies[0] as EnemyCombatant;
+    const player = system.players[0];
+    let damageCount = 0;
+    EventBus.getInstance().on('combat:damage', () => { damageCount++; });
+    slime.stats.mp = 40;
+    system.executeAction(slime, { type: 'skill', skillId: 'water', target: player });
+    expect(damageCount).toBe(1);
+  });
+
+  it('combat:spellStart fires exactly once with two enemies of the same type present', () => {
+    // Regression test: previously, consecutive enemy turns could cause the
+    // spell animation event to appear to fire twice due to stale EventBus
+    // listeners or visual timing overlap.
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime'), new EnemyCombatant('slime')],
+    );
+    const slime = system.enemies[0] as EnemyCombatant;
+    const player = system.players[0];
+    let spellStartCount = 0;
+    EventBus.getInstance().on('combat:spellStart', () => { spellStartCount++; });
+    slime.stats.mp = 40;
+    system.executeAction(slime, { type: 'skill', skillId: 'water', target: player });
+    expect(spellStartCount).toBe(1);
+  });
+});

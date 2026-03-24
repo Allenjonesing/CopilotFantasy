@@ -17,10 +17,11 @@ const PLAYER_TURN_ADVANCE_DELAY_MS = 600;
 
 /**
  * Delay (ms) after an enemy's action before advancing to the next turn.
- * Long enough for the player to read the combat log and comprehend what the
- * enemy did before the next actor moves.
+ * Must be longer than the full spell animation lifecycle (~1800 ms: 400 ms
+ * projectile travel + 1400 ms floating damage number) so that consecutive
+ * enemy spell animations never visually overlap.
  */
-const ENEMY_TURN_ADVANCE_DELAY_MS = 1500;
+const ENEMY_TURN_ADVANCE_DELAY_MS = 2000;
 
 export class CombatScene extends Phaser.Scene {
   private system!: CombatSystem;
@@ -49,6 +50,9 @@ export class CombatScene extends Phaser.Scene {
     /** True when resuming an autosaved mid-battle state. */
     isResume?: boolean;
   }): void {
+    // Clear any stale EventBus listeners from a previous scene or battle so
+    // that combat UI handlers are never registered more than once at a time.
+    EventBus.getInstance().clear();
     const enemySpecs = data.enemies ?? ['slime'];
     const baseScale = GameState.getInstance().getEnemyScale();
     const state = GameState.getInstance();

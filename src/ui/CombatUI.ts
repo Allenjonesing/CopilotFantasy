@@ -1302,18 +1302,6 @@ export class CombatUI {
       },
     });
 
-    // ── Cast ring at caster (indicates spell release) ──────────────────────
-    const castRing = this.scene.add.rectangle(actorPos.x, actorPos.y, 10, 10, color, 0.7);
-    castRing.setDepth(54);
-    this.scene.tweens.add({
-      targets: castRing,
-      scaleX: 5,
-      scaleY: 5,
-      alpha: 0,
-      duration: 380,
-      ease: 'Power2.easeOut',
-      onComplete: () => castRing.destroy(),
-    });
 
     const targetPos = target ? this.entityScreenPos(target) : null;
 
