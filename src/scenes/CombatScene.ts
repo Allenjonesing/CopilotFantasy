@@ -10,11 +10,17 @@ import { AccomplishmentSystem } from '../core/state/AccomplishmentSystem';
 import { CombatEnemySpec } from '../systems/exploration/ExplorationSystem';
 
 /**
- * Delay (ms) between the end of an action and advancing to the next turn.
- * Long enough to let the longest animations (damage floats, spell impacts)
- * finish before the next actor moves, preventing overlapping visuals.
+ * Delay (ms) after a player's action before advancing to the next turn.
+ * Short so ally-to-ally transitions feel snappy; animations continue independently.
  */
-const TURN_ADVANCE_DELAY_MS = 1500;
+const PLAYER_TURN_ADVANCE_DELAY_MS = 600;
+
+/**
+ * Delay (ms) after an enemy's action before advancing to the next turn.
+ * Long enough for the player to read the combat log and comprehend what the
+ * enemy did before the next actor moves.
+ */
+const ENEMY_TURN_ADVANCE_DELAY_MS = 1500;
 
 export class CombatScene extends Phaser.Scene {
   private system!: CombatSystem;
@@ -158,7 +164,9 @@ export class CombatScene extends Phaser.Scene {
         const consumed = this.system.executeAction(this.system.currentActor, action);
         if (consumed) {
           this.waitingForInput = false;
-          this.time.delayedCall(TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
+          // Hide menu immediately so the UI can't be interacted with during animations.
+          this.ui.hideMenuForAction();
+          this.time.delayedCall(PLAYER_TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
         }
       }
     };
@@ -195,7 +203,7 @@ export class CombatScene extends Phaser.Scene {
       this.waitingForInput = true;
     } else {
       this.performEnemyAction(actor);
-      this.time.delayedCall(TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
+      this.time.delayedCall(ENEMY_TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
     }
   }
 
@@ -285,7 +293,9 @@ export class CombatScene extends Phaser.Scene {
         const consumed = this.system.executeAction(this.system.currentActor, action);
         if (consumed) {
           this.waitingForInput = false;
-          this.time.delayedCall(TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
+          // Hide menu immediately so the UI can't be interacted with during animations.
+          this.ui.hideMenuForAction();
+          this.time.delayedCall(PLAYER_TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
         }
       }
     }

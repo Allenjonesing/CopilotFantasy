@@ -176,6 +176,14 @@ export class CombatUI {
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
 
+  /** Deferred damage-display timings (ms) keyed by entity id.
+   *  When a single-target spell projectile is in flight to a target, the damage
+   *  animation is delayed by the projectile travel time so the floating number
+   *  appears at visual impact rather than at cast time.
+   *  AoE spells pass `null` as the animation target, so no entry is recorded and
+   *  each target's damage number appears immediately (no misleading grouping). */
+  private pendingDamageDelay: Map<string, number> = new Map();
+
   constructor(scene: Phaser.Scene, system: CombatSystem, battleType: import('../systems/combat/CombatSystem').BattleType = 'normal', isBossBattle = false) {
     this.scene = scene;
     this.system = system;
@@ -875,7 +883,16 @@ export class CombatUI {
     this.onCombatLog = (msg) => this.appendLog(msg as string);
     this.onCombatDamage = (entity, dmg) => {
       this.refreshEntityDisplay(entity as CombatEntity);
-      this.playDamageAnimation(entity as CombatEntity, dmg as number);
+      const delay = this.pendingDamageDelay.get((entity as CombatEntity).id) ?? 0;
+      this.pendingDamageDelay.delete((entity as CombatEntity).id);
+      if (delay > 0) {
+        // Defer the floating damage number so it appears when the spell projectile arrives.
+        this.scene.time.delayedCall(delay, () => {
+          this.playDamageAnimation(entity as CombatEntity, dmg as number);
+        });
+      } else {
+        this.playDamageAnimation(entity as CombatEntity, dmg as number);
+      }
     };
     this.onCombatHeal = (entity, amount) => {
       this.refreshEntityDisplay(entity as CombatEntity);
@@ -963,6 +980,18 @@ export class CombatUI {
         (obj as unknown as { setVisible: (v: boolean) => void }).setVisible(visible);
       }
     });
+  }
+
+  /**
+   * Hide the action menu and nav controls immediately after the player confirms
+   * an action.  Prevents stale interaction with menu buttons while combat
+   * animations are playing.  The menu will reappear on the next player turn via
+   * the normal combat:turnStart flow.
+   */
+  hideMenuForAction(): void {
+    if (this.menuContainer.active) this.menuContainer.setVisible(false);
+    this.setNavVisible(false);
+    this.hideTargetCursor();
   }
 
   private refreshEntityDisplay(entity: CombatEntity): void {
@@ -1329,6 +1358,14 @@ export class CombatUI {
     // Lightning is very fast; all others travel at a steady pace.
     const travelMs = element === 'lightning' ? 200 : 400;
 
+    // Store the travel time so the combat:damage handler can defer the floating
+    // damage number until the projectile visually arrives.  For AoE spells
+    // target is null (handled above), so no entry is recorded and each target's
+    // damage number appears immediately.
+    if (target) {
+      this.pendingDamageDelay.set(target.id, travelMs);
+    }
+
     let proj: Phaser.GameObjects.Arc | Phaser.GameObjects.Rectangle;
     if (element === 'ice') {
       // Diamond shard: rotated square
@@ -1685,6 +1722,7 @@ export class CombatUI {
     // Stop all active tweens (damage numbers, spell rings, attack animations, etc.)
     // before destroying their target objects to prevent stale callbacks and free memory.
     this.scene.tweens.killAll();
+    this.pendingDamageDelay.clear();
     this.bus.off('combat:log', this.onCombatLog);
     this.bus.off('combat:damage', this.onCombatDamage);
     this.bus.off('combat:heal', this.onCombatHeal);
