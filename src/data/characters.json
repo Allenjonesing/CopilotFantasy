@@ -15,7 +15,7 @@
         "agility": 6,
         "luck": 5
       },
-      "skills": ["attack", "smash"],
+      "skills": ["attack", "quickHit", "smash"],
       "startingItems": [],
       "levelUpStats": { "hp": 8, "mp": 2, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
       "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" }

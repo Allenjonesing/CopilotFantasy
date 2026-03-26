@@ -7,7 +7,18 @@
       "target": "single_enemy",
       "mpCost": 0,
       "power": 1.0,
-      "description": "A basic physical attack."
+      "speedModifier": 1.0,
+      "description": "A basic physical attack. Fastest free action."
+    },
+    {
+      "id": "quickHit",
+      "name": "Quick Hit",
+      "type": "physical",
+      "target": "single_enemy",
+      "mpCost": 8,
+      "power": 1.5,
+      "speedModifier": 0.6,
+      "description": "A swift, precise strike that hits hard and advances your next turn. Costs MP."
     },
     {
       "id": "smash",
@@ -16,7 +27,8 @@
       "target": "single_enemy",
       "mpCost": 0,
       "power": 1.8,
-      "description": "A powerful slam dealing heavy physical damage."
+      "speedModifier": 1.3,
+      "description": "A powerful slam dealing heavy physical damage. Slower next turn."
     },
     {
       "id": "drain",
@@ -25,7 +37,8 @@
       "target": "single_enemy",
       "mpCost": 14,
       "power": 0.8,
-      "description": "Drains HP from the target to restore own HP."
+      "speedModifier": 1.1,
+      "description": "Drains HP from the target to restore own HP. Slightly slower next turn."
     },
     {
       "id": "fire",
@@ -35,7 +48,8 @@
       "mpCost": 8,
       "power": 1.2,
       "element": "fire",
-      "description": "A burst of searing flame. Fire-elemental."
+      "speedModifier": 1.1,
+      "description": "A burst of searing flame. Fire-elemental. Slightly slower next turn."
     },
     {
       "id": "fira",
@@ -45,7 +59,8 @@
       "mpCost": 18,
       "power": 2.0,
       "element": "fire",
-      "description": "A roaring column of fire. Strong fire-elemental."
+      "speedModifier": 1.3,
+      "description": "A roaring column of fire. Strong fire-elemental. Slower next turn."
     },
     {
       "id": "firaga",
@@ -55,7 +70,8 @@
       "mpCost": 32,
       "power": 3.2,
       "element": "fire",
-      "description": "An inferno of pure flame. Powerful fire-elemental."
+      "speedModifier": 1.6,
+      "description": "An inferno of pure flame. Powerful fire-elemental. Much slower next turn."
     },
     {
       "id": "blizzard",
@@ -65,7 +81,8 @@
       "mpCost": 8,
       "power": 1.2,
       "element": "ice",
-      "description": "A shard of biting ice. Ice-elemental."
+      "speedModifier": 1.1,
+      "description": "A shard of biting ice. Ice-elemental. Slightly slower next turn."
     },
     {
       "id": "blizzara",
@@ -75,7 +92,8 @@
       "mpCost": 18,
       "power": 2.0,
       "element": "ice",
-      "description": "A storm of razor ice crystals. Strong ice-elemental."
+      "speedModifier": 1.3,
+      "description": "A storm of razor ice crystals. Strong ice-elemental. Slower next turn."
     },
     {
       "id": "blizzaga",
@@ -85,7 +103,8 @@
       "mpCost": 32,
       "power": 3.2,
       "element": "ice",
-      "description": "A glacial freeze that shatters foes. Powerful ice-elemental."
+      "speedModifier": 1.6,
+      "description": "A glacial freeze that shatters foes. Powerful ice-elemental. Much slower next turn."
     },
     {
       "id": "thunder",
@@ -95,7 +114,8 @@
       "mpCost": 8,
       "power": 1.2,
       "element": "lightning",
-      "description": "A crackling bolt of electricity. Lightning-elemental."
+      "speedModifier": 1.1,
+      "description": "A crackling bolt of electricity. Lightning-elemental. Slightly slower next turn."
     },
     {
       "id": "thundara",
@@ -105,7 +125,8 @@
       "mpCost": 18,
       "power": 2.0,
       "element": "lightning",
-      "description": "A raging lightning storm. Strong lightning-elemental."
+      "speedModifier": 1.3,
+      "description": "A raging lightning storm. Strong lightning-elemental. Slower next turn."
     },
     {
       "id": "thundaga",
@@ -115,7 +136,8 @@
       "mpCost": 32,
       "power": 3.2,
       "element": "lightning",
-      "description": "A massive thunderstrike from above. Powerful lightning-elemental."
+      "speedModifier": 1.6,
+      "description": "A massive thunderstrike from above. Powerful lightning-elemental. Much slower next turn."
     },
     {
       "id": "water",
@@ -125,7 +147,8 @@
       "mpCost": 8,
       "power": 1.2,
       "element": "water",
-      "description": "A surging wave of water. Water-elemental."
+      "speedModifier": 1.1,
+      "description": "A surging wave of water. Water-elemental. Slightly slower next turn."
     },
     {
       "id": "watera",
@@ -135,7 +158,8 @@
       "mpCost": 18,
       "power": 2.0,
       "element": "water",
-      "description": "A crashing torrent of water. Strong water-elemental."
+      "speedModifier": 1.3,
+      "description": "A crashing torrent of water. Strong water-elemental. Slower next turn."
     },
     {
       "id": "waterga",
@@ -145,7 +169,8 @@
       "mpCost": 32,
       "power": 3.2,
       "element": "water",
-      "description": "A devastating flood. Powerful water-elemental."
+      "speedModifier": 1.6,
+      "description": "A devastating flood. Powerful water-elemental. Much slower next turn."
     },
     {
       "id": "cure",
@@ -154,6 +179,7 @@
       "target": "single_ally",
       "mpCost": 10,
       "power": 1.0,
+      "speedModifier": 1.0,
       "description": "Restores a small amount of HP to one ally."
     },
     {
@@ -163,7 +189,8 @@
       "target": "single_ally",
       "mpCost": 22,
       "power": 2.0,
-      "description": "Restores a moderate amount of HP to one ally."
+      "speedModifier": 1.2,
+      "description": "Restores a moderate amount of HP to one ally. Slightly slower next turn."
     },
     {
       "id": "curaga",
@@ -172,7 +199,8 @@
       "target": "single_ally",
       "mpCost": 40,
       "power": 3.5,
-      "description": "Restores a large amount of HP to one ally."
+      "speedModifier": 1.4,
+      "description": "Restores a large amount of HP to one ally. Slower next turn."
     },
     {
       "id": "esuna",
@@ -181,6 +209,7 @@
       "target": "single_ally",
       "mpCost": 12,
       "power": 0,
+      "speedModifier": 1.0,
       "description": "Removes all status ailments from one ally."
     },
     {
@@ -190,7 +219,8 @@
       "target": "single_dead_ally",
       "mpCost": 30,
       "power": 0.5,
-      "description": "Revives a KO'd ally with 50% of their max HP."
+      "speedModifier": 1.2,
+      "description": "Revives a KO'd ally with 50% of their max HP. Slightly slower next turn."
     },
     {
       "id": "reraise",
@@ -200,7 +230,8 @@
       "mpCost": 40,
       "power": 0,
       "statusEffect": "reraise",
-      "description": "Grants Auto-Life; target revives automatically with 1 HP once."
+      "speedModifier": 1.2,
+      "description": "Grants Auto-Life; target revives automatically with 1 HP once. Slightly slower next turn."
     },
     {
       "id": "groundSlam",
@@ -209,7 +240,8 @@
       "target": "all_enemies",
       "mpCost": 8,
       "power": 1.0,
-      "description": "Slams the ground with crushing force, dealing physical damage to all enemies."
+      "speedModifier": 1.5,
+      "description": "Slams the ground with crushing force, dealing physical damage to all enemies. Much slower next turn."
     },
     {
       "id": "pray",
@@ -218,7 +250,8 @@
       "target": "all_allies",
       "mpCost": 24,
       "power": 1.2,
-      "description": "A heartfelt prayer that restores a moderate amount of HP to the entire party."
+      "speedModifier": 1.3,
+      "description": "A heartfelt prayer that restores a moderate amount of HP to the entire party. Slower next turn."
     },
     {
       "id": "enemyCure",
@@ -227,6 +260,7 @@
       "target": "self",
       "mpCost": 20,
       "power": 1.5,
+      "speedModifier": 1.1,
       "description": "Enemy heals itself."
     },
     {
@@ -237,7 +271,8 @@
       "mpCost": 18,
       "power": 0,
       "statusEffect": "haste",
-      "description": "Rings a bell that doubles one ally's speed for 3 turns."
+      "speedModifier": 1.1,
+      "description": "Rings a bell that doubles one ally's speed. Slightly slower next turn."
     },
     {
       "id": "slowBell",
@@ -247,7 +282,8 @@
       "mpCost": 12,
       "power": 0,
       "statusEffect": "slow",
-      "description": "Rings a bell that halves one enemy's speed for 3 turns."
+      "speedModifier": 1.1,
+      "description": "Rings a bell that halves one enemy's speed. Slightly slower next turn."
     },
     {
       "id": "venomStrike",
@@ -257,6 +293,7 @@
       "mpCost": 6,
       "power": 0,
       "statusEffect": "poison",
+      "speedModifier": 1.0,
       "description": "Injects venom into a single target, inflicting Poison."
     },
     {
@@ -266,6 +303,7 @@
       "target": "single_ally",
       "mpCost": 16,
       "power": 0,
+      "speedModifier": 1.0,
       "description": "Removes ALL status effects (both buffs and debuffs) from one target."
     },
     {
@@ -276,7 +314,8 @@
       "mpCost": 18,
       "power": 0,
       "statusEffect": "zombie",
-      "description": "Curses a foe with Zombie, reversing all healing into damage."
+      "speedModifier": 1.1,
+      "description": "Curses a foe with Zombie, reversing all healing into damage. Slightly slower next turn."
     },
     {
       "id": "reflectCast",
@@ -286,7 +325,8 @@
       "mpCost": 22,
       "power": 0,
       "statusEffect": "reflect",
-      "description": "Wraps an ally in a magical shell that reflects incoming spells."
+      "speedModifier": 1.1,
+      "description": "Wraps an ally in a magical shell that reflects incoming spells. Slightly slower next turn."
     },
     {
       "id": "enemyReflect",
@@ -296,6 +336,7 @@
       "mpCost": 20,
       "power": 0,
       "statusEffect": "reflect",
+      "speedModifier": 1.1,
       "description": "Enemy casts a reflect barrier on itself."
     }
   ]

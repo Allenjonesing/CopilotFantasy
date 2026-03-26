@@ -66,6 +66,8 @@ const ATTACK_MOVE_RETURN_MS = 300;
 // Spell sparkle burst
 const SPARKLE_MIN_DIST = 36;
 const SPARKLE_DIST_VARIANCE = 28;
+// Timeline shift animation duration (ms)
+const TIMELINE_SHIFT_ANIM_MS = 350;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
@@ -150,6 +152,8 @@ export class CombatUI {
   // Timeline display
   private timelineContainer!: Phaser.GameObjects.Container;
   private timelineIcons: Phaser.GameObjects.GameObject[] = [];
+  /** Maps entity.id → [icon, label] for the current timeline render. Used for shift animation. */
+  private timelineEntityIcons: Map<string, [Phaser.GameObjects.Rectangle, Phaser.GameObjects.Text]> = new Map();
   // Compact log strip
   private logStripBg!: Phaser.GameObjects.Rectangle;
   private logTexts: Phaser.GameObjects.Text[] = [];
@@ -172,6 +176,7 @@ export class CombatUI {
   private onStatusApplied!: (entity: unknown, effectId: unknown) => void;
   private onStatusRemoved!: (entity: unknown, effectId: unknown) => void;
   private onStatusDot!: (entity: unknown, effectId: unknown, dmg: unknown) => void;
+  private onCombatTimelineShift!: (actor: unknown, beforeOrder: unknown, afterOrder: unknown, speedModifier: unknown) => void;
 
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
@@ -683,7 +688,14 @@ export class CombatUI {
     const skillIds = actor ? actor.skills.filter((s) => s !== 'attack') : [];
     const items = skillIds.map((id) => {
       const def = skillsData.skills.find((s) => s.id === id);
-      return def ? `${def.name} MP:${def.mpCost}` : id;
+      if (!def) return id;
+      const speedMod = (def as { speedModifier?: number }).speedModifier ?? 1.0;
+      let speedTag = '';
+      if (speedMod <= 0.7) speedTag = ' [VF]';
+      else if (speedMod <= 0.9) speedTag = ' [F]';
+      else if (speedMod >= 1.4) speedTag = ' [VS]';
+      else if (speedMod >= 1.2) speedTag = ' [S]';
+      return `${def.name} MP:${def.mpCost}${speedTag}`;
     });
     const disabled = skillIds.map((id) => {
       const def = skillsData.skills.find((s) => s.id === id);
@@ -961,6 +973,16 @@ export class CombatUI {
     this.bus.on('status:applied', this.onStatusApplied);
     this.bus.on('status:removed', this.onStatusRemoved);
     this.bus.on('status:dot', this.onStatusDot);
+
+    this.onCombatTimelineShift = (actor, beforeOrder, afterOrder, speedModifier) => {
+      this.animateTimelineShift(
+        actor as CombatEntity,
+        beforeOrder as CombatEntity[],
+        afterOrder as CombatEntity[],
+        speedModifier as number,
+      );
+    };
+    this.bus.on('combat:timelineShift', this.onCombatTimelineShift);
   }
 
   /** Highlight the name of the currently acting player under their battlefield sprite. */
@@ -1515,6 +1537,7 @@ export class CombatUI {
   private refreshTimeline(): void {
     this.timelineContainer.removeAll(true);
     this.timelineIcons = [];
+    this.timelineEntityIcons.clear();
 
     const order = this.system.getTimelinePreview(10);
     order.forEach((entity, idx) => {
@@ -1533,7 +1556,74 @@ export class CombatUI {
 
       this.timelineContainer.add([icon, label]);
       this.timelineIcons.push(icon, label);
+      this.timelineEntityIcons.set(entity.id, [icon, label]);
     });
+  }
+
+  /** Animate the timeline cards sliding to new positions after a speed-modifying action.
+   *  Also shows a brief speed indicator above the acting entity. */
+  private animateTimelineShift(
+    actor: CombatEntity,
+    beforeOrder: CombatEntity[],
+    afterOrder: CombatEntity[],
+    speedModifier: number,
+  ): void {
+    if (!this.timelineContainer.active) return;
+
+    // Build position maps: entity.id → slot index
+    const beforeSlot = new Map<string, number>();
+    beforeOrder.forEach((e, i) => beforeSlot.set(e.id, i));
+    const afterSlot = new Map<string, number>();
+    afterOrder.forEach((e, i) => afterSlot.set(e.id, i));
+
+    // Tween each entity from its old slot x to its new slot x.
+    beforeOrder.forEach((entity) => {
+      const pair = this.timelineEntityIcons.get(entity.id);
+      if (!pair) return;
+      const [icon, label] = pair;
+      if (!icon.active || !label.active) return;
+      const newSlot = afterSlot.get(entity.id);
+      if (newSlot === undefined) return;
+      const newX = 6 + newSlot * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
+      if (icon.x !== newX) {
+        this.scene.tweens.add({ targets: icon, x: newX, duration: TIMELINE_SHIFT_ANIM_MS, ease: 'Power2' });
+        this.scene.tweens.add({ targets: label, x: newX, duration: TIMELINE_SHIFT_ANIM_MS, ease: 'Power2' });
+      }
+    });
+
+    // Show a brief speed indicator above the actor.
+    const delta = speedModifier - 1.0;
+    if (Math.abs(delta) >= 0.05) {
+      const isFast = delta < 0;
+      let indicatorText: string;
+      let indicatorColor: string;
+      if (isFast) {
+        indicatorText = '[FAST] next turn sooner!';
+        indicatorColor = '#ffff44';
+      } else if (delta >= 0.4) {
+        indicatorText = '[SLOW] next turn much later!';
+        indicatorColor = '#aaaaff';
+      } else {
+        indicatorText = '[SLOW] next turn later';
+        indicatorColor = '#aaaaff';
+      }
+      const actorPos = this.entityScreenPos(actor);
+      const indicator = this.scene.add.text(actorPos.x, actorPos.y - 20, indicatorText, {
+        fontSize: '12px',
+        color: indicatorColor,
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(60);
+      this.scene.tweens.add({
+        targets: indicator,
+        y: actorPos.y - 55,
+        alpha: 0,
+        duration: 1000,
+        ease: 'Power1',
+        onComplete: () => indicator.destroy(),
+      });
+    }
   }
 
   private appendLog(_msg: string): void {
@@ -1721,6 +1811,7 @@ export class CombatUI {
     this.bus.off('status:applied', this.onStatusApplied);
     this.bus.off('status:removed', this.onStatusRemoved);
     this.bus.off('status:dot', this.onStatusDot);
+    this.bus.off('combat:timelineShift', this.onCombatTimelineShift);
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
     this.logStripBg.destroy();

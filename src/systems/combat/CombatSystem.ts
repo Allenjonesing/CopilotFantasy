@@ -10,6 +10,11 @@ import itemsData from '../../data/items.json';
 
 export type ActionType = 'attack' | 'skill' | 'item' | 'defend' | 'flee';
 
+/** Extended skill definition that includes the optional speed modifier field. */
+interface SkillWithSpeed {
+  speedModifier?: number;
+}
+
 export interface CombatAction {
   type: ActionType;
   skillId?: string;
@@ -115,13 +120,31 @@ export class CombatSystem {
         break;
     }
     if (turnConsumed) {
-      this.timeline.endTurn(actor);
+      // Resolve the speed modifier for this action so fast moves advance the
+      // actor's next turn and slow (powerful) moves push it back.
+      const speedModifier = this.resolveSpeedModifier(action);
+      const beforeOrder = this.timeline.preview(10);
+      this.timeline.endTurn(actor, speedModifier);
+      const afterOrder = this.timeline.preview(10);
+      // Emit timeline shift so the UI can animate the rearrangement.
+      this.bus.emit('combat:timelineShift', actor, beforeOrder, afterOrder, speedModifier);
       this.bus.emit('combat:actionEnd', actor);
       // Process end-of-turn status effects (DoT, duration ticks) AFTER the actor has acted.
       this.statusSystem.processTurn(actor);
       this.checkDefeated(actor);
     }
     return turnConsumed;
+  }
+
+  /** Determine the CTB speed modifier for the given action.
+   *  Reads `speedModifier` from the skill definition when available;
+   *  basic attacks default to 1.0 (no change). */
+  private resolveSpeedModifier(action: CombatAction): number {
+    if (action.type === 'skill' && action.skillId) {
+      const skill = skillsData.skills.find((s) => s.id === action.skillId) as (typeof skillsData.skills)[0] & SkillWithSpeed | undefined;
+      return skill?.speedModifier ?? 1.0;
+    }
+    return 1.0;
   }
 
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
