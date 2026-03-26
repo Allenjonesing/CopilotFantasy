@@ -555,3 +555,113 @@ describe('Spell animation event – no duplicate emissions', () => {
     expect(spellStartCount).toBe(1);
   });
 });
+
+describe('Speed modifier system', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('endTurn with speedModifier < 1 sets a lower ctbValue (faster next turn)', () => {
+    const aria = new PlayerCombatant('aria');  // agility 6
+    const slime = new EnemyCombatant('slime');
+    const timeline = new CTBTimeline([aria, slime]);
+    timeline.next(); // advance to first entity
+    // Force aria to be the current actor at ctb=0
+    aria.ctbValue = 0;
+    const baseCTB = Math.floor(1000 / aria.effectiveAgility());
+    timeline.endTurn(aria, 0.6);
+    expect(aria.ctbValue).toBeLessThan(baseCTB);
+    expect(aria.ctbValue).toBeGreaterThanOrEqual(1);
+  });
+
+  it('endTurn with speedModifier > 1 sets a higher ctbValue (slower next turn)', () => {
+    const aria = new PlayerCombatant('aria');  // agility 6
+    const slime = new EnemyCombatant('slime');
+    const timeline = new CTBTimeline([aria, slime]);
+    aria.ctbValue = 0;
+    const baseCTB = Math.floor(1000 / aria.effectiveAgility());
+    timeline.endTurn(aria, 1.5);
+    expect(aria.ctbValue).toBeGreaterThan(baseCTB);
+  });
+
+  it('quickHit skill (speedModifier=0.6) sets lower ctbValue for aria after acting', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+
+    system.nextTurn();
+    expect(aria.skills).toContain('quickHit');
+    aria.stats.mp = 20;
+    system.executeAction(aria, { type: 'skill', skillId: 'quickHit', target: slime });
+
+    const base = Math.floor(1000 / aria.effectiveAgility());
+    expect(aria.ctbValue).toBeLessThan(base);
+  });
+
+  it('smash skill (speedModifier=1.3) results in higher ctbValue for aria after acting', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'smash', target: slime });
+    const base = Math.floor(1000 / aria.effectiveAgility());
+    expect(aria.ctbValue).toBeGreaterThan(base);
+  });
+
+  it('basic attack uses default speedModifier=1.0', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'attack', target: slime });
+    const base = Math.floor(1000 / aria.effectiveAgility());
+    expect(aria.ctbValue).toBe(base);
+  });
+
+  it('combat:timelineShift event is emitted after every action', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+
+    let shiftEmitted = false;
+    EventBus.getInstance().on('combat:timelineShift', () => { shiftEmitted = true; });
+    system.nextTurn();
+    system.executeAction(aria, { type: 'attack', target: slime });
+    expect(shiftEmitted).toBe(true);
+  });
+
+  it('combat:timelineShift provides before and after orders', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+
+    let capturedBefore: unknown[] = [];
+    let capturedAfter: unknown[] = [];
+    EventBus.getInstance().on('combat:timelineShift', (_actor, before, after) => {
+      capturedBefore = before as unknown[];
+      capturedAfter = after as unknown[];
+    });
+    system.nextTurn();
+    system.executeAction(aria, { type: 'attack', target: slime });
+    expect(capturedBefore.length).toBeGreaterThan(0);
+    expect(capturedAfter.length).toBeGreaterThan(0);
+  });
+});

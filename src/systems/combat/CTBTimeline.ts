@@ -23,9 +23,14 @@ export class CTBTimeline {
     return actor;
   }
 
-  /** After an actor takes their turn, reset their CTB. */
-  endTurn(actor: CombatEntity): void {
-    actor.ctbValue = Math.floor(CTB_SPEED_CONSTANT / actor.effectiveAgility());
+  /** After an actor takes their turn, reset their CTB.
+   *  @param speedModifier Values < 1.0 advance the next turn (fast moves),
+   *                       values > 1.0 delay it (powerful/slow moves).
+   *                       Defaults to 1.0 (no change).
+   */
+  endTurn(actor: CombatEntity, speedModifier = 1.0): void {
+    const base = Math.floor(CTB_SPEED_CONSTANT / actor.effectiveAgility());
+    actor.ctbValue = Math.max(1, Math.round(base * speedModifier));
   }
 
   /** Return entities sorted by who acts soonest. */
