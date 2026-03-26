@@ -66,15 +66,15 @@ const THIRD_ENEMY_CHANCE = 0.25;
 /** Enemy types available per difficulty tier, weighted for variety. */
 function enemyTypesForDifficulty(difficulty: number): string[] {
   // Weighted arrays: more copies = higher probability.
-  if (difficulty === 1) return ['slime', 'slime', 'slime', 'goblin'];              // 75% slime, 25% goblin
-  if (difficulty === 2) return ['slime', 'slime', 'goblin'];                       // ~67% slime, ~33% goblin
-  if (difficulty === 3) return ['slime', 'goblin', 'caveBat'];                     // mixed early
-  if (difficulty <= 5) return ['goblin', 'goblin', 'caveBat', 'stoneTroll'];       // goblins + new types
-  if (difficulty === 6) return ['caveBat', 'stoneTroll', 'shadowWisp'];            // mid tier
-  if (difficulty <= 8) return ['stoneTroll', 'shadowWisp', 'shadowWisp'];          // ~33% troll, ~67% wisp
-  if (difficulty <= 10) return ['shadowWisp', 'ironGolem', 'darkWraith'];          // three-way
-  if (difficulty <= 12) return ['ironGolem', 'darkWraith', 'darkWraith'];          // wraith-heavy
-  return ['darkWraith', 'voidDrake', 'ironGolem'];                                 // late game
+  if (difficulty === 1) return ['slime', 'slime', 'slime', 'goblin', 'zombieSlime'];                     // 75% slime, 25% goblin/zombie
+  if (difficulty === 2) return ['slime', 'slime', 'goblin', 'zombieSlime'];                              // ~67% slime, ~33% goblin
+  if (difficulty === 3) return ['slime', 'goblin', 'caveBat', 'zombieSlime'];                            // mixed early
+  if (difficulty <= 5) return ['goblin', 'goblin', 'caveBat', 'stoneTroll', 'mushroomSpore'];            // goblins + new types
+  if (difficulty === 6) return ['caveBat', 'stoneTroll', 'shadowWisp', 'mushroomSpore', 'crystalGolem']; // mid tier
+  if (difficulty <= 8) return ['stoneTroll', 'shadowWisp', 'shadowWisp', 'crystalGolem', 'healingWisp']; // ~33% troll, ~67% wisp
+  if (difficulty <= 10) return ['shadowWisp', 'ironGolem', 'darkWraith', 'crystalGolem', 'healingWisp']; // three-way
+  if (difficulty <= 12) return ['ironGolem', 'darkWraith', 'darkWraith', 'crystalGolem'];                // wraith-heavy
+  return ['darkWraith', 'voidDrake', 'ironGolem', 'healingWisp'];                                        // late game
 }
 
 /** Boss enemy type placed near the exit per difficulty tier. */
@@ -90,7 +90,7 @@ function bossTypeForDifficulty(difficulty: number): string {
 const BOSS_SCALE = 3.0;
 
 /** All possible shop item IDs — each visit picks a random subset. */
-const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote'];
+const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 'smokeBomb', 'freezeBomb', 'mirrorShard', 'zombieDust', 'dispelHerb'];
 
 /** Generate a randomised shop inventory for each visit (3–5 items with possible duplicates). */
 function generateShopInventory(): string[] {
@@ -264,6 +264,27 @@ export class ExplorationSystem {
           homeX: exitTile.x,
           homeY: exitTile.y,
         });
+
+        // On floor 4+ spawn a support minion (Healing Wisp) near the boss.
+        if (difficulty >= 4) {
+          for (let attempt = 0; attempt < 40; attempt++) {
+            const mx = bx + Math.floor(Math.random() * 5) - 2;
+            const my = by + Math.floor(Math.random() * 5) - 2;
+            if (mx === bx && my === by) continue;
+            const tile = this.mapManager.getTile(mx, my);
+            if (!tile?.passable) continue;
+            if (generated.some((e) => e.x === mx && e.y === my)) continue;
+            generated.push({
+              id: `support_${difficulty}_0`,
+              typeId: 'healingWisp',
+              displayName: 'Healing Wisp',
+              variantScale: 1.0,
+              x: mx,
+              y: my,
+            });
+            break;
+          }
+        }
       }
 
       state.data.pendingMapEnemies = generated;
@@ -283,10 +304,9 @@ export class ExplorationSystem {
           .setDisplaySize(tileSize - 6, tileSize - 6)
           .setDepth(10);
       } else {
+        // Draw a procedural sprite that reflects the enemy's type visually.
         const color = this.enemyColor(eData.typeId);
-        sprite = this.scene.add
-          .rectangle(ex, ey, tileSize - 6, tileSize - 6, color)
-          .setDepth(10);
+        sprite = this.drawEnemySprite(eData.typeId, ex, ey, tileSize, color);
       }
 
       // Variant visual cues: weak = faded, buff = brighter tint, boss = red+glow
@@ -515,8 +535,94 @@ export class ExplorationSystem {
       stoneTroll: 0x997755,
       darkWraith: 0x334466,
       voidDrake: 0x220033,
+      zombieSlime: 0x335533,
+      mushroomSpore: 0x997722,
+      crystalGolem: 0x99bbdd,
+      healingWisp: 0xdddd44,
     };
     return colors[typeId] ?? 0xcc4444;
+  }
+
+  /**
+   * Draw a procedural enemy sprite using Phaser Graphics.
+   * Each enemy type gets a distinct silhouette so they are visually distinguishable
+   * at a glance on the exploration map.
+   */
+  private drawEnemySprite(
+    typeId: string,
+    cx: number,
+    cy: number,
+    tileSize: number,
+    color: number,
+  ): Phaser.GameObjects.Rectangle {
+    const r = Math.floor((tileSize - 6) / 2);
+    const gfx = this.scene.add.graphics().setDepth(10);
+
+    // All shapes are drawn centred on (cx, cy).
+    switch (typeId) {
+      case 'caveBat': {
+        // Bat silhouette: main body ellipse + two wing triangles
+        gfx.fillStyle(color, 1);
+        gfx.fillEllipse(cx, cy + r * 0.2, r, r * 1.0); // body
+        gfx.fillTriangle(cx - r * 0.8, cy - r * 0.3, cx - r * 0.1, cy, cx, cy - r * 0.7); // left wing
+        gfx.fillTriangle(cx + r * 0.8, cy - r * 0.3, cx + r * 0.1, cy, cx, cy - r * 0.7); // right wing
+        break;
+      }
+      case 'stoneTroll': {
+        // Troll: chunky rounded rectangle (wide and squat)
+        gfx.fillStyle(color, 1);
+        gfx.fillRoundedRect(cx - r * 0.9, cy - r * 0.7, r * 1.8, r * 1.6, 4); // body
+        gfx.fillRect(cx - r * 0.5, cy - r * 1.0, r * 1.0, r * 0.4); // head
+        break;
+      }
+      case 'zombieSlime': {
+        // Zombie slime: blob with jagged bottom
+        gfx.fillStyle(color, 1);
+        gfx.fillEllipse(cx, cy, r * 1.6, r * 1.2);
+        gfx.fillStyle(0x66ff66, 0.4); // sickly green highlight
+        gfx.fillCircle(cx - r * 0.3, cy - r * 0.2, r * 0.3);
+        break;
+      }
+      case 'healingWisp': {
+        // Wisp: bright glowing circle with inner sparkle
+        gfx.fillStyle(color, 0.7);
+        gfx.fillCircle(cx, cy, r * 0.9);
+        gfx.fillStyle(0xffffff, 0.9);
+        gfx.fillCircle(cx, cy, r * 0.4);
+        break;
+      }
+      case 'crystalGolem': {
+        // Crystal: diamond shape
+        gfx.fillStyle(color, 1);
+        gfx.fillTriangle(cx, cy - r, cx - r * 0.7, cy, cx + r * 0.7, cy); // top half
+        gfx.fillTriangle(cx, cy + r, cx - r * 0.7, cy, cx + r * 0.7, cy); // bottom half
+        break;
+      }
+      case 'mushroomSpore': {
+        // Mushroom: dome cap + stem
+        gfx.fillStyle(color, 1);
+        gfx.fillEllipse(cx, cy - r * 0.1, r * 1.8, r * 1.1); // cap
+        gfx.fillStyle(0xddbb88, 1);
+        gfx.fillRect(cx - r * 0.3, cy + r * 0.4, r * 0.6, r * 0.6); // stem
+        break;
+      }
+      default: {
+        // Generic square for any unrecognised type
+        gfx.fillStyle(color, 1);
+        gfx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        break;
+      }
+    }
+
+    // Return a thin invisible Rectangle as the "sprite" object so the rest of
+    // the code can still call .setAlpha(), .setDepth() and use instanceof checks.
+    // The graphics object lives independently at the same position.
+    const placeholder = this.scene.add
+      .rectangle(cx, cy, tileSize - 6, tileSize - 6, 0x000000, 0) // transparent placeholder
+      .setDepth(10);
+    // Keep a reference so we can destroy the graphics when the enemy is removed.
+    (placeholder as unknown as Record<string, unknown>)['_gfx'] = gfx;
+    return placeholder;
   }
 
   /** Called every frame from ExplorationScene.update(). */
@@ -729,7 +835,7 @@ export class ExplorationSystem {
     this.combatActive = true;
 
     // Remove the enemy from the map display.
-    enemy.sprite.destroy();
+    this.destroyEnemySprite(enemy.sprite);
     enemy.label.destroy();
     this.mapEnemies = this.mapEnemies.filter((e) => e !== enemy);
 
@@ -795,7 +901,7 @@ export class ExplorationSystem {
     this.mapManager.destroy();
     this.playerSprite?.destroy();
     this.mapEnemies.forEach((e) => {
-      e.sprite.destroy();
+      this.destroyEnemySprite(e.sprite);
       e.label.destroy();
     });
     this.mapEnemies = [];
@@ -808,5 +914,12 @@ export class ExplorationSystem {
     }
     this.exitMarkers.forEach((m) => m.destroy());
     this.exitMarkers = [];
+  }
+
+  /** Destroy an enemy's placeholder sprite and its associated procedural graphics (if any). */
+  private destroyEnemySprite(sprite: EntitySprite): void {
+    const gfx = (sprite as unknown as Record<string, unknown>)['_gfx'] as Phaser.GameObjects.Graphics | undefined;
+    if (gfx) gfx.destroy();
+    sprite.destroy();
   }
 }

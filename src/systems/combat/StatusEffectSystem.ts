@@ -61,11 +61,11 @@ export class StatusEffectSystem {
     const entityDurations = this.durations.get(entity.id);
     if (!entityDurations) return;
 
-    for (const [effectId] of entityDurations) {
+    for (const [effectId] of [...entityDurations]) {
       const def = statusData.statusEffects.find((s) => s.id === effectId) as StatusDef | undefined;
       if (!def) continue;
 
-      // DoT damage
+      // DoT damage (e.g. Poison)
       if (def.dotPercent) {
         const dmg = Math.floor(entity.stats.maxHp * def.dotPercent);
         entity.applyDamage(dmg);
@@ -73,15 +73,8 @@ export class StatusEffectSystem {
         this.bus.emit('combat:log', `${entity.name} takes ${dmg} damage from ${def.name ?? effectId}!`);
       }
 
-      // Tick duration
-      if (def.duration > 0) {
-        const remaining = (entityDurations.get(effectId) ?? 0) - 1;
-        if (remaining <= 0) {
-          this.remove(entity, effectId);
-        } else {
-          entityDurations.set(effectId, remaining);
-        }
-      }
+      // All status effects are now permanent (duration: -1).
+      // Effects are only removed by Dispel, Esuna, or specific cure items.
     }
   }
 }

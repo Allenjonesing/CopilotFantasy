@@ -49,6 +49,56 @@
       "description": "Cures Poison.",
       "buyPrice": 50,
       "sellPrice": 25
+    },
+    {
+      "id": "smokeBomb",
+      "name": "Smoke Bomb",
+      "type": "consumable",
+      "target": "single_enemy",
+      "effect": { "applyStatus": "poison" },
+      "description": "Hurls a toxic smoke bomb at one enemy, inflicting Poison.",
+      "buyPrice": 80,
+      "sellPrice": 40
+    },
+    {
+      "id": "freezeBomb",
+      "name": "Freeze Bomb",
+      "type": "consumable",
+      "target": "single_enemy",
+      "effect": { "applyStatus": "slow" },
+      "description": "Throws a cryo-grenade that inflicts Slow on one enemy.",
+      "buyPrice": 80,
+      "sellPrice": 40
+    },
+    {
+      "id": "mirrorShard",
+      "name": "Mirror Shard",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "applyStatus": "reflect" },
+      "description": "Applies a reflective barrier to one ally, granting Reflect.",
+      "buyPrice": 150,
+      "sellPrice": 75
+    },
+    {
+      "id": "zombieDust",
+      "name": "Zombie Dust",
+      "type": "consumable",
+      "target": "single_enemy",
+      "effect": { "applyStatus": "zombie" },
+      "description": "Foul dust that inflicts Zombie on one enemy, reversing all healing.",
+      "buyPrice": 120,
+      "sellPrice": 60
+    },
+    {
+      "id": "dispelHerb",
+      "name": "Dispel Herb",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "dispel": true },
+      "description": "Removes ALL status effects (buffs and debuffs) from one target.",
+      "buyPrice": 200,
+      "sellPrice": 100
     }
   ]
 }
