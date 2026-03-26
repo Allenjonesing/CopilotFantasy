@@ -7,7 +7,7 @@
       "type": "debuff",
       "dotPercent": 0.05,
       "duration": -1,
-      "description": "Deals 5% max HP per turn."
+      "description": "Deals 5% max HP per turn. Permanent until cured."
     },
     {
       "id": "slow",
@@ -15,8 +15,8 @@
       "color": 4474060,
       "type": "debuff",
       "agilityMod": 0.5,
-      "duration": 3,
-      "description": "Halves Agility for 3 turns."
+      "duration": -1,
+      "description": "Halves Agility. Permanent until cured."
     },
     {
       "id": "haste",
@@ -25,7 +25,7 @@
       "type": "buff",
       "agilityMod": 2.0,
       "duration": -1,
-      "description": "Doubles Agility for the rest of the battle."
+      "description": "Doubles Agility. Permanent until cured."
     },
     {
       "id": "reraise",
@@ -34,7 +34,7 @@
       "type": "buff",
       "autoRevive": true,
       "duration": -1,
-      "description": "Auto-revives once upon KO."
+      "description": "Auto-revives once upon KO with 25% HP."
     },
     {
       "id": "powerDown",
@@ -42,8 +42,8 @@
       "color": 4474060,
       "type": "debuff",
       "strengthMod": 0.5,
-      "duration": 3,
-      "description": "Halves Strength for 3 turns."
+      "duration": -1,
+      "description": "Halves Strength. Permanent until cured."
     },
     {
       "id": "provoked",
@@ -51,8 +51,26 @@
       "color": 16768324,
       "type": "debuff",
       "forcedTarget": true,
-      "duration": 2,
-      "description": "Forces targeting of the provoker."
+      "duration": -1,
+      "description": "Forces targeting of the provoker. Permanent until cured."
+    },
+    {
+      "id": "zombie",
+      "name": "Zombie",
+      "color": 3394611,
+      "type": "debuff",
+      "reversesHealing": true,
+      "duration": -1,
+      "description": "Healing effects deal damage instead. Permanent until cured."
+    },
+    {
+      "id": "reflect",
+      "name": "Reflect",
+      "color": 9699327,
+      "type": "buff",
+      "reflectsMagic": true,
+      "duration": -1,
+      "description": "Reflects all incoming magic spells back at the caster. Permanent until cured."
     }
   ]
 }

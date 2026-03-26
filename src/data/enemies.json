@@ -88,7 +88,7 @@
       "possibleElements": [null, null, null],
       "stats": {
         "hp": 55,
-        "mp": 25,
+        "mp": 30,
         "strength": 12,
         "magic": 5,
         "defense": 4,
@@ -96,7 +96,7 @@
         "agility": 20,
         "luck": 7
       },
-      "skills": ["attack", "smash", "venomStrike", "slowBell"],
+      "skills": ["attack", "smash", "venomStrike", "slowBell", "zombify"],
       "rewards": { "exp": 45, "gold": 18, "items": [] },
       "possibleDrops": [{ "id": "antidote", "chance": 0.50 }]
     },
@@ -108,7 +108,7 @@
       "possibleElements": [null, null, null, null],
       "stats": {
         "hp": 160,
-        "mp": 20,
+        "mp": 30,
         "strength": 18,
         "magic": 5,
         "defense": 22,
@@ -116,7 +116,7 @@
         "agility": 6,
         "luck": 4
       },
-      "skills": ["attack", "smash", "enemyCure"],
+      "skills": ["attack", "smash", "enemyCure", "slowBell"],
       "rewards": { "exp": 90, "gold": 40, "items": [] },
       "possibleDrops": [{ "id": "hiPotion", "chance": 0.35 }]
     },
@@ -156,9 +156,89 @@
         "agility": 13,
         "luck": 10
       },
-      "skills": ["attack", "smash", "firaga", "blizzaga", "thundaga", "drain", "enemyCure"],
+      "skills": ["attack", "smash", "firaga", "blizzaga", "thundaga", "drain", "enemyCure", "enemyReflect"],
       "rewards": { "exp": 320, "gold": 130, "items": ["ether"] },
       "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }, { "id": "ether", "chance": 0.40 }]
+    },
+    {
+      "id": "zombieSlime",
+      "name": "Zombie Slime",
+      "baseFloor": 3,
+      "color": 3394611,
+      "possibleElements": [null, null, null],
+      "stats": {
+        "hp": 45,
+        "mp": 30,
+        "strength": 7,
+        "magic": 6,
+        "defense": 4,
+        "magicDefense": 5,
+        "agility": 6,
+        "luck": 3
+      },
+      "skills": ["attack", "venomStrike", "zombify"],
+      "rewards": { "exp": 35, "gold": 15, "items": [] },
+      "possibleDrops": [{ "id": "antidote", "chance": 0.60 }, { "id": "zombieDust", "chance": 0.30 }]
+    },
+    {
+      "id": "mushroomSpore",
+      "name": "Mushroom Spore",
+      "baseFloor": 4,
+      "color": 10040166,
+      "possibleElements": [null, null, null, null],
+      "stats": {
+        "hp": 70,
+        "mp": 50,
+        "strength": 9,
+        "magic": 11,
+        "defense": 6,
+        "magicDefense": 8,
+        "agility": 9,
+        "luck": 5
+      },
+      "skills": ["attack", "venomStrike", "slowBell", "enemyCure"],
+      "rewards": { "exp": 55, "gold": 22, "items": [] },
+      "possibleDrops": [{ "id": "antidote", "chance": 0.50 }, { "id": "freezeBomb", "chance": 0.30 }]
+    },
+    {
+      "id": "crystalGolem",
+      "name": "Crystal Golem",
+      "baseFloor": 6,
+      "color": 11393254,
+      "possibleElements": ["ice", "ice", null],
+      "stats": {
+        "hp": 200,
+        "mp": 40,
+        "strength": 20,
+        "magic": 14,
+        "defense": 28,
+        "magicDefense": 18,
+        "agility": 5,
+        "luck": 4
+      },
+      "skills": ["attack", "smash", "blizzard", "enemyReflect"],
+      "rewards": { "exp": 140, "gold": 60, "items": [] },
+      "possibleDrops": [{ "id": "mirrorShard", "chance": 0.40 }]
+    },
+    {
+      "id": "healingWisp",
+      "name": "Healing Wisp",
+      "baseFloor": 5,
+      "color": 16777164,
+      "possibleElements": [null, null, null],
+      "stats": {
+        "hp": 80,
+        "mp": 120,
+        "strength": 5,
+        "magic": 16,
+        "defense": 4,
+        "magicDefense": 18,
+        "agility": 15,
+        "luck": 8
+      },
+      "skills": ["attack", "enemyCure", "pray", "hasteBell"],
+      "rewards": { "exp": 80, "gold": 35, "items": [] },
+      "possibleDrops": [{ "id": "ether", "chance": 0.55 }]
     }
   ]
 }

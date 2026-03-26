@@ -168,11 +168,38 @@ export class CombatSystem {
     return true;
   }
 
+  /**
+   * Restore HP on an entity, accounting for the Zombie status which reverses
+   * healing into damage.  All healing in CombatSystem should go through this
+   * helper rather than calling entity.restoreHp() directly.
+   */
+  private applyHeal(entity: CombatEntity, amount: number): void {
+    if (entity.hasStatus('zombie')) {
+      entity.applyDamage(amount);
+      this.addLog(`${entity.name}'s Zombie status reverses the healing! ${amount} damage!`);
+      this.bus.emit('combat:damage', entity, amount);
+      this.checkDefeated(entity);
+    } else {
+      entity.restoreHp(amount);
+      this.bus.emit('combat:heal', entity, amount);
+    }
+  }
+
   private applySkillEffect(
     actor: CombatEntity,
     skill: (typeof skillsData.skills)[0],
     target: CombatEntity,
   ): void {
+    if (skill.type === 'magic') {
+      // Reflect: bounce magic skills back at the caster (except when caster already has Reflect,
+      // to prevent infinite loops).
+      if (target.hasStatus('reflect') && !actor.hasStatus('reflect')) {
+        this.addLog(`${target.name}'s Reflect bounces ${skill.name} back at ${actor.name}!`);
+        this.applySkillEffect(target, skill, actor);
+        return;
+      }
+    }
+
     if (skill.type === 'physical' || skill.type === 'magic') {
       const skillElement = (skill as { element?: string }).element ?? null;
 
@@ -181,9 +208,8 @@ export class CombatSystem {
         const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
         const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
         const healed = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
-        target.restoreHp(healed);
+        this.applyHeal(target, healed);
         this.addLog(`${target.name} absorbs ${skill.name}! Healed for ${healed} HP.`);
-        this.bus.emit('combat:heal', target, healed);
         return;
       }
 
@@ -204,10 +230,9 @@ export class CombatSystem {
         const dmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
         target.applyDamage(dmg);
         const restore = Math.max(1, Math.floor(dmg / 2));
-        actor.restoreHp(restore);
+        this.applyHeal(actor, restore);
         this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (restored ${restore} HP).`);
         this.bus.emit('combat:damage', target, dmg);
-        this.bus.emit('combat:heal', actor, restore);
         this.checkDefeated(target);
         return;
       }
@@ -227,9 +252,8 @@ export class CombatSystem {
       this.checkDefeated(target);
     } else if (skill.type === 'heal') {
       const healed = Math.floor(actor.stats.magic * 3 * (skill.power ?? 1.0));
-      target.restoreHp(healed);
+      this.applyHeal(target, healed);
       this.addLog(`${actor.name} uses ${skill.name} on ${target.name}, restoring ${healed} HP.`);
-      this.bus.emit('combat:heal', target, healed);
     } else if (skill.type === 'revive') {
       if (!target.isDefeated) {
         this.addLog(`${target.name} doesn't need reviving!`);
@@ -263,8 +287,8 @@ export class CombatSystem {
     const effect = item.effect as Record<string, unknown>;
     if (effect['revive'] === true) {
       if (!t.isDefeated) {
-        this.addLog(`${t.name} doesn't need reviving!`);
-        state.addItem(itemId); // refund
+        this.addLog(`${t.name} doesn't need reviving! (${item.name} wasted)`);
+        // Item is already consumed — do NOT refund it. The turn is also consumed.
         return;
       }
       const hpRestore = typeof effect['hpPercent'] === 'number'
@@ -273,11 +297,19 @@ export class CombatSystem {
       t.stats.hp = hpRestore; // directly set so defeated check clears
       this.addLog(`${actor.name} uses ${item.name} — ${t.name} is revived with ${hpRestore} HP!`);
       this.bus.emit('combat:heal', t, hpRestore);
+    } else if (typeof effect['applyStatus'] === 'string') {
+      const statusId = effect['applyStatus'] as string;
+      this.statusSystem.apply(t, statusId);
+      this.addLog(`${actor.name} uses ${item.name} on ${t.name}, inflicting ${statusId}!`);
+    } else if (effect['dispel'] === true) {
+      const removed = [...t.statusEffects];
+      removed.forEach((eff) => this.statusSystem.remove(t, eff));
+      this.addLog(`${actor.name} uses ${item.name} on ${t.name}, dispelling all status effects!`);
+      this.bus.emit('combat:heal', t, 0);
     } else {
       if (typeof effect['hp'] === 'number') {
-        t.restoreHp(effect['hp']);
+        this.applyHeal(t, effect['hp']);
         this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['hp']} HP.`);
-        this.bus.emit('combat:heal', t, effect['hp']);
       }
       if (typeof effect['mp'] === 'number') {
         t.stats.mp = Math.min(t.stats.maxMp, t.stats.mp + (effect['mp'] as number));
@@ -330,13 +362,14 @@ export class CombatSystem {
   private checkDefeated(entity: CombatEntity): void {
     if (entity.isDefeated) {
       if (entity.hasStatus('reraise')) {
-        entity.restoreHp(1);
+        const hpRestore = Math.max(1, Math.floor(entity.stats.maxHp * 0.25));
+        entity.stats.hp = hpRestore; // set directly to avoid zombie interaction on auto-revive
         entity.removeStatus('reraise');
         const skillDef = skillsData.skills.find((s) => s.id === 'reraise');
         const skillName = skillDef ? skillDef.name : 'Auto-Life';
-        this.addLog(`${entity.name} is revived by ${skillName}!`);
+        this.addLog(`${entity.name} is revived by ${skillName} with ${hpRestore} HP!`);
         // Emit heal so the UI re-renders the entity as alive.
-        this.bus.emit('combat:heal', entity, 1);
+        this.bus.emit('combat:heal', entity, hpRestore);
       } else {
         this.addLog(`${entity.name} is defeated!`);
         this.bus.emit('combat:defeated', entity);

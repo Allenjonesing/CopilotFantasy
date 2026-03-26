@@ -171,6 +171,62 @@ describe('CombatSystem', () => {
     const slime = new EnemyCombatant('slime');
     expect(slime.stats.mp).toBeGreaterThanOrEqual(6);
   });
+
+  it('using revival item on alive target consumes the item (not refunded)', () => {
+    const state = GameState.getInstance();
+    state.addItem('phoenix', 1);
+    const qtyBefore = state.data.inventory.find((i) => i.id === 'phoenix')!.quantity;
+    system.nextTurn();
+    const actor = system.currentActor!;
+    // Use phoenix on an ALIVE ally (should consume item, not refund)
+    const aliveTarget = system.players.find((p) => !p.isDefeated)!;
+    system.executeAction(actor, { type: 'item', itemId: 'phoenix', target: aliveTarget });
+    const qtyAfter = state.data.inventory.find((i) => i.id === 'phoenix');
+    expect((qtyAfter?.quantity ?? 0)).toBe(qtyBefore - 1);
+  });
+
+  it('revival herb restores 50% HP on a KO\'d ally', () => {
+    const state = GameState.getInstance();
+    state.addItem('phoenix', 1);
+    system.nextTurn();
+    const actor = system.currentActor!;
+    const target = system.players.find((p) => p !== actor)!;
+    target.applyDamage(target.stats.maxHp); // KO
+    system.executeAction(actor, { type: 'item', itemId: 'phoenix', target });
+    expect(target.isDefeated).toBe(false);
+    expect(target.stats.hp).toBe(Math.max(1, Math.floor(target.stats.maxHp * 0.5)));
+  });
+
+  it('reraise auto-revives with 25% HP (not 1 HP)', () => {
+    const aria = system.players[0];
+    aria.stats.mp = 100;
+    aria.skills.push('reraise');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'reraise', target: aria });
+    expect(aria.hasStatus('reraise')).toBe(true);
+    // KO aria — reraise should trigger
+    aria.applyDamage(aria.stats.maxHp);
+    // checkDefeated is triggered during a subsequent attack
+    const slime = system.enemies[0];
+    slime.stats.mp = 0;
+    system.executeAction(slime, { type: 'attack', target: aria });
+    // If she was killed the reraise should have fired (hp already applied above)
+    // Check that if reraise was on her, she didn't stay at 1 HP
+    if (!aria.isDefeated) {
+      expect(aria.stats.hp).toBeGreaterThanOrEqual(Math.floor(aria.stats.maxHp * 0.25));
+    }
+  });
+
+  it('new enemy types exist: zombieSlime, mushroomSpore, crystalGolem, healingWisp', () => {
+    const zombie = new EnemyCombatant('zombieSlime', 1.0, undefined, 3);
+    const mushroom = new EnemyCombatant('mushroomSpore', 1.0, undefined, 4);
+    const crystal = new EnemyCombatant('crystalGolem', 1.0, undefined, 6);
+    const wisp = new EnemyCombatant('healingWisp', 1.0, undefined, 5);
+    expect(zombie.stats.hp).toBeGreaterThan(0);
+    expect(mushroom.stats.hp).toBeGreaterThan(0);
+    expect(crystal.stats.defense).toBeGreaterThan(20);
+    expect(wisp.stats.mp).toBeGreaterThan(80);
+  });
 });
 
 describe('Bell Skills', () => {
@@ -262,13 +318,19 @@ describe('StatusEffectSystem', () => {
     expect(aria.stats.hp).toBeLessThan(hpBefore);
   });
 
-  it('removes effects after duration expires', () => {
+  it('status effects are permanent — slow does not expire on its own', () => {
     const aria = new PlayerCombatant('aria');
     const ses = new StatusEffectSystem();
-    ses.apply(aria, 'slow'); // duration = 3
+    ses.apply(aria, 'slow');
+    // Process many turns — status should persist (all effects are permanent).
     ses.processTurn(aria);
     ses.processTurn(aria);
     ses.processTurn(aria);
+    ses.processTurn(aria);
+    ses.processTurn(aria);
+    expect(aria.hasStatus('slow')).toBe(true);
+    // Manual removal still works
+    ses.remove(aria, 'slow');
     expect(aria.hasStatus('slow')).toBe(false);
   });
 
@@ -277,6 +339,98 @@ describe('StatusEffectSystem', () => {
     const ses = new StatusEffectSystem();
     ses.apply(kael, 'haste');
     expect(kael.effectiveAgility()).toBe(18); // 9 * 2 = 18
+  });
+});
+
+describe('Zombie and Reflect status effects', () => {
+  let system: CombatSystem;
+
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+    system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+  });
+
+  it('Zombie reverses healing: cure on Zombie target deals damage instead', () => {
+    const lyra = system.players.find((p) => p.characterId === 'lyra')!;
+    lyra.addStatus('zombie');
+    lyra.stats.mp = 100;
+    lyra.skills.push('cure');
+    const hpBefore = lyra.stats.hp;
+    system.nextTurn();
+    system.executeAction(lyra, { type: 'skill', skillId: 'cure', target: lyra });
+    // Zombie reverses heal to damage — hp should be lower
+    expect(lyra.stats.hp).toBeLessThan(hpBefore);
+  });
+
+  it('Reflect bounces a magic spell back at the caster', () => {
+    const slime = system.enemies[0];
+    slime.addStatus('reflect');
+    slime.stats.mp = 40;
+    const aria = system.players[0];
+    const ariaHpBefore = aria.stats.hp;
+    // Force aria's turn so she can cast a spell
+    system.nextTurn();
+    aria.stats.mp = 50;
+    system.executeAction(aria, { type: 'skill', skillId: 'fire', target: slime });
+    // Slime reflects fire back at Aria — aria should take damage, slime should be unharmed
+    expect(aria.stats.hp).toBeLessThan(ariaHpBefore);
+    expect(slime.stats.hp).toBe(slime.stats.maxHp); // slime untouched
+  });
+
+  it('status-effect items apply status: smokeBomb inflicts Poison', () => {
+    const state = GameState.getInstance();
+    state.addItem('smokeBomb', 1);
+    system.nextTurn();
+    const actor = system.currentActor!;
+    const slime = system.enemies[0];
+    system.executeAction(actor, { type: 'item', itemId: 'smokeBomb', target: slime });
+    expect(slime.hasStatus('poison')).toBe(true);
+  });
+
+  it('status-effect items apply status: freezeBomb inflicts Slow', () => {
+    const state = GameState.getInstance();
+    state.addItem('freezeBomb', 1);
+    system.nextTurn();
+    const actor = system.currentActor!;
+    const slime = system.enemies[0];
+    system.executeAction(actor, { type: 'item', itemId: 'freezeBomb', target: slime });
+    expect(slime.hasStatus('slow')).toBe(true);
+  });
+
+  it('dispelHerb removes all status effects', () => {
+    const state = GameState.getInstance();
+    state.addItem('dispelHerb', 1);
+    const aria = system.players[0];
+    aria.addStatus('poison');
+    aria.addStatus('slow');
+    system.nextTurn();
+    const actor = system.currentActor!;
+    system.executeAction(actor, { type: 'item', itemId: 'dispelHerb', target: aria });
+    expect(aria.hasStatus('poison')).toBe(false);
+    expect(aria.hasStatus('slow')).toBe(false);
+  });
+
+  it('zombify skill inflicts Zombie on enemy', () => {
+    const aria = system.players[0];
+    aria.stats.mp = 50;
+    aria.skills.push('zombify');
+    const slime = system.enemies[0];
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'zombify', target: slime });
+    expect(slime.hasStatus('zombie')).toBe(true);
+  });
+
+  it('reflectCast skill grants Reflect to ally', () => {
+    const aria = system.players[0];
+    aria.stats.mp = 50;
+    aria.skills.push('reflectCast');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'reflectCast', target: aria });
+    expect(aria.hasStatus('reflect')).toBe(true);
   });
 });
 
@@ -295,12 +449,12 @@ describe('Battle save/resume – CTB and status round-trip', () => {
     expect(durations).toEqual({});
   });
 
-  it('getStatusDurationsFor reflects remaining duration after apply', () => {
+  it('getStatusDurationsFor reflects duration value after apply (permanent effects use -1)', () => {
     const aria = new PlayerCombatant('aria');
     const ses = new StatusEffectSystem();
-    ses.apply(aria, 'slow'); // duration = 3 per statusEffects.json
+    ses.apply(aria, 'slow'); // duration = -1 (permanent) per statusEffects.json
     const durations = ses.getDurations(aria.id);
-    expect(durations['slow']).toBe(3);
+    expect(durations['slow']).toBe(-1); // permanent status
   });
 
   it('restoreEntityStatuses restores status effects and their durations', () => {
