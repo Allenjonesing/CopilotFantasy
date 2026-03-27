@@ -154,6 +154,10 @@ export class CombatUI {
   private timelineIcons: Phaser.GameObjects.GameObject[] = [];
   /** Maps entity.id → [icon, label] for the current timeline render. Used for shift animation. */
   private timelineEntityIcons: Map<string, [Phaser.GameObjects.Rectangle, Phaser.GameObjects.Text]> = new Map();
+  /** Ghost overlay container: shows predicted turn order when a skill is highlighted. */
+  private ghostTimelineContainer!: Phaser.GameObjects.Container;
+  /** Speed modifier of the skill currently being previewed, or null if no preview is active. */
+  private activePreviewSpeedModifier: number | null = null;
   // Compact log strip
   private logStripBg!: Phaser.GameObjects.Rectangle;
   private logTexts: Phaser.GameObjects.Text[] = [];
@@ -247,6 +251,8 @@ export class CombatUI {
     this.scene.add.rectangle(this.W / 2, TIMELINE_H / 2, this.W, TIMELINE_H, 0x111133);
     this.timelineContainer = this.scene.add.container(0, 0);
     this.timelineContainer.setDepth(20);
+    this.ghostTimelineContainer = this.scene.add.container(0, 0);
+    this.ghostTimelineContainer.setDepth(21);
 
     // ── Battlefield background ────────────────────────────────────────────────
     this.scene.add.rectangle(this.W / 2, (TIMELINE_H + this.BATTLEFIELD_BOTTOM) / 2, this.W, this.BATTLEFIELD_BOTTOM - TIMELINE_H, 0x1a1a2e);
@@ -720,6 +726,8 @@ export class CombatUI {
         if (tip && this.helpText.active) this.helpText.setText(tip);
       }
     }
+    // Show ghost timeline preview for the initially-highlighted skill.
+    this.updateGhostPreviewForSkillIndex(this.selectedMenuIndex);
   }
 
   private buildItemMenu(): void {
@@ -835,6 +843,7 @@ export class CombatUI {
     this.pendingItemId = null;
     this.pendingTargetsAll = false;
     this.hideTargetCursor();
+    this.clearGhostTimelinePreview();
     this.buildMainMenu();
   }
 
@@ -1558,6 +1567,11 @@ export class CombatUI {
       this.timelineIcons.push(icon, label);
       this.timelineEntityIcons.set(entity.id, [icon, label]);
     });
+
+    // Re-apply ghost preview if one is active (e.g. after a turn-start rebuild).
+    if (this.activePreviewSpeedModifier !== null) {
+      this.showGhostTimelinePreview(this.activePreviewSpeedModifier);
+    }
   }
 
   /** Animate the timeline cards sliding to new positions after a speed-modifying action.
@@ -1634,6 +1648,70 @@ export class CombatUI {
     }
   }
 
+  /** Render a semi-transparent ghost timeline showing the predicted turn order if the current
+   *  actor uses a skill with the given speedModifier. Dims the real timeline to make the
+   *  preview stand out. */
+  private showGhostTimelinePreview(speedModifier: number): void {
+    if (!this.currentActor || !this.ghostTimelineContainer.active) return;
+    this.activePreviewSpeedModifier = speedModifier;
+
+    // Dim the real timeline cards so the ghost preview stands out.
+    this.timelineContainer.setAlpha(0.3);
+
+    // Clear any existing ghost cards.
+    this.ghostTimelineContainer.removeAll(true);
+
+    const order = this.system.getTimelinePreviewWithModifier(this.currentActor, speedModifier, 10);
+    order.forEach((entity, idx) => {
+      const isPlayer = this.system.players.includes(entity as PlayerCombatant);
+      const color = isPlayer ? 0x4466ff : 0xcc4444;
+      const cx = 6 + idx * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
+      const cy = TIMELINE_H / 2;
+
+      const icon = this.scene.add.rectangle(cx, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, color);
+      // White border marks these as preview cards.
+      icon.setStrokeStyle(2, 0xffffff);
+      icon.setAlpha(0.75);
+      const label = this.scene.add.text(cx, cy, entity.name.substring(0, TIMELINE_NAME_LEN), {
+        fontSize: '9px',
+        color: '#ffffff',
+        fontFamily: 'monospace',
+      }).setOrigin(0.5).setAlpha(0.75);
+
+      this.ghostTimelineContainer.add([icon, label]);
+    });
+  }
+
+  /** Remove the ghost timeline preview and restore the real timeline to full opacity. */
+  private clearGhostTimelinePreview(): void {
+    this.activePreviewSpeedModifier = null;
+    if (this.ghostTimelineContainer.active) {
+      this.ghostTimelineContainer.removeAll(true);
+    }
+    if (this.timelineContainer.active) {
+      this.timelineContainer.setAlpha(1.0);
+    }
+  }
+
+  /** Look up the speedModifier for the skill at the given menu index and refresh the ghost preview. */
+  private updateGhostPreviewForSkillIndex(idx: number): void {
+    if (!this.currentActor) return;
+    const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
+    const skillId = skillIds[idx];
+    if (!skillId) return;
+    const def = skillsData.skills.find((s) => s.id === skillId);
+    const speedMod = (def as { speedModifier?: number } | undefined)?.speedModifier ?? 1.0;
+    this.showGhostTimelinePreview(speedMod);
+  }
+
+  private appendLog(_msg: string): void {
+    const lines = [...this.system.log.slice(-LOG_LINE_COUNT)];
+    lines.forEach((l, i) => this.logTexts[i]?.setText(l));
+    for (let i = lines.length; i < this.logTexts.length; i++) {
+      this.logTexts[i]?.setText('');
+    }
+  }
+
   navigateMenu(direction: 'up' | 'down' | 'left' | 'right'): void {
     const count = this.fullMenuItems.length;
     if (count === 0) return;
@@ -1663,6 +1741,10 @@ export class CombatUI {
       // Update the help text to describe the currently highlighted option.
       const tip = this.menuTooltips[newIdx];
       if (tip && this.helpText.active) this.helpText.setText(tip);
+      // Update ghost timeline preview when hovering skill menu items.
+      if (this.menuState === 'skill') {
+        this.updateGhostPreviewForSkillIndex(newIdx);
+      }
     }
   }
 
@@ -1754,10 +1836,12 @@ export class CombatUI {
       } else if (prev === 'item') {
         this.buildItemMenu();
       } else {
+        this.clearGhostTimelinePreview();
         this.buildMainMenu();
       }
     } else {
       this.menuState = 'main';
+      this.clearGhostTimelinePreview();
       this.buildMainMenu();
     }
   }
@@ -1814,6 +1898,7 @@ export class CombatUI {
     this.bus.off('combat:timelineShift', this.onCombatTimelineShift);
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
+    this.ghostTimelineContainer.destroy();
     this.logStripBg.destroy();
     this.logTexts.forEach((t) => t.destroy());
     this.targetCursor.destroy();

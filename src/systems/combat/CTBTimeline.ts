@@ -33,6 +33,30 @@ export class CTBTimeline {
     actor.ctbValue = Math.max(1, Math.round(base * speedModifier));
   }
 
+  /** Return the predicted turn order assuming actor just used a skill with the given speed modifier.
+   *  The simulation starts with the actor's CTB set to what it would be after endTurn(actor, speedModifier)
+   *  and all other entities keeping their current CTB values.  It then projects `count` future turns,
+   *  cycling entities as the timeline advances — this does not mutate any entity's ctbValue. */
+  previewWithSpeedModifier(actor: CombatEntity, speedModifier: number, count = 10): CombatEntity[] {
+    const active = this.entities.filter((e) => !e.isDefeated);
+    const base = Math.floor(CTB_SPEED_CONSTANT / actor.effectiveAgility());
+    const newActorVal = Math.max(1, Math.round(base * speedModifier));
+    type Snap = { entity: CombatEntity; val: number };
+    const snap: Snap[] = active.map((e) => ({ entity: e, val: e === actor ? newActorVal : e.ctbValue }));
+    const order: CombatEntity[] = [];
+    for (let i = 0; i < count; i++) {
+      if (snap.length === 0) break;
+      const min = Math.min(...snap.map((s) => s.val));
+      snap.forEach((s) => (s.val -= min));
+      const idx = snap.findIndex((s) => s.val === 0);
+      const [picked] = snap.splice(idx, 1);
+      order.push(picked.entity);
+      picked.val = Math.floor(CTB_SPEED_CONSTANT / picked.entity.effectiveAgility());
+      snap.push(picked);
+    }
+    return order;
+  }
+
   /** Return entities sorted by who acts soonest. */
   preview(count = 10): CombatEntity[] {
     const active = this.entities.filter((e) => !e.isDefeated);

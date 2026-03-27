@@ -411,6 +411,11 @@ export class CombatSystem {
     return this.timeline.preview(count);
   }
 
+  /** Return the predicted turn order if actor uses a skill with the given speed modifier. */
+  getTimelinePreviewWithModifier(actor: CombatEntity, speedModifier: number, count = 10): CombatEntity[] {
+    return this.timeline.previewWithSpeedModifier(actor, speedModifier, count);
+  }
+
   checkResult(): CombatResult | null {
     const allEnemiesDead = this.enemies.every((e) => e.isDefeated);
     const allPlayersDead = this.players.every((p) => p.isDefeated);
