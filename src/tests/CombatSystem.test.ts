@@ -36,6 +36,47 @@ describe('CTBTimeline', () => {
     const preview = timeline.preview(6);
     expect(preview).toHaveLength(6);
   });
+
+  it('previewWithSpeedModifier returns the correct number of upcoming actors', () => {
+    const aria = new PlayerCombatant('aria');
+    const goblin = new EnemyCombatant('goblin');
+    const timeline = new CTBTimeline([aria, goblin]);
+    timeline.next(); // aria or goblin acts first (ctbValue = 0)
+    const actor = aria.ctbValue === 0 ? aria : goblin;
+    const preview = timeline.previewWithSpeedModifier(actor, 1.0, 6);
+    expect(preview).toHaveLength(6);
+  });
+
+  it('previewWithSpeedModifier with fast skill places actor sooner than slow skill', () => {
+    const aria = new PlayerCombatant('aria');  // agility 6
+    const slime = new EnemyCombatant('slime');
+    const timeline = new CTBTimeline([aria, slime]);
+    timeline.next();
+    aria.ctbValue = 0; // force aria to be the current actor
+
+    const fastPreview = timeline.previewWithSpeedModifier(aria, 0.6, 10);
+    const slowPreview = timeline.previewWithSpeedModifier(aria, 1.6, 10);
+
+    // In the fast preview, aria should appear again sooner (lower index after position 0).
+    const ariaFastIdx = fastPreview.findIndex((e) => e === aria);
+    const ariaSlowIdx = slowPreview.findIndex((e) => e === aria);
+    expect(ariaFastIdx).toBeLessThan(ariaSlowIdx);
+  });
+
+  it('previewWithSpeedModifier does not mutate entity ctbValues', () => {
+    const aria = new PlayerCombatant('aria');
+    const slime = new EnemyCombatant('slime');
+    const timeline = new CTBTimeline([aria, slime]);
+    timeline.next();
+    aria.ctbValue = 0;
+    const slimeBefore = slime.ctbValue;
+
+    timeline.previewWithSpeedModifier(aria, 0.6, 10);
+
+    // Original ctb values must be unchanged after the preview.
+    expect(aria.ctbValue).toBe(0);
+    expect(slime.ctbValue).toBe(slimeBefore);
+  });
 });
 
 describe('CombatSystem', () => {
