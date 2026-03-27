@@ -1704,14 +1704,6 @@ export class CombatUI {
     this.showGhostTimelinePreview(speedMod);
   }
 
-  private appendLog(_msg: string): void {
-    const lines = [...this.system.log.slice(-LOG_LINE_COUNT)];
-    lines.forEach((l, i) => this.logTexts[i]?.setText(l));
-    for (let i = lines.length; i < this.logTexts.length; i++) {
-      this.logTexts[i]?.setText('');
-    }
-  }
-
   navigateMenu(direction: 'up' | 'down' | 'left' | 'right'): void {
     const count = this.fullMenuItems.length;
     if (count === 0) return;
