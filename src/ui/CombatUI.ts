@@ -1650,7 +1650,8 @@ export class CombatUI {
 
   /** Render a semi-transparent ghost timeline showing the predicted turn order if the current
    *  actor uses a skill with the given speedModifier. Dims the real timeline to make the
-   *  preview stand out. */
+   *  preview stand out. The current actor is always shown at position 0 with a bright
+   *  highlight border so it is clear whose turn it is while they are choosing an action. */
   private showGhostTimelinePreview(speedModifier: number): void {
     if (!this.currentActor || !this.ghostTimelineContainer.active) return;
     this.activePreviewSpeedModifier = speedModifier;
@@ -1661,12 +1662,29 @@ export class CombatUI {
     // Clear any existing ghost cards.
     this.ghostTimelineContainer.removeAll(true);
 
-    const order = this.system.getTimelinePreviewWithModifier(this.currentActor, speedModifier, 10);
+    const cy = TIMELINE_H / 2;
+
+    // Always keep the current actor at slot 0 with a highlight matching their turn indicator.
+    const isCurrentPlayer = this.system.players.includes(this.currentActor as PlayerCombatant);
+    const currentFill = isCurrentPlayer ? 0x4466ff : 0xcc4444;
+    // Highlight colour matches the active-turn indicator: yellow for players, red for enemies.
+    const highlightColor = isCurrentPlayer ? 0xffff00 : 0xff6666;
+    const cx0 = 6 + TIMELINE_SLOT_W / 2;
+    const currentIcon = this.scene.add.rectangle(cx0, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, currentFill);
+    currentIcon.setStrokeStyle(3, highlightColor);
+    const currentLabel = this.scene.add.text(cx0, cy, this.currentActor.name.substring(0, TIMELINE_NAME_LEN), {
+      fontSize: '9px',
+      color: '#ffffff',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5);
+    this.ghostTimelineContainer.add([currentIcon, currentLabel]);
+
+    // Remaining slots: predicted order after the actor uses this action (9 slots, positions 1–9).
+    const order = this.system.getTimelinePreviewWithModifier(this.currentActor, speedModifier, 9);
     order.forEach((entity, idx) => {
       const isPlayer = this.system.players.includes(entity as PlayerCombatant);
       const color = isPlayer ? 0x4466ff : 0xcc4444;
-      const cx = 6 + idx * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
-      const cy = TIMELINE_H / 2;
+      const cx = 6 + (idx + 1) * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
 
       const icon = this.scene.add.rectangle(cx, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, color);
       // White border marks these as preview cards.
