@@ -154,10 +154,6 @@ export class CombatUI {
   private timelineIcons: Phaser.GameObjects.GameObject[] = [];
   /** Maps entity.id → [icon, label] for the current timeline render. Used for shift animation. */
   private timelineEntityIcons: Map<string, [Phaser.GameObjects.Rectangle, Phaser.GameObjects.Text]> = new Map();
-  /** Ghost overlay container: shows predicted turn order when a skill is highlighted. */
-  private ghostTimelineContainer!: Phaser.GameObjects.Container;
-  /** Speed modifier of the skill currently being previewed, or null if no preview is active. */
-  private activePreviewSpeedModifier: number | null = null;
   /** Running tween that pulses the active slot in the timeline bar. */
   private timelinePulseTween: Phaser.Tweens.Tween | null = null;
   // Compact log strip
@@ -253,8 +249,6 @@ export class CombatUI {
     this.scene.add.rectangle(this.W / 2, TIMELINE_H / 2, this.W, TIMELINE_H, 0x111133);
     this.timelineContainer = this.scene.add.container(0, 0);
     this.timelineContainer.setDepth(20);
-    this.ghostTimelineContainer = this.scene.add.container(0, 0);
-    this.ghostTimelineContainer.setDepth(21);
 
     // ── Battlefield background ────────────────────────────────────────────────
     this.scene.add.rectangle(this.W / 2, (TIMELINE_H + this.BATTLEFIELD_BOTTOM) / 2, this.W, this.BATTLEFIELD_BOTTOM - TIMELINE_H, 0x1a1a2e);
@@ -728,8 +722,6 @@ export class CombatUI {
         if (tip && this.helpText.active) this.helpText.setText(tip);
       }
     }
-    // Show ghost timeline preview for the initially-highlighted skill.
-    this.updateGhostPreviewForSkillIndex(this.selectedMenuIndex);
   }
 
   private buildItemMenu(): void {
@@ -845,7 +837,6 @@ export class CombatUI {
     this.pendingItemId = null;
     this.pendingTargetsAll = false;
     this.hideTargetCursor();
-    this.clearGhostTimelinePreview();
     this.buildMainMenu();
   }
 
@@ -1544,55 +1535,86 @@ export class CombatUI {
     return rect ? { x: rect.x, y: rect.y } : { x: Math.round(this.W * 0.5625), y: this.ICON_Y };
   }
 
-  /** Rebuild the CTB turn-order bar from the timeline preview. */
+  /** Rebuild the CTB turn-order bar from the timeline preview.
+   *  Existing cards slide left/right to their new positions; new cards fade in;
+   *  cards that fall off the visible window fade out. */
   private refreshTimeline(): void {
-    // Stop any existing pulse tween before clearing the container.
+    // Stop any existing pulse tween before repositioning.
     if (this.timelinePulseTween) {
       this.timelinePulseTween.stop();
       this.timelinePulseTween = null;
     }
 
-    this.timelineContainer.removeAll(true);
-    this.timelineIcons = [];
-    this.timelineEntityIcons.clear();
-
     const order = this.system.getTimelinePreview(10);
     const cy = TIMELINE_H / 2;
+
+    // Build a set of entity ids present in the new order.
+    const newEntityIds = new Set(order.map((e) => e.id));
+
+    // Collect objects being removed so we can do a single filter pass afterward.
+    const removedObjects: Phaser.GameObjects.GameObject[] = [];
+
+    // Fade out and destroy cards for entities no longer in the preview window.
+    this.timelineEntityIcons.forEach(([icon, label], id) => {
+      if (!newEntityIds.has(id)) {
+        this.scene.tweens.killTweensOf(icon);
+        this.scene.tweens.killTweensOf(label);
+        this.scene.tweens.add({
+          targets: [icon, label],
+          alpha: 0,
+          duration: 150,
+          ease: 'Linear',
+          onComplete: () => {
+            icon.destroy();
+            label.destroy();
+          },
+        });
+        this.timelineEntityIcons.delete(id);
+        removedObjects.push(icon, label);
+      }
+    });
+    if (removedObjects.length > 0) {
+      const removedSet = new Set(removedObjects);
+      this.timelineIcons = this.timelineIcons.filter((o) => !removedSet.has(o));
+    }
+
     order.forEach((entity, idx) => {
       const isPlayer = this.system.players.includes(entity as PlayerCombatant);
       const color = isPlayer ? 0x4466ff : 0xcc4444;
-      const cx = 6 + idx * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
+      const targetX = 6 + idx * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
 
-      const icon = this.scene.add.rectangle(cx, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, color);
-      icon.setStrokeStyle(1, isPlayer ? 0x88aaff : 0xff8888);
-      const label = this.scene.add.text(cx, cy, entity.name.substring(0, TIMELINE_NAME_LEN), {
-        fontSize: '9px',
-        color: '#ffffff',
-        fontFamily: 'monospace',
-      }).setOrigin(0.5);
+      if (this.timelineEntityIcons.has(entity.id)) {
+        // Slide the existing card horizontally to its new position.
+        const [icon, label] = this.timelineEntityIcons.get(entity.id)!;
+        this.scene.tweens.killTweensOf(icon);
+        this.scene.tweens.killTweensOf(label);
+        this.scene.tweens.add({ targets: [icon, label], x: targetX, alpha: 1, duration: TIMELINE_SHIFT_ANIM_MS, ease: 'Power2' });
+      } else {
+        // New card: create at its target position and fade in (no drop from top).
+        const icon = this.scene.add.rectangle(targetX, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, color);
+        icon.setStrokeStyle(1, isPlayer ? 0x88aaff : 0xff8888);
+        const label = this.scene.add.text(targetX, cy, entity.name.substring(0, TIMELINE_NAME_LEN), {
+          fontSize: '9px',
+          color: '#ffffff',
+          fontFamily: 'monospace',
+        }).setOrigin(0.5);
 
-      // Staggered slide-in: cards start one full slot-height above their target
-      // position (TIMELINE_H = 36px, so starting y = cy - TIMELINE_H = -18,
-      // just above the visible timeline bar) and drop into place.
-      icon.setY(cy - TIMELINE_H);
-      label.setY(cy - TIMELINE_H);
-      icon.setAlpha(0);
-      label.setAlpha(0);
-      this.scene.tweens.add({
-        targets: [icon, label],
-        y: cy,
-        alpha: 1,
-        duration: 200,
-        ease: 'Back.Out',
-        delay: idx * 28,
-      });
+        icon.setAlpha(0);
+        label.setAlpha(0);
+        this.scene.tweens.add({
+          targets: [icon, label],
+          alpha: 1,
+          duration: 200,
+          ease: 'Linear',
+        });
 
-      this.timelineContainer.add([icon, label]);
-      this.timelineIcons.push(icon, label);
-      this.timelineEntityIcons.set(entity.id, [icon, label]);
+        this.timelineContainer.add([icon, label]);
+        this.timelineIcons.push(icon, label);
+        this.timelineEntityIcons.set(entity.id, [icon, label]);
+      }
     });
 
-    // Add a subtle pulsing scale on the first slot (the upcoming/current actor).
+    // Add a subtle pulsing scale on the first slot (the current/upcoming actor).
     if (order.length > 0) {
       const firstPair = this.timelineEntityIcons.get(order[0].id);
       if (firstPair) {
@@ -1605,14 +1627,9 @@ export class CombatUI {
           yoyo: true,
           repeat: -1,
           ease: 'Sine.easeInOut',
-          delay: 300, // start after all slide-in animations have completed (max: duration 200ms + last card delay 9*28=252ms → 300ms is safe)
+          delay: TIMELINE_SHIFT_ANIM_MS,
         });
       }
-    }
-
-    // Re-apply ghost preview if one is active (e.g. after a turn-start rebuild).
-    if (this.activePreviewSpeedModifier !== null) {
-      this.showGhostTimelinePreview(this.activePreviewSpeedModifier);
     }
   }
 
@@ -1690,129 +1707,6 @@ export class CombatUI {
     }
   }
 
-  /** Render a ghost timeline showing the predicted turn order if the current
-   *  actor uses a skill with the given speedModifier.  The ghost cards use a
-   *  distinct darker-fill + pale-border colour scheme so they are immediately
-   *  recognisable as "preview" slots.  The real timeline fades to a dim alpha
-   *  so the ghost stands out, and the ghost container itself fades in smoothly.
-   *  The current actor is pinned at position 0 with a bright highlight border. */
-  private showGhostTimelinePreview(speedModifier: number): void {
-    if (!this.currentActor || !this.ghostTimelineContainer.active) return;
-    this.activePreviewSpeedModifier = speedModifier;
-
-    // Smoothly dim the real timeline so the ghost preview stands out.
-    this.scene.tweens.killTweensOf(this.timelineContainer);
-    this.scene.tweens.add({
-      targets: this.timelineContainer,
-      alpha: 0.25,
-      duration: 150,
-      ease: 'Linear',
-    });
-
-    // Clear any existing ghost cards and start invisible for the fade-in.
-    this.ghostTimelineContainer.removeAll(true);
-    this.scene.tweens.killTweensOf(this.ghostTimelineContainer);
-    this.ghostTimelineContainer.setAlpha(0);
-
-    const cy = TIMELINE_H / 2;
-
-    // ── Slot 0: current actor with a bold highlight border ──────────────────
-    const isCurrentPlayer = this.system.players.includes(this.currentActor as PlayerCombatant);
-    // Fill: same team colour as real timeline; border: bright yellow/red glow.
-    const currentFill = isCurrentPlayer ? 0x4466ff : 0xcc4444;
-    const highlightColor = isCurrentPlayer ? 0xffff00 : 0xff6666;
-    const cx0 = 6 + TIMELINE_SLOT_W / 2;
-    const currentIcon = this.scene.add.rectangle(cx0, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, currentFill);
-    currentIcon.setStrokeStyle(3, highlightColor);
-    const currentLabel = this.scene.add.text(cx0, cy, this.currentActor.name.substring(0, TIMELINE_NAME_LEN), {
-      fontSize: '9px',
-      color: '#ffffff',
-      fontFamily: 'monospace',
-    }).setOrigin(0.5);
-    this.ghostTimelineContainer.add([currentIcon, currentLabel]);
-
-    // ── Slots 1–9: predicted future turns ────────────────────────────────────
-    // Ghost colour scheme: darker fill + pale/pastel border — clearly different
-    // from the real-timeline bright-fill cards.
-    const order = this.system.getTimelinePreviewWithModifier(this.currentActor, speedModifier, 9);
-    order.forEach((entity, idx) => {
-      const isPlayer = this.system.players.includes(entity as PlayerCombatant);
-      // Darker fill and a light contrasting border distinguishes ghost from real.
-      const fill = isPlayer ? 0x1a3399 : 0x882222;
-      const border = isPlayer ? 0xaaccff : 0xffbbbb;
-      const cx = 6 + (idx + 1) * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
-
-      const icon = this.scene.add.rectangle(cx, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, fill);
-      icon.setStrokeStyle(2, border);
-      const label = this.scene.add.text(cx, cy, entity.name.substring(0, TIMELINE_NAME_LEN), {
-        fontSize: '9px',
-        // Tinted label text so ghost slots are readable but visually softer.
-        color: isPlayer ? '#aaccff' : '#ffbbbb',
-        fontFamily: 'monospace',
-      }).setOrigin(0.5);
-
-      this.ghostTimelineContainer.add([icon, label]);
-    });
-
-    // ── "PREVIEW" tag at the right edge of the timeline bar ─────────────────
-    const previewTag = this.scene.add.text(
-      this.W - 4,
-      cy,
-      '◀ PREVIEW',
-      { fontSize: '8px', color: '#ffff66', fontFamily: 'monospace' },
-    ).setOrigin(1, 0.5);
-    this.ghostTimelineContainer.add(previewTag);
-
-    // Fade the ghost container in for a smooth appearance.
-    this.scene.tweens.add({
-      targets: this.ghostTimelineContainer,
-      alpha: 1,
-      duration: 180,
-      ease: 'Linear',
-    });
-  }
-
-  /** Remove the ghost timeline preview and restore the real timeline to full opacity. */
-  private clearGhostTimelinePreview(): void {
-    this.activePreviewSpeedModifier = null;
-    // Fade the ghost out, then destroy its children.
-    if (this.ghostTimelineContainer.active) {
-      this.scene.tweens.killTweensOf(this.ghostTimelineContainer);
-      this.scene.tweens.add({
-        targets: this.ghostTimelineContainer,
-        alpha: 0,
-        duration: 150,
-        ease: 'Linear',
-        onComplete: () => {
-          if (this.ghostTimelineContainer.active) {
-            this.ghostTimelineContainer.removeAll(true);
-          }
-        },
-      });
-    }
-    // Restore the real timeline to full opacity.
-    if (this.timelineContainer.active) {
-      this.scene.tweens.killTweensOf(this.timelineContainer);
-      this.scene.tweens.add({
-        targets: this.timelineContainer,
-        alpha: 1.0,
-        duration: 150,
-        ease: 'Linear',
-      });
-    }
-  }
-
-  /** Look up the speedModifier for the skill at the given menu index and refresh the ghost preview. */
-  private updateGhostPreviewForSkillIndex(idx: number): void {
-    if (!this.currentActor) return;
-    const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
-    const skillId = skillIds[idx];
-    if (!skillId) return;
-    const def = skillsData.skills.find((s) => s.id === skillId);
-    const speedMod = (def as { speedModifier?: number } | undefined)?.speedModifier ?? 1.0;
-    this.showGhostTimelinePreview(speedMod);
-  }
-
   navigateMenu(direction: 'up' | 'down' | 'left' | 'right'): void {
     const count = this.fullMenuItems.length;
     if (count === 0) return;
@@ -1842,10 +1736,6 @@ export class CombatUI {
       // Update the help text to describe the currently highlighted option.
       const tip = this.menuTooltips[newIdx];
       if (tip && this.helpText.active) this.helpText.setText(tip);
-      // Update ghost timeline preview when hovering skill menu items.
-      if (this.menuState === 'skill') {
-        this.updateGhostPreviewForSkillIndex(newIdx);
-      }
     }
   }
 
@@ -1937,12 +1827,10 @@ export class CombatUI {
       } else if (prev === 'item') {
         this.buildItemMenu();
       } else {
-        this.clearGhostTimelinePreview();
         this.buildMainMenu();
       }
     } else {
       this.menuState = 'main';
-      this.clearGhostTimelinePreview();
       this.buildMainMenu();
     }
   }
@@ -1999,7 +1887,6 @@ export class CombatUI {
     this.bus.off('combat:timelineShift', this.onCombatTimelineShift);
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
-    this.ghostTimelineContainer.destroy();
     this.logStripBg.destroy();
     this.logTexts.forEach((t) => t.destroy());
     this.targetCursor.destroy();
