@@ -66,8 +66,6 @@ const ATTACK_MOVE_RETURN_MS = 300;
 // Spell sparkle burst
 const SPARKLE_MIN_DIST = 36;
 const SPARKLE_DIST_VARIANCE = 28;
-// Timeline shift animation duration (ms)
-const TIMELINE_SHIFT_ANIM_MS = 350;
 
 type MenuState = 'main' | 'skill' | 'item' | 'target';
 
@@ -151,9 +149,8 @@ export class CombatUI {
   private targetPanelHighlight!: Phaser.GameObjects.Rectangle;
   // Timeline display
   private timelineContainer!: Phaser.GameObjects.Container;
-  private timelineIcons: Phaser.GameObjects.GameObject[] = [];
-  /** Maps entity.id → [icon, label] for the current timeline render. Used for shift animation. */
-  private timelineEntityIcons: Map<string, [Phaser.GameObjects.Rectangle, Phaser.GameObjects.Text]> = new Map();
+  /** Fixed per-slot icon pairs for the timeline bar. Index = slot position. */
+  private timelineSlotIcons: Array<[Phaser.GameObjects.Rectangle, Phaser.GameObjects.Text]> = [];
   /** Running tween that pulses the active slot in the timeline bar. */
   private timelinePulseTween: Phaser.Tweens.Tween | null = null;
   // Compact log strip
@@ -1536,10 +1533,10 @@ export class CombatUI {
   }
 
   /** Rebuild the CTB turn-order bar from the timeline preview.
-   *  Existing cards slide left/right to their new positions; new cards fade in;
-   *  cards that fall off the visible window fade out. */
+   *  Each fixed slot displays the entity that will act at that position.
+   *  Slots are created once and reused — their colour and label update in place
+   *  so every position in the 10-turn preview is always visible. */
   private refreshTimeline(): void {
-    // Stop any existing pulse tween before repositioning.
     if (this.timelinePulseTween) {
       this.timelinePulseTween.stop();
       this.timelinePulseTween = null;
@@ -1548,121 +1545,66 @@ export class CombatUI {
     const order = this.system.getTimelinePreview(10);
     const cy = TIMELINE_H / 2;
 
-    // Build a set of entity ids present in the new order.
-    const newEntityIds = new Set(order.map((e) => e.id));
-
-    // Collect objects being removed so we can do a single filter pass afterward.
-    const removedObjects: Phaser.GameObjects.GameObject[] = [];
-
-    // Fade out and destroy cards for entities no longer in the preview window.
-    this.timelineEntityIcons.forEach(([icon, label], id) => {
-      if (!newEntityIds.has(id)) {
-        this.scene.tweens.killTweensOf(icon);
-        this.scene.tweens.killTweensOf(label);
-        this.scene.tweens.add({
-          targets: [icon, label],
-          alpha: 0,
-          duration: 150,
-          ease: 'Linear',
-          onComplete: () => {
-            icon.destroy();
-            label.destroy();
-          },
-        });
-        this.timelineEntityIcons.delete(id);
-        removedObjects.push(icon, label);
-      }
-    });
-    if (removedObjects.length > 0) {
-      const removedSet = new Set(removedObjects);
-      this.timelineIcons = this.timelineIcons.filter((o) => !removedSet.has(o));
+    // Create any missing slot icons (first call creates all 10; subsequent calls
+    // are no-ops because the slots are reused).
+    for (let idx = this.timelineSlotIcons.length; idx < order.length; idx++) {
+      const x = 6 + idx * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
+      const icon = this.scene.add.rectangle(x, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, 0x4466ff);
+      const label = this.scene.add.text(x, cy, '', {
+        fontSize: '9px',
+        color: '#ffffff',
+        fontFamily: 'monospace',
+      }).setOrigin(0.5);
+      this.timelineContainer.add([icon, label]);
+      this.timelineSlotIcons.push([icon, label]);
     }
 
+    // Update each slot in-place to reflect the current preview order.
     order.forEach((entity, idx) => {
       const isPlayer = this.system.players.includes(entity as PlayerCombatant);
       const color = isPlayer ? 0x4466ff : 0xcc4444;
-      const targetX = 6 + idx * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
-
-      if (this.timelineEntityIcons.has(entity.id)) {
-        // Slide the existing card horizontally to its new position.
-        const [icon, label] = this.timelineEntityIcons.get(entity.id)!;
-        this.scene.tweens.killTweensOf(icon);
-        this.scene.tweens.killTweensOf(label);
-        this.scene.tweens.add({ targets: [icon, label], x: targetX, alpha: 1, duration: TIMELINE_SHIFT_ANIM_MS, ease: 'Power2' });
-      } else {
-        // New card: create at its target position and fade in (no drop from top).
-        const icon = this.scene.add.rectangle(targetX, cy, TIMELINE_SLOT_W - 4, TIMELINE_H - 6, color);
-        icon.setStrokeStyle(1, isPlayer ? 0x88aaff : 0xff8888);
-        const label = this.scene.add.text(targetX, cy, entity.name.substring(0, TIMELINE_NAME_LEN), {
-          fontSize: '9px',
-          color: '#ffffff',
-          fontFamily: 'monospace',
-        }).setOrigin(0.5);
-
-        icon.setAlpha(0);
-        label.setAlpha(0);
-        this.scene.tweens.add({
-          targets: [icon, label],
-          alpha: 1,
-          duration: 200,
-          ease: 'Linear',
-        });
-
-        this.timelineContainer.add([icon, label]);
-        this.timelineIcons.push(icon, label);
-        this.timelineEntityIcons.set(entity.id, [icon, label]);
-      }
+      const strokeColor = isPlayer ? 0x88aaff : 0xff8888;
+      const [icon, label] = this.timelineSlotIcons[idx];
+      icon.setFillStyle(color);
+      icon.setStrokeStyle(1, strokeColor);
+      icon.setVisible(true);
+      label.setText(entity.name.substring(0, TIMELINE_NAME_LEN));
+      label.setVisible(true);
     });
 
-    // Add a subtle pulsing scale on the first slot (the current/upcoming actor).
-    if (order.length > 0) {
-      const firstPair = this.timelineEntityIcons.get(order[0].id);
-      if (firstPair) {
-        const [firstIcon] = firstPair;
-        this.timelinePulseTween = this.scene.tweens.add({
-          targets: firstIcon,
-          scaleX: 1.10,
-          scaleY: 1.10,
-          duration: 550,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut',
-          delay: TIMELINE_SHIFT_ANIM_MS,
-        });
-      }
+    // Hide any extra slots beyond the current order length.
+    for (let idx = order.length; idx < this.timelineSlotIcons.length; idx++) {
+      const [icon, label] = this.timelineSlotIcons[idx];
+      icon.setVisible(false);
+      label.setVisible(false);
+    }
+
+    // Pulse the first slot (next actor).
+    if (this.timelineSlotIcons.length > 0) {
+      const [firstIcon] = this.timelineSlotIcons[0];
+      this.timelinePulseTween = this.scene.tweens.add({
+        targets: firstIcon,
+        scaleX: 1.10,
+        scaleY: 1.10,
+        duration: 550,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
     }
   }
 
-  /** Animate the timeline cards sliding to new positions after a speed-modifying action.
-   *  Also shows a brief speed indicator above the acting entity. */
+  /** Refresh the timeline after a speed-modifying action and show a brief
+   *  speed indicator above the acting entity. */
   private animateTimelineShift(
     actor: CombatEntity,
-    beforeOrder: CombatEntity[],
-    afterOrder: CombatEntity[],
+    _beforeOrder: CombatEntity[],
+    _afterOrder: CombatEntity[],
     speedModifier: number,
   ): void {
     if (!this.timelineContainer.active) return;
 
-    // Build position maps: entity.id → slot index
-    const beforeSlot = new Map<string, number>();
-    beforeOrder.forEach((e, i) => beforeSlot.set(e.id, i));
-    const afterSlot = new Map<string, number>();
-    afterOrder.forEach((e, i) => afterSlot.set(e.id, i));
-
-    // Tween each entity from its old slot x to its new slot x.
-    beforeOrder.forEach((entity) => {
-      const pair = this.timelineEntityIcons.get(entity.id);
-      if (!pair) return;
-      const [icon, label] = pair;
-      if (!icon.active || !label.active) return;
-      const newSlot = afterSlot.get(entity.id);
-      if (newSlot === undefined) return;
-      const newX = 6 + newSlot * TIMELINE_SLOT_W + TIMELINE_SLOT_W / 2;
-      if (icon.x !== newX) {
-        this.scene.tweens.add({ targets: icon, x: newX, duration: TIMELINE_SHIFT_ANIM_MS, ease: 'Power2' });
-        this.scene.tweens.add({ targets: label, x: newX, duration: TIMELINE_SHIFT_ANIM_MS, ease: 'Power2' });
-      }
-    });
+    this.refreshTimeline();
 
     // Show a brief speed indicator above the actor.
     const delta = speedModifier - 1.0;
