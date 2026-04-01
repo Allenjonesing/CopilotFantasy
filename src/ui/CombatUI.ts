@@ -24,6 +24,8 @@ const NAV_BTN_H = 120;
 const MENU_TITLE_H = 34;
 /** Height of each menu item row in pixels. */
 const MENU_ITEM_H = 26;
+/** Speed modifier for the Defend action — mirrors CombatSystem.DEFEND_SPEED_MODIFIER. */
+const DEFEND_SPEED_MODIFIER = 0.5;
 
 const HELP_TEXT_DEFAULT = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Tap to target';
 const HELP_TEXT_SKILL    = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Hover skill for details';
@@ -153,6 +155,8 @@ export class CombatUI {
   private timelineSlotIcons: Array<[Phaser.GameObjects.Rectangle, Phaser.GameObjects.Text]> = [];
   /** Running tween that pulses the active slot in the timeline bar. */
   private timelinePulseTween: Phaser.Tweens.Tween | null = null;
+  /** Running tween that pulses the active-turn indicator ring around the current actor. */
+  private activeTurnTween: Phaser.Tweens.Tween | null = null;
   // Compact log strip
   private logStripBg!: Phaser.GameObjects.Rectangle;
   private logTexts: Phaser.GameObjects.Text[] = [];
@@ -607,6 +611,8 @@ export class CombatUI {
             if (this.menuState === 'target') this.updateTargetCursor();
             const tip = this.menuTooltips[capturedGi];
             if (tip && this.helpText.active) this.helpText.setText(tip);
+            // Update timeline preview based on the hovered option.
+            this.onMenuSelectionChanged();
           }
         });
         t.on('pointerdown', () => {
@@ -658,12 +664,12 @@ export class CombatUI {
       'Attack the enemy with a physical strike.',
       `Use ${actor?.name ?? 'the character'}'s ${skillLabel.toLowerCase()} abilities.`,
       'Use an item from your inventory (potions, etc.).',
-      'Take a defensive stance to reduce incoming damage.',
+      'Take a defensive stance to reduce incoming damage. Advances your next turn [VF].',
       'Attempt to flee from the battle. Cannot flee from bosses.',
     ];
     if (this.helpText.active) this.helpText.setText(HELP_TEXT_DEFAULT);
     this.buildMenuItems(
-      ['Attack', skillLabel, 'Item', 'Defend', 'Flee'],
+      ['Attack', skillLabel, 'Item', 'Defend [VF]', 'Flee'],
       [false, !hasSkills, !hasItems, false, this.isBossBattle],
       tooltips,
     );
@@ -678,6 +684,8 @@ export class CombatUI {
         if (tip && this.helpText.active) this.helpText.setText(tip);
       }
     }
+    // Show timeline preview for the initially selected option.
+    this.onMenuSelectionChanged();
   }
 
   private buildSkillMenu(): void {
@@ -719,6 +727,8 @@ export class CombatUI {
         if (tip && this.helpText.active) this.helpText.setText(tip);
       }
     }
+    // Show timeline preview for the initially selected skill.
+    this.onMenuSelectionChanged();
   }
 
   private buildItemMenu(): void {
@@ -942,6 +952,23 @@ export class CombatUI {
       this.activeTurnIndicator.setPosition(entityPos.x, entityPos.y);
       this.activeTurnIndicator.setVisible(true);
       this.activeTurnIndicator.setStrokeStyle(3, isPlayer ? 0xffff00 : 0xff6666);
+      // Restart the pulsing animation on the active-turn indicator so it keeps
+      // animating after every turn transition (stopping the previous tween resets
+      // scale to 1 to avoid drift).
+      if (this.activeTurnTween) {
+        this.activeTurnTween.stop();
+        this.activeTurnTween = null;
+        this.activeTurnIndicator.setScale(1, 1);
+      }
+      this.activeTurnTween = this.scene.tweens.add({
+        targets: this.activeTurnIndicator,
+        scaleX: 1.15,
+        scaleY: 1.15,
+        duration: 600,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
       // Highlight the active player's name in the status panel
       this.highlightActiveTurn(actor as CombatEntity);
     };
@@ -1532,17 +1559,52 @@ export class CombatUI {
     return rect ? { x: rect.x, y: rect.y } : { x: Math.round(this.W * 0.5625), y: this.ICON_Y };
   }
 
+  /** Return the speed modifier for the currently highlighted menu option.
+   *  Used to drive the live CTB-timeline preview while scrolling the menu. */
+  private getHoveredSpeedModifier(): number {
+    const idx = this.selectedMenuIndex;
+    if (this.menuState === 'main') {
+      // Main menu options in order: Attack, Skill/Magic/White Magic, Item, Defend, Flee
+      const mainOptions = ['attack', 'skill', 'item', 'defend', 'flee'] as const;
+      const choice = mainOptions[idx];
+      if (choice === 'defend') return DEFEND_SPEED_MODIFIER;
+      return 1.0;
+    }
+    if (this.menuState === 'skill' && this.currentActor) {
+      const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
+      const skillId = skillIds[idx];
+      if (skillId) {
+        const def = skillsData.skills.find((s) => s.id === skillId);
+        return (def as { speedModifier?: number } | undefined)?.speedModifier ?? 1.0;
+      }
+    }
+    return 1.0;
+  }
+
+  /** Called whenever the highlighted menu item changes to refresh the timeline preview. */
+  private onMenuSelectionChanged(): void {
+    if (!this.currentActor || this.menuState === 'target') return;
+    this.refreshTimeline(this.getHoveredSpeedModifier());
+  }
+
   /** Rebuild the CTB turn-order bar from the timeline preview.
    *  Each fixed slot displays the entity that will act at that position.
    *  Slots are created once and reused — their colour and label update in place
-   *  so every position in the 10-turn preview is always visible. */
-  private refreshTimeline(): void {
+   *  so every position in the 10-turn preview is always visible.
+   *  Pass `previewSpeedMod` to simulate the actor using an action with that speed
+   *  modifier — this shows a "what-if" ordering without mutating any CTB values. */
+  private refreshTimeline(previewSpeedMod?: number): void {
     if (this.timelinePulseTween) {
       this.timelinePulseTween.stop();
       this.timelinePulseTween = null;
     }
+    // Reset all slot scales to 1 to prevent drift when the pulse tween was stopped mid-animation.
+    this.timelineSlotIcons.forEach(([icon]) => icon.setScale(1, 1));
 
-    const order = this.system.getTimelinePreview(10);
+    const isPreview = previewSpeedMod !== undefined && this.currentActor !== null;
+    const order = isPreview
+      ? this.system.getTimelinePreviewWithModifier(this.currentActor!, previewSpeedMod!, 10)
+      : this.system.getTimelinePreview(10);
     const cy = TIMELINE_H / 2;
 
     // Create any missing slot icons (first call creates all 10; subsequent calls
@@ -1559,11 +1621,19 @@ export class CombatUI {
       this.timelineSlotIcons.push([icon, label]);
     }
 
-    // Update each slot in-place to reflect the current preview order.
+    // Update each slot in-place to reflect the current (or preview) order.
     order.forEach((entity, idx) => {
       const isPlayer = this.system.players.includes(entity as PlayerCombatant);
-      const color = isPlayer ? 0x4466ff : 0xcc4444;
-      const strokeColor = isPlayer ? 0x88aaff : 0xff8888;
+      // Preview mode: tint player slots gold to distinguish from the actual timeline.
+      let color: number;
+      let strokeColor: number;
+      if (isPreview) {
+        color = isPlayer ? 0x997700 : 0x882222;
+        strokeColor = isPlayer ? 0xffdd44 : 0xff8888;
+      } else {
+        color = isPlayer ? 0x4466ff : 0xcc4444;
+        strokeColor = isPlayer ? 0x88aaff : 0xff8888;
+      }
       const [icon, label] = this.timelineSlotIcons[idx];
       icon.setFillStyle(color);
       icon.setStrokeStyle(1, strokeColor);
@@ -1678,6 +1748,8 @@ export class CombatUI {
       // Update the help text to describe the currently highlighted option.
       const tip = this.menuTooltips[newIdx];
       if (tip && this.helpText.active) this.helpText.setText(tip);
+      // Live-preview: update the turn-order timeline based on the hovered action.
+      this.onMenuSelectionChanged();
     }
   }
 
@@ -1815,6 +1887,8 @@ export class CombatUI {
     // Stop all active tweens (damage numbers, spell rings, attack animations, etc.)
     // before destroying their target objects to prevent stale callbacks and free memory.
     this.scene.tweens.killAll();
+    this.timelinePulseTween = null;
+    this.activeTurnTween = null;
     this.pendingDamageDelay.clear();
     this.bus.off('combat:log', this.onCombatLog);
     this.bus.off('combat:damage', this.onCombatDamage);

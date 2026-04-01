@@ -136,10 +136,16 @@ export class CombatSystem {
     return turnConsumed;
   }
 
+  /** Speed modifier applied when the actor defends: acts sooner on their next turn. */
+  static readonly DEFEND_SPEED_MODIFIER = 0.5;
+
   /** Determine the CTB speed modifier for the given action.
    *  Reads `speedModifier` from the skill definition when available;
-   *  basic attacks default to 1.0 (no change). */
+   *  defending is a fast action; basic attacks default to 1.0 (no change). */
   private resolveSpeedModifier(action: CombatAction): number {
+    if (action.type === 'defend') {
+      return CombatSystem.DEFEND_SPEED_MODIFIER;
+    }
     if (action.type === 'skill' && action.skillId) {
       const skill = skillsData.skills.find((s) => s.id === action.skillId) as (typeof skillsData.skills)[0] & SkillWithSpeed | undefined;
       return skill?.speedModifier ?? 1.0;

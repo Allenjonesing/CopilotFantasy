@@ -671,6 +671,22 @@ describe('Speed modifier system', () => {
     expect(aria.ctbValue).toBe(base);
   });
 
+  it('defend action uses DEFEND_SPEED_MODIFIER (faster next turn)', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'defend' });
+    const base = Math.floor(1000 / aria.effectiveAgility());
+    // Defend is a fast action so the next CTB should be less than the base
+    expect(aria.ctbValue).toBeLessThan(base);
+    // And should equal base * DEFEND_SPEED_MODIFIER
+    expect(aria.ctbValue).toBe(Math.max(1, Math.round(base * CombatSystem.DEFEND_SPEED_MODIFIER)));
+  });
+
   it('combat:timelineShift event is emitted after every action', () => {
     const system = new CombatSystem(
       [new PlayerCombatant('aria')],
