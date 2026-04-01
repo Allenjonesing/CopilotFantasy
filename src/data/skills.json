@@ -17,8 +17,8 @@
       "target": "single_enemy",
       "mpCost": 8,
       "power": 1.5,
-      "speedModifier": 0.6,
-      "description": "A swift, precise strike that hits hard and advances your next turn. Costs MP."
+      "speedModifier": 0.25,
+      "description": "A swift, precise strike that hits hard and advances your next turn dramatically. Costs MP."
     },
     {
       "id": "smash",
