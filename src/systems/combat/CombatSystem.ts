@@ -22,6 +22,8 @@ export interface CombatAction {
   target?: CombatEntity;
   /** For team-move: the entity ID of the ally who will execute the combo on their next turn. */
   allyId?: string;
+  /** For team-move: the ID of the team move skill being initiated. */
+  teamMoveId?: string;
 }
 
 export type BattleType = 'normal' | 'preemptive' | 'ambush';
@@ -48,7 +50,7 @@ export class CombatSystem {
    * Pending team-move combos keyed by the co-op ally's entity ID.
    * When an ally's turn arrives with an entry here, the combo is auto-executed.
    */
-  private pendingCombos: Map<string, { initiatorId: string; targetId: string }> = new Map();
+  private pendingCombos: Map<string, { initiatorId: string; targetId: string; teamMoveId?: string }> = new Map();
 
   constructor(players: PlayerCombatant[], enemies: EnemyCombatant[]) {
     this.players = players;
@@ -161,7 +163,7 @@ export class CombatSystem {
             actor.consumeStm(CombatSystem.TEAM_MOVE_STM_COST);
             this.bus.emit('combat:stmChange', actor);
           }
-          this.pendingCombos.set(ally.id, { initiatorId: actor.id, targetId: comboTarget.id });
+          this.pendingCombos.set(ally.id, { initiatorId: actor.id, targetId: comboTarget.id, teamMoveId: action.teamMoveId });
           this.addLog(`${actor.name} calls out to ${ally.name}: "Together!" — combo incoming!`);
           this.bus.emit('combat:teamMoveInitiated', actor, ally, comboTarget);
         } else {
@@ -220,6 +222,10 @@ export class CombatSystem {
       return reloadSkill?.speedModifier ?? 1.3;
     }
     if (action.type === 'team-move') {
+      if (action.teamMoveId) {
+        const moveDef = skillsData.skills.find((s) => s.id === action.teamMoveId) as (typeof skillsData.skills)[0] & SkillWithSpeed | undefined;
+        return moveDef?.speedModifier ?? CombatSystem.TEAM_MOVE_INITIATOR_SPEED;
+      }
       return CombatSystem.TEAM_MOVE_INITIATOR_SPEED;
     }
     if (action.type === 'skill' && action.skillId) {
@@ -651,8 +657,8 @@ export class CombatSystem {
 
   /**
    * Execute the team-move combo for an ally who has a pending combo set by the initiator.
-   * Both the initiator and the ally deal combined massive damage to the target, then
-   * both receive a heavy CTB slowdown (exhausted after the effort).
+   * Both the initiator and the ally deal combined damage to the target using the team
+   * move's type (physical, magic, elemental) and stats. Both then receive a CTB slowdown.
    */
   executePendingCombo(ally: CombatEntity): void {
     const combo = this.pendingCombos.get(ally.id);
@@ -662,13 +668,24 @@ export class CombatSystem {
     const initiator = [...this.players, ...this.enemies].find((e) => e.id === combo.initiatorId);
     const target = [...this.players, ...this.enemies].find((e) => e.id === combo.targetId);
 
+    // ── Look up the team move definition ──────────────────────────────────────
+    type TeamMoveDef = (typeof skillsData.skills)[0] & {
+      teamMove?: boolean;
+      element?: string;
+      comboSpeedModifier?: number;
+    };
+    const moveDef = combo.teamMoveId
+      ? (skillsData.skills.find((s) => s.id === combo.teamMoveId) as TeamMoveDef | undefined)
+      : undefined;
+    const comboSpeed = moveDef?.comboSpeedModifier ?? CombatSystem.TEAM_MOVE_COMBO_SPEED;
+
     if (!initiator || !target || target.isDefeated) {
       this.addLog(`${ally.name}'s combo fizzled — target is gone!`);
       // Still consumes the ally's turn with a heavy penalty
       const beforeOrder = this.timeline.preview(10);
-      this.timeline.endTurn(ally, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+      this.timeline.endTurn(ally, comboSpeed);
       const afterOrder = this.timeline.preview(10);
-      this.bus.emit('combat:timelineShift', ally, beforeOrder, afterOrder, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+      this.bus.emit('combat:timelineShift', ally, beforeOrder, afterOrder, comboSpeed);
       this.bus.emit('combat:actionEnd', ally);
       this.statusSystem.processTurn(ally);
       return;
@@ -678,35 +695,110 @@ export class CombatSystem {
     this.bus.emit('combat:attackStart', initiator, target);
     this.bus.emit('combat:attackStart', ally, target);
 
-    // ── Calculate combined damage (both participants attack together) ────────
-    // Formula: (initiator.str + ally.str) × 2 = comboBase  →  comboBase × 2.0 − def.
-    // Compared to a solo basic attack (actor.str × 2 − def), the combo effectively
-    // pools two fighters' strength and then doubles the sum, making it roughly 4× a
-    // single fighter of the same strength before defence is subtracted.
-    const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
-    const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
-
     // ── Drain massive stamina from the ally executing the combo ─────────────
     if (ally.stats.maxStm > 0) {
       ally.consumeStm(CombatSystem.TEAM_MOVE_STM_COST);
       this.bus.emit('combat:stmChange', ally);
     }
 
-    target.applyDamage(comboDmg);
-    this.addLog(`⚡ ${initiator.name} + ${ally.name} TEAM MOVE on ${target.name} for ${comboDmg} MASSIVE damage!`);
-    this.bus.emit('combat:damage', target, comboDmg);
-    this.checkDefeated(target);
+    // ── Calculate combined damage based on move type ─────────────────────────
+    // Elemental weakness map (same as regular skills)
+    const weaknessMap: Record<string, string[]> = {
+      fire: ['ice', 'water'],
+      ice: ['fire'],
+      lightning: ['water'],
+      water: ['lightning'],
+    };
+
+    if (moveDef) {
+      const power = moveDef.power ?? 2.0;
+      const moveType = moveDef.type;
+      const moveElement = moveDef.element ?? null;
+
+      const targetWeaknesses = target.element ? (weaknessMap[target.element] ?? []) : [];
+      const isWeakness = moveElement !== null && targetWeaknesses.includes(moveElement);
+      const weaknessMultiplier = isWeakness ? 2.0 : 1.0;
+      const moveName = moveDef.name;
+
+      // Elemental absorption: if skill's element matches target's element, heal instead
+      if (moveElement && target.element === moveElement) {
+        const combinedMag = initiator.stats.magic + ally.stats.magic;
+        const healed = Math.max(1, Math.floor(combinedMag * 2 * power - target.stats.magicDefense));
+        this.applyHeal(target, healed);
+        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — ABSORBED! ${target.name} healed for ${healed} HP!`);
+      } else if (moveType === 'physical') {
+        const combinedStr = initiator.stats.strength + ally.stats.strength;
+        const rawDmg = Math.max(1, Math.floor(combinedStr * 2 * power - target.effectiveDefense()));
+        const comboDmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+        target.applyDamage(comboDmg);
+        if (isWeakness) {
+          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — WEAKNESS! ${comboDmg} MASSIVE damage!`);
+        } else {
+          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE physical damage!`);
+        }
+        this.bus.emit('combat:damage', target, comboDmg);
+        this.checkDefeated(target);
+      } else if (moveType === 'magic') {
+        const combinedMag = initiator.stats.magic + ally.stats.magic;
+        const rawDmg = Math.max(1, Math.floor(combinedMag * 2 * power - target.stats.magicDefense));
+        const comboDmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+        target.applyDamage(comboDmg);
+        if (isWeakness) {
+          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — WEAKNESS! ${comboDmg} MASSIVE magic damage!`);
+        } else {
+          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE magic damage!`);
+        }
+        this.bus.emit('combat:damage', target, comboDmg);
+        this.checkDefeated(target);
+      } else if (moveType === 'hybrid') {
+        const physPart = Math.max(1, Math.floor((initiator.stats.strength + ally.stats.strength) * power - target.effectiveDefense() / 2));
+        const magPart = Math.max(1, Math.floor((initiator.stats.magic + ally.stats.magic) * power - target.stats.magicDefense / 2));
+        const comboDmg = Math.max(1, Math.floor((physPart + magPart) * weaknessMultiplier));
+        target.applyDamage(comboDmg);
+        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE damage (physical+magic)!`);
+        this.bus.emit('combat:damage', target, comboDmg);
+        this.checkDefeated(target);
+      } else {
+        // Fallback: generic physical formula
+        const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
+        const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
+        target.applyDamage(comboDmg);
+        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE damage!`);
+        this.bus.emit('combat:damage', target, comboDmg);
+        this.checkDefeated(target);
+      }
+
+      // Track team move use on the initiator for evolution.
+      if (combo.teamMoveId) {
+        const initiatorPlayer = initiator instanceof PlayerCombatant ? initiator : null;
+        if (initiatorPlayer) {
+          const evolved = GameState.getInstance().recordTeamMoveUse(initiatorPlayer.characterId, combo.teamMoveId);
+          if (evolved) {
+            this.bus.emit('skill:evolved', initiatorPlayer, evolved.skillId);
+          }
+        }
+      }
+    } else {
+      // ── Legacy fallback: old combined physical formula ────────────────────
+      // Formula: (initiator.str + ally.str) × 2 = comboBase  →  comboBase × 2.0 − def.
+      const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
+      const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
+      target.applyDamage(comboDmg);
+      this.addLog(`⚡ ${initiator.name} + ${ally.name} TEAM MOVE on ${target.name} for ${comboDmg} MASSIVE damage!`);
+      this.bus.emit('combat:damage', target, comboDmg);
+      this.checkDefeated(target);
+    }
 
     // ── Apply heavy CTB slowdown to BOTH participants ────────────────────────
     // Initiator's turn was already ended in executeAction; apply extra penalty directly.
-    const initiatorCtbPenalty = Math.ceil(initiator.effectiveAgility() * CombatSystem.TEAM_MOVE_COMBO_SPEED);
+    const initiatorCtbPenalty = Math.ceil(initiator.effectiveAgility() * comboSpeed);
     initiator.ctbValue = Math.max(initiator.ctbValue, initiatorCtbPenalty);
 
     // End ally's turn with the heavy penalty
     const beforeOrder = this.timeline.preview(10);
-    this.timeline.endTurn(ally, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+    this.timeline.endTurn(ally, comboSpeed);
     const afterOrder = this.timeline.preview(10);
-    this.bus.emit('combat:timelineShift', ally, beforeOrder, afterOrder, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+    this.bus.emit('combat:timelineShift', ally, beforeOrder, afterOrder, comboSpeed);
     this.bus.emit('combat:actionEnd', ally);
     this.statusSystem.processTurn(ally);
     this.checkDefeated(ally);

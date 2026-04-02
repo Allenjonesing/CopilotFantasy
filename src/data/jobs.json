@@ -18,7 +18,9 @@
       },
       "skills": ["attack", "quickHit", "smash", "flintlockShot"],
       "levelUpStats": { "hp": 8, "mp": 2, "stm": 5, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" }
+      "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" },
+      "teamMoves": ["teamStrike"],
+      "levelTeamMoves": { "3": "teamSwift", "5": "teamBlaze", "7": "teamBolt" }
     },
     {
       "id": "mage",
@@ -38,7 +40,9 @@
       },
       "skills": ["attack", "fire", "thunder", "blizzard", "water", "magicStrike"],
       "levelUpStats": { "hp": 5, "mp": 10, "stm": 3, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
-      "levelSkills": {}
+      "levelSkills": {},
+      "teamMoves": ["teamSpell"],
+      "levelTeamMoves": { "3": "teamBlaze", "5": "teamBolt", "7": "teamFrost" }
     },
     {
       "id": "healer",
@@ -58,7 +62,9 @@
       },
       "skills": ["attack", "cure", "arrowShot"],
       "levelUpStats": { "hp": 6, "mp": 8, "stm": 4, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" }
+      "levelSkills": { "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" },
+      "teamMoves": ["teamStrike", "teamSpell"],
+      "levelTeamMoves": { "4": "teamSwift", "6": "teamBolt", "8": "teamTide" }
     }
   ]
 }

@@ -77,7 +77,13 @@ const ATTACK_MOVE_RETURN_MS = 300;
 const SPARKLE_MIN_DIST = 36;
 const SPARKLE_DIST_VARIANCE = 28;
 
-type MenuState = 'main' | 'skill' | 'item' | 'target' | 'attack-sub' | 'team-move-ally';
+// Team move speed classification thresholds (speedModifier values)
+/** speedModifier below this is displayed as ⚡Fast in the team move selection menu. */
+const TEAM_MOVE_FAST_SPEED_THRESHOLD = 0.8;
+/** speedModifier above this is displayed as 🐢Slow in the team move selection menu. */
+const TEAM_MOVE_SLOW_SPEED_THRESHOLD = 1.7;
+
+type MenuState = 'main' | 'skill' | 'item' | 'target' | 'attack-sub' | 'team-move-select' | 'team-move-ally';
 
 /** Union type for entity icons that may be image sprites or rectangle fallbacks. */
 type EntityIcon = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
@@ -147,6 +153,8 @@ export class CombatUI {
   private pendingItemId: string | null = null;
   /** Ally ID selected for an in-progress team-move setup. */
   private pendingTeamAllyId: string | null = null;
+  /** Team move ID selected for an in-progress team-move setup. */
+  private pendingTeamMoveId: string | null = null;
   /** Remembered main-menu cursor index per character — restored on each character's turn. */
   private lastMainMenuIndex: Map<string, number> = new Map();
   /** Remembered skill sub-menu cursor index per character — restored when skill menu opens. */
@@ -919,15 +927,58 @@ export class CombatUI {
 
   /** Build the ally-selection menu for initiating a team move. */
   private buildTeamMoveAllyMenu(): void {
-    this.menuTitleBase = 'TEAM MOVE — Choose Ally  [BACK: cancel]';
+    const selectedMove = this.pendingTeamMoveId
+      ? skillsData.skills.find((s) => s.id === this.pendingTeamMoveId)
+      : null;
+    const moveName = selectedMove?.name ?? 'Team Move';
+    this.menuTitleBase = `TEAM MOVE — ${moveName} — Choose Ally  [BACK: cancel]`;
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
     const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
     const labels = livingAllies.map((p) => `${p.name}  HP:${p.stats.hp}/${p.stats.maxHp}`);
     const tooltips = livingAllies.map(
-      (p) => `Call ${p.name} as your combo partner. On ${p.name}'s next turn, they auto-execute a massive combined attack.`,
+      (p) => `Call ${p.name} as your combo partner for ${moveName}. On ${p.name}'s next turn, they auto-execute the combined attack.`,
     );
     this.buildMenuItems(labels, labels.map(() => false), tooltips);
+  }
+
+  /** Build the team-move type selection menu showing all moves available to this character. */
+  private buildTeamMoveSelectMenu(): void {
+    this.menuTitleBase = 'TEAM MOVE — Choose Move  [BACK: cancel]';
+    this.menuTitle.setText(this.menuTitleBase);
+    const actor = this.currentActor;
+    const actorPlayer = actor instanceof PlayerCombatant ? actor : null;
+    const charState = actorPlayer ? GameState.getInstance().getCharacter(actorPlayer.characterId) : null;
+    const teamMoveIds: string[] = charState?.teamMoves ?? [];
+
+    const labels: string[] = [];
+    const disabled: boolean[] = [];
+    const tooltips: string[] = [];
+
+    teamMoveIds.forEach((id) => {
+      const def = skillsData.skills.find((s) => s.id === id) as (typeof skillsData.skills)[0] & {
+        teamMove?: boolean;
+        element?: string;
+        comboSpeedModifier?: number;
+      } | undefined;
+      if (!def) return;
+      const mpStr = def.mpCost > 0 ? ` MP:${def.mpCost}` : '';
+      const stmStr = ` STM:${CombatSystem.TEAM_MOVE_STM_COST}`;
+      const speedDesc = def.speedModifier < TEAM_MOVE_FAST_SPEED_THRESHOLD ? ' ⚡Fast' : def.speedModifier > TEAM_MOVE_SLOW_SPEED_THRESHOLD ? ' 🐢Slow' : '';
+      labels.push(`${def.name}${mpStr}${stmStr}${speedDesc}`);
+      const notEnoughMp = actor ? actor.stats.mp < def.mpCost : false;
+      const notEnoughStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.TEAM_MOVE_STM_COST) : false;
+      disabled.push(notEnoughMp || notEnoughStm);
+      tooltips.push(def.description ?? '');
+    });
+
+    if (labels.length === 0) {
+      labels.push('(No team moves available)');
+      disabled.push(true);
+      tooltips.push('');
+    }
+
+    this.buildMenuItems(labels, disabled, tooltips);
   }
 
   private enterTargetMode(actionType: 'attack' | 'skill' | 'item'): void {
@@ -2047,9 +2098,9 @@ export class CombatUI {
         // Check if this is the "Team Move..." option (appended after all physical skills)
         const teamMoveIdx = 1 + physicalSkillIds.length;
         if (idx === teamMoveIdx) {
-          // Open ally selection menu
-          this.menuState = 'team-move-ally';
-          this.buildTeamMoveAllyMenu();
+          // Open team move type selection menu
+          this.menuState = 'team-move-select';
+          this.buildTeamMoveSelectMenu();
           return null;
         }
         const skillId = physicalSkillIds[idx - 1]; // offset by 1 for "Regular Strike"
@@ -2059,6 +2110,21 @@ export class CombatUI {
         this.enterTargetMode('skill');
         return null;
       }
+    }
+
+    // ── Team Move type selection ─────────────────────────────────────────────
+    if (this.menuState === 'team-move-select') {
+      if (this.menuDisabled[idx]) return null;
+      const actor = this.currentActor;
+      const actorPlayer = actor instanceof PlayerCombatant ? actor : null;
+      const charState = actorPlayer ? GameState.getInstance().getCharacter(actorPlayer.characterId) : null;
+      const teamMoveIds: string[] = charState?.teamMoves ?? [];
+      const teamMoveId = teamMoveIds[idx];
+      if (!teamMoveId) return null;
+      this.pendingTeamMoveId = teamMoveId;
+      this.menuState = 'team-move-ally';
+      this.buildTeamMoveAllyMenu();
+      return null;
     }
 
     // ── Team Move ally selection ─────────────────────────────────────────────
@@ -2128,9 +2194,11 @@ export class CombatUI {
       // ── Team Move target confirmed ──────────────────────────────────────────
       if (this.menuStateBeforeTarget === 'team-move-ally' && this.pendingTeamAllyId) {
         const allyId = this.pendingTeamAllyId;
+        const teamMoveId = this.pendingTeamMoveId ?? undefined;
         this.pendingTeamAllyId = null;
+        this.pendingTeamMoveId = null;
         this.resetToMain();
-        return { type: 'team-move', allyId, target };
+        return { type: 'team-move', allyId, teamMoveId, target };
       }
       if (actionType === 'attack') {
         this.resetToMain();
@@ -2170,6 +2238,10 @@ export class CombatUI {
       }
     } else if (this.menuState === 'team-move-ally') {
       this.pendingTeamAllyId = null;
+      this.menuState = 'team-move-select';
+      this.buildTeamMoveSelectMenu();
+    } else if (this.menuState === 'team-move-select') {
+      this.pendingTeamMoveId = null;
       this.menuState = 'attack-sub';
       this.buildAttackSubMenu();
     } else if (this.menuState === 'attack-sub') {
