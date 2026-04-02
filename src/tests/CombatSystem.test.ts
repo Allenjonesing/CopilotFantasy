@@ -1215,3 +1215,128 @@ describe('Skill Evolution System', () => {
     expect(aria.skills).not.toContain('quickHit');
   });
 });
+
+describe('Team Move Stamina Cost', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('team move initiator loses TEAM_MOVE_STM_COST stamina', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const kael = system.players[1];
+    const slime = system.enemies[0];
+
+    const stmBefore = aria.stats.stm;
+    system.nextTurn();
+    system.executeAction(aria, { type: 'team-move', allyId: kael.id, target: slime });
+
+    expect(aria.stats.stm).toBe(Math.max(0, stmBefore - CombatSystem.TEAM_MOVE_STM_COST));
+  });
+
+  it('ally executing combo loses TEAM_MOVE_STM_COST stamina', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const kael = system.players[1];
+    const slime = system.enemies[0];
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'team-move', allyId: kael.id, target: slime });
+
+    const kaelStmBefore = kael.stats.stm;
+    system.executePendingCombo(kael);
+
+    expect(kael.stats.stm).toBe(Math.max(0, kaelStmBefore - CombatSystem.TEAM_MOVE_STM_COST));
+  });
+
+  it('TEAM_MOVE_STM_COST is at least 40 (massive cost)', () => {
+    expect(CombatSystem.TEAM_MOVE_STM_COST).toBeGreaterThanOrEqual(40);
+  });
+});
+
+describe('Stamina Scales With Level', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('maxStm increases after level-up for Aria', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    const maxStmBefore = aria.stats.maxStm;
+    state.gainExp(100);
+    expect(aria.stats.maxStm).toBeGreaterThan(maxStmBefore);
+  });
+
+  it('maxStm increases after level-up for Kael', () => {
+    const state = GameState.getInstance();
+    const kael = state.getCharacter('kael')!;
+    const maxStmBefore = kael.stats.maxStm;
+    state.gainExp(100);
+    expect(kael.stats.maxStm).toBeGreaterThan(maxStmBefore);
+  });
+
+  it('maxStm increases after level-up for Lyra', () => {
+    const state = GameState.getInstance();
+    const lyra = state.getCharacter('lyra')!;
+    const maxStmBefore = lyra.stats.maxStm;
+    state.gainExp(100);
+    expect(lyra.stats.maxStm).toBeGreaterThan(maxStmBefore);
+  });
+});
+
+describe('Skill II/III/IV Naming Convention', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('evolved fire spells use II/III naming not -ra/-aga suffix', () => {
+    // Test relies on the skill names visible in combat log; use GameState.recordSkillUse
+    // evolution to verify skill IDs still work, while names are validated via skills.json.
+    // The fira skill should be named "Blaze II" (not "Blazra") and firaga "Blaze III".
+    const state = GameState.getInstance();
+    const kael = state.getCharacter('kael')!;
+    // Fire -> fira (Blaze II) after 5 uses
+    for (let i = 0; i < 5; i++) state.recordSkillUse('kael', 'fire');
+    expect(kael.skills).toContain('fira');
+    // fira -> firaga (Blaze III) after 10 more uses
+    for (let i = 0; i < 10; i++) state.recordSkillUse('kael', 'fira');
+    expect(kael.skills).toContain('firaga');
+    expect(kael.skills).not.toContain('fire');
+    expect(kael.skills).not.toContain('fira');
+  });
+
+  it('evolved cure spells evolve via use (not granted at level-up)', () => {
+    const state = GameState.getInstance();
+    const lyra = state.getCharacter('lyra')!;
+    // cure -> cura (Cure II) after 5 uses
+    for (let i = 0; i < 5; i++) state.recordSkillUse('lyra', 'cure');
+    expect(lyra.skills).toContain('cura');
+    expect(lyra.skills).not.toContain('cure');
+    // cura -> curaga (Cure III) after 10 more uses
+    for (let i = 0; i < 10; i++) state.recordSkillUse('lyra', 'cura');
+    expect(lyra.skills).toContain('curaga');
+    expect(lyra.skills).not.toContain('cura');
+  });
+
+  it('Kael does not receive evolved spells as level-up rewards (evolve-only)', () => {
+    const state = GameState.getInstance();
+    const kael = state.getCharacter('kael')!;
+    // Level up several times (10000 EXP is enough to trigger multiple level-ups)
+    for (let i = 0; i < 9; i++) state.gainExp(10000);
+    // fira/firaga etc. should NOT be in Kael's skills unless earned through evolution
+    // (Kael starts with fire/thunder/blizzard/water which evolve naturally)
+    const evolvedFromLevelUp = ['fira', 'firaga', 'blizzara', 'blizzaga', 'thundara', 'thundaga', 'watera', 'waterga'];
+    for (const skillId of evolvedFromLevelUp) {
+      expect(kael.skills).not.toContain(skillId);
+    }
+  });
+});

@@ -17,7 +17,7 @@
         "luck": 5
       },
       "skills": ["attack", "quickHit", "smash", "flintlockShot"],
-      "levelUpStats": { "hp": 8, "mp": 2, "stm": 0, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
+      "levelUpStats": { "hp": 8, "mp": 2, "stm": 5, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
       "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" }
     },
     {
@@ -37,8 +37,8 @@
         "luck": 5
       },
       "skills": ["attack", "fire", "thunder", "blizzard", "water", "magicStrike"],
-      "levelUpStats": { "hp": 5, "mp": 10, "stm": 0, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
-      "levelSkills": { "2": "fira", "3": "blizzara", "4": "thundara", "5": "watera", "6": "firaga", "7": "blizzaga", "8": "thundaga", "9": "waterga" }
+      "levelUpStats": { "hp": 5, "mp": 10, "stm": 3, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
+      "levelSkills": {}
     },
     {
       "id": "healer",
@@ -57,8 +57,8 @@
         "luck": 6
       },
       "skills": ["attack", "cure", "arrowShot"],
-      "levelUpStats": { "hp": 6, "mp": 8, "stm": 0, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "cura", "3": "esuna", "4": "raise", "5": "curaga", "6": "reraise", "7": "pray" }
+      "levelUpStats": { "hp": 6, "mp": 8, "stm": 4, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
+      "levelSkills": { "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" }
     }
   ]
 }
