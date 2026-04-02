@@ -13,6 +13,8 @@ export class PlayerCombatant extends CombatEntity {
       maxHp: charState.stats.maxHp,
       mp: charState.stats.mp,
       maxMp: charState.stats.maxMp,
+      stm: charState.stats.stm ?? 50,
+      maxStm: charState.stats.maxStm ?? 50,
       strength: charState.stats.strength,
       magic: charState.stats.magic,
       defense: charState.stats.defense,

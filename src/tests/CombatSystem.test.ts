@@ -745,3 +745,425 @@ describe('Speed modifier system', () => {
     expect(capturedAfter.length).toBeGreaterThan(0);
   });
 });
+
+describe('Stamina System', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('players start with stm and maxStm > 0', () => {
+    const aria = new PlayerCombatant('aria');
+    expect(aria.stats.stm).toBeGreaterThan(0);
+    expect(aria.stats.maxStm).toBeGreaterThan(0);
+    expect(aria.stats.stm).toBeLessThanOrEqual(aria.stats.maxStm);
+  });
+
+  it('enemies have stm=0 and maxStm=0', () => {
+    const slime = new EnemyCombatant('slime');
+    expect(slime.stats.stm).toBe(0);
+    expect(slime.stats.maxStm).toBe(0);
+  });
+
+  it('basic attack drains stamina', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    const stmBefore = aria.stats.stm;
+    system.nextTurn();
+    system.executeAction(aria, { type: 'attack', target: slime });
+    expect(aria.stats.stm).toBeLessThan(stmBefore);
+  });
+
+  it('rest action restores 50% maxStm', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const maxStm = aria.stats.maxStm;
+    aria.stats.stm = 0;
+    system.nextTurn();
+    system.executeAction(aria, { type: 'rest' });
+    expect(aria.stats.stm).toBe(Math.ceil(maxStm / 2));
+  });
+
+  it('using a healing item restores full stamina', () => {
+    const state = GameState.getInstance();
+    state.addItem('potion', 1);
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    aria.stats.stm = 0;
+    system.nextTurn();
+    system.executeAction(aria, { type: 'item', itemId: 'potion', target: aria });
+    expect(aria.stats.stm).toBe(aria.stats.maxStm);
+  });
+
+  it('consumeStm does not go below 0', () => {
+    const aria = new PlayerCombatant('aria');
+    aria.consumeStm(999);
+    expect(aria.stats.stm).toBe(0);
+  });
+
+  it('stm is restored in fullHealParty', () => {
+    const state = GameState.getInstance();
+    state.data.party.forEach((c) => { c.stats.stm = 0; });
+    state.fullHealParty();
+    state.data.party.forEach((c) => {
+      if (c.stats.maxStm > 0) {
+        expect(c.stats.stm).toBe(c.stats.maxStm);
+      }
+    });
+  });
+
+  it('physical skill drains stamina by stmCost', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 60;
+    // smash has stmCost: 25
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'smash', target: slime });
+    expect(aria.stats.stm).toBeLessThanOrEqual(60 - 25);
+  });
+});
+
+describe('Bleed Status Effect', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('bleed deals 10% max HP per turn', () => {
+    const aria = new PlayerCombatant('aria');
+    const ses = new StatusEffectSystem();
+    ses.apply(aria, 'bleed');
+    expect(aria.hasStatus('bleed')).toBe(true);
+    const hpBefore = aria.stats.hp;
+    ses.processTurn(aria);
+    const expectedDmg = Math.floor(aria.stats.maxHp * 0.10);
+    expect(aria.stats.hp).toBe(Math.max(0, hpBefore - expectedDmg));
+  });
+
+  it('bleed does more damage per turn than poison (10% vs 5%)', () => {
+    // Use separate StatusEffectSystems so aria and kael don't share duration maps
+    const aria = new PlayerCombatant('aria');
+    const kael = new PlayerCombatant('kael');
+    const ses1 = new StatusEffectSystem();
+    const ses2 = new StatusEffectSystem();
+    ses1.apply(aria, 'poison');
+    ses2.apply(kael, 'bleed');
+    const hp1Before = aria.stats.hp;
+    const hp2Before = kael.stats.hp;
+    ses1.processTurn(aria);
+    ses2.processTurn(kael);
+    const poisonDmgPercent = (hp1Before - aria.stats.hp) / aria.stats.maxHp;
+    const bleedDmgPercent = (hp2Before - kael.stats.hp) / kael.stats.maxHp;
+    expect(bleedDmgPercent).toBeGreaterThan(poisonDmgPercent);
+  });
+
+  it('bleed is permanent until cured', () => {
+    const aria = new PlayerCombatant('aria');
+    const ses = new StatusEffectSystem();
+    ses.apply(aria, 'bleed');
+    ses.processTurn(aria);
+    ses.processTurn(aria);
+    ses.processTurn(aria);
+    expect(aria.hasStatus('bleed')).toBe(true);
+    ses.remove(aria, 'bleed');
+    expect(aria.hasStatus('bleed')).toBe(false);
+  });
+
+  it('arrowShot applies bleed status on hit', () => {
+    const state = GameState.getInstance();
+    state.addItem('arrow', 5);
+    const system = new CombatSystem(
+      [new PlayerCombatant('lyra')],
+      // Use stoneTroll (160 HP) so it survives the arrow shot
+      [new EnemyCombatant('stoneTroll', 1.0, undefined, 4)],
+    );
+    const lyra = system.players[0];
+    const troll = system.enemies[0];
+    lyra.stats.mp = 50;
+    lyra.stats.stm = 60;
+    if (!lyra.skills.includes('arrowShot')) lyra.skills.push('arrowShot');
+    system.nextTurn();
+    system.executeAction(lyra, { type: 'skill', skillId: 'arrowShot', target: troll });
+    expect(troll.hasStatus('bleed')).toBe(true);
+  });
+
+  it('arrowShot requires arrow ammo and fails without it', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const lyra = system.players[0];
+    const slime = system.enemies[0];
+    lyra.stats.mp = 50;
+    lyra.stats.stm = 60;
+    if (!lyra.skills.includes('arrowShot')) lyra.skills.push('arrowShot');
+    const slimeHpBefore = slime.stats.hp;
+    system.nextTurn();
+    const consumed = system.executeAction(lyra, { type: 'skill', skillId: 'arrowShot', target: slime });
+    expect(consumed).toBe(false);
+    expect(slime.stats.hp).toBe(slimeHpBefore);
+  });
+});
+
+describe('Flintlock / Pierce System', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('flintlockShot applies reloading status to shooter after use', () => {
+    const state = GameState.getInstance();
+    state.addItem('gunAmmo', 5);
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 60;
+    if (!aria.skills.includes('flintlockShot')) aria.skills.push('flintlockShot');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: slime });
+    expect(aria.hasStatus('reloading')).toBe(true);
+  });
+
+  it('flintlockShot requires ammo and fails without it', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 60;
+    if (!aria.skills.includes('flintlockShot')) aria.skills.push('flintlockShot');
+    const slimeHpBefore = slime.stats.hp;
+    system.nextTurn();
+    const consumed = system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: slime });
+    expect(consumed).toBe(false);
+    expect(slime.stats.hp).toBe(slimeHpBefore);
+    expect(aria.hasStatus('reloading')).toBe(false);
+  });
+
+  it('flintlockShot consumes one unit of ammo', () => {
+    const state = GameState.getInstance();
+    state.addItem('gunAmmo', 3);
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 60;
+    if (!aria.skills.includes('flintlockShot')) aria.skills.push('flintlockShot');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: slime });
+    const remaining = state.data.inventory.find((i) => i.id === 'gunAmmo');
+    expect((remaining?.quantity ?? 0)).toBe(2);
+  });
+
+  it('reload action removes reloading status', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    aria.addStatus('reloading');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'reload' });
+    expect(aria.hasStatus('reloading')).toBe(false);
+  });
+
+  it('effectiveDefense is halved when reloading', () => {
+    const slime = new EnemyCombatant('slime');
+    const normalDef = slime.effectiveDefense();
+    slime.addStatus('reloading');
+    expect(slime.effectiveDefense()).toBe(Math.floor(normalDef / 2));
+  });
+
+  it('reload action returns true (turn consumed)', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    aria.addStatus('reloading');
+    system.nextTurn();
+    const consumed = system.executeAction(aria, { type: 'reload' });
+    expect(consumed).toBe(true);
+  });
+
+  it('pierce skill deals triple damage to high-DEF enemies', () => {
+    const state = GameState.getInstance();
+    state.addItem('gunAmmo', 10);
+    // Spawn ironGolem at its natural floor (8) so floor penalty doesn't apply
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('ironGolem', 1.0, undefined, 8)],
+    );
+    const aria = system.players[0];
+    const golem = system.enemies[0];
+    aria.stats.stm = 60;
+    if (!aria.skills.includes('flintlockShot')) aria.skills.push('flintlockShot');
+    // ironGolem at floor 8 has full 30 DEF >= PIERCE_HIGH_DEF_THRESHOLD(20)
+    expect(golem.stats.defense).toBeGreaterThanOrEqual(CombatSystem.PIERCE_HIGH_DEF_THRESHOLD);
+    const hpBefore = golem.stats.hp;
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: golem });
+    const dmg = hpBefore - golem.stats.hp;
+    // Pierce ignores DEF and deals triple damage: strength * 2 * power * 3
+    const expectedMin = Math.floor(aria.stats.strength * 2 * 3.0);
+    expect(dmg).toBeGreaterThanOrEqual(expectedMin);
+  });
+});
+
+describe('Hybrid Magic-Physical Attack', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('magicStrike deals damage to enemy', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const kael = system.players[0];
+    const slime = system.enemies[0];
+    kael.stats.mp = 50;
+    kael.stats.stm = 30;
+    if (!kael.skills.includes('magicStrike')) kael.skills.push('magicStrike');
+    const hpBefore = slime.stats.hp;
+    system.nextTurn();
+    system.executeAction(kael, { type: 'skill', skillId: 'magicStrike', target: slime });
+    expect(slime.stats.hp).toBeLessThan(hpBefore);
+  });
+
+  it('magicStrike costs both MP and STM', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const kael = system.players[0];
+    const slime = system.enemies[0];
+    kael.stats.mp = 50;
+    kael.stats.stm = 30;
+    if (!kael.skills.includes('magicStrike')) kael.skills.push('magicStrike');
+    const mpBefore = kael.stats.mp;
+    const stmBefore = kael.stats.stm;
+    system.nextTurn();
+    system.executeAction(kael, { type: 'skill', skillId: 'magicStrike', target: slime });
+    expect(kael.stats.mp).toBeLessThan(mpBefore);
+    expect(kael.stats.stm).toBeLessThan(stmBefore);
+  });
+});
+
+describe('Skill Evolution System', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('recordSkillUse tracks use count', () => {
+    const state = GameState.getInstance();
+    state.recordSkillUse('kael', 'fire');
+    state.recordSkillUse('kael', 'fire');
+    const kael = state.getCharacter('kael')!;
+    expect(kael.skillUseCounts['fire']).toBe(2);
+  });
+
+  it('fire evolves to fira after 5 uses', () => {
+    const state = GameState.getInstance();
+    const kael = state.getCharacter('kael')!;
+    expect(kael.skills).toContain('fire');
+    let lastResult = null;
+    for (let i = 0; i < 5; i++) {
+      lastResult = state.recordSkillUse('kael', 'fire');
+    }
+    expect(lastResult).not.toBeNull();
+    expect(lastResult!.skillId).toBe('fira');
+    expect(kael.skills).toContain('fira');
+    expect(kael.skills).not.toContain('fire');
+  });
+
+  it('fira evolves to firaga after 10 uses', () => {
+    const state = GameState.getInstance();
+    // First evolve fire -> fira
+    for (let i = 0; i < 5; i++) state.recordSkillUse('kael', 'fire');
+    const kael = state.getCharacter('kael')!;
+    expect(kael.skills).toContain('fira');
+    let lastResult = null;
+    for (let i = 0; i < 10; i++) {
+      lastResult = state.recordSkillUse('kael', 'fira');
+    }
+    expect(lastResult).not.toBeNull();
+    expect(lastResult!.skillId).toBe('firaga');
+    expect(kael.skills).toContain('firaga');
+    expect(kael.skills).not.toContain('fira');
+  });
+
+  it('cure evolves to cura after 5 uses', () => {
+    const state = GameState.getInstance();
+    const lyra = state.getCharacter('lyra')!;
+    expect(lyra.skills).toContain('cure');
+    let lastResult = null;
+    for (let i = 0; i < 5; i++) {
+      lastResult = state.recordSkillUse('lyra', 'cure');
+    }
+    expect(lastResult).not.toBeNull();
+    expect(lastResult!.skillId).toBe('cura');
+    expect(lyra.skills).toContain('cura');
+  });
+
+  it('skill evolution does not duplicate skill in list', () => {
+    const state = GameState.getInstance();
+    const kael = state.getCharacter('kael')!;
+    kael.skills.push('fira');
+    for (let i = 0; i < 5; i++) state.recordSkillUse('kael', 'fire');
+    const firaCount = kael.skills.filter((s) => s === 'fira').length;
+    expect(firaCount).toBe(1);
+  });
+
+  it('skill evolution is triggered in combat and syncs actor skills', () => {
+    const state = GameState.getInstance();
+    const kael = state.getCharacter('kael')!;
+    kael.skillUseCounts['fire'] = 4; // one more use triggers evolution
+
+    const system = new CombatSystem(
+      [new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const kaelCombatant = system.players[0];
+    const slime = system.enemies[0];
+    kaelCombatant.stats.mp = 50;
+    system.nextTurn();
+    system.executeAction(kaelCombatant, { type: 'skill', skillId: 'fire', target: slime });
+
+    expect(system.log.some((l) => l.includes('evolved'))).toBe(true);
+    expect(state.getCharacter('kael')!.skills).toContain('fira');
+    // Also verify actor's skill list is synced
+    expect(kaelCombatant.skills).toContain('fira');
+  });
+
+  it('quickHit evolves to hasteBell after 15 uses', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    expect(aria.skills).toContain('quickHit');
+    for (let i = 0; i < 15; i++) state.recordSkillUse('aria', 'quickHit');
+    expect(aria.skills).toContain('hasteBell');
+    expect(aria.skills).not.toContain('quickHit');
+  });
+});

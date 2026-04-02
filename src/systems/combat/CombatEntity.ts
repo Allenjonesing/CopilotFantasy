@@ -3,6 +3,8 @@ export interface Stats {
   maxHp: number;
   mp: number;
   maxMp: number;
+  stm: number;
+  maxStm: number;
   strength: number;
   magic: number;
   defense: number;
@@ -46,6 +48,14 @@ export abstract class CombatEntity {
     return true;
   }
 
+  consumeStm(amount: number): void {
+    this.stats.stm = Math.max(0, this.stats.stm - amount);
+  }
+
+  restoreStm(amount: number): void {
+    this.stats.stm = Math.min(this.stats.maxStm, this.stats.stm + amount);
+  }
+
   addStatus(effect: string): void {
     this.statusEffects.add(effect);
   }
@@ -63,5 +73,11 @@ export abstract class CombatEntity {
     if (this.hasStatus('haste')) mod *= 2.0;
     if (this.hasStatus('slow')) mod *= 0.5;
     return Math.max(1, Math.floor(this.stats.agility * mod));
+  }
+
+  /** Effective defense: halved while reloading (vulnerable). */
+  effectiveDefense(): number {
+    if (this.hasStatus('reloading')) return Math.floor(this.stats.defense / 2);
+    return this.stats.defense;
   }
 }

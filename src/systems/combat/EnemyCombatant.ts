@@ -62,6 +62,8 @@ export class EnemyCombatant extends CombatEntity {
       maxHp: Math.ceil(def.stats.hp * s),
       mp: def.stats.mp,
       maxMp: def.stats.mp,
+      stm: 0,
+      maxStm: 0,
       strength: Math.ceil(def.stats.strength * s),
       magic: Math.ceil(def.stats.magic * s),
       defense: Math.ceil(def.stats.defense * s),

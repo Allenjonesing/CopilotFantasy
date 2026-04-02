@@ -1,11 +1,14 @@
 import charactersData from '../../data/characters.json';
 import itemsData from '../../data/items.json';
+import skillsData from '../../data/skills.json';
 
 export interface CharacterStats {
   hp: number;
   mp: number;
   maxHp: number;
   maxMp: number;
+  stm: number;
+  maxStm: number;
   strength: number;
   magic: number;
   defense: number;
@@ -21,6 +24,8 @@ export interface CharacterState {
   skills: string[];
   statusEffects: string[];
   alive: boolean;
+  /** Tracks how many times each skill has been used. Used for skill evolution. */
+  skillUseCounts: Record<string, number>;
 }
 
 export interface InventoryItem {
@@ -159,6 +164,8 @@ export class GameState {
         mp: c.baseStats.mp,
         maxHp: c.baseStats.hp,
         maxMp: c.baseStats.mp,
+        stm: (c.baseStats as { stm?: number }).stm ?? 50,
+        maxStm: (c.baseStats as { maxStm?: number }).maxStm ?? 50,
         strength: c.baseStats.strength,
         magic: c.baseStats.magic,
         defense: c.baseStats.defense,
@@ -169,6 +176,7 @@ export class GameState {
       skills: [...c.skills],
       statusEffects: [],
       alive: true,
+      skillUseCounts: {},
     }));
 
     const highScore = this.loadHighScore();
@@ -300,6 +308,7 @@ export class GameState {
       p.stats.magicDefense += gains['magicDefense'] ?? 0;
       p.stats.agility += gains['agility'] ?? 0;
       p.stats.luck += gains['luck'] ?? 0;
+      // STM does not scale with level (physical endurance is fixed by job)
       // Restore some HP/MP on level-up
       p.stats.hp = Math.min(p.stats.hp + (gains['hp'] ?? 0), p.stats.maxHp);
       p.stats.mp = Math.min(p.stats.mp + (gains['mp'] ?? 0), p.stats.maxMp);
@@ -386,12 +395,46 @@ export class GameState {
     return 0;
   }
 
-  /** Fully restore HP and MP to max for every party member. Called after each battle. */
+  /** Fully restore HP, MP, and STM to max for every party member. Called after each battle. */
   fullHealParty(): void {
     this.state.party.forEach((c) => {
       c.stats.hp = c.stats.maxHp;
       c.stats.mp = c.stats.maxMp;
+      c.stats.stm = c.stats.maxStm;
     });
+  }
+
+  /**
+   * Record a skill use for a character and check if the skill has evolved.
+   * Returns a SkillGain if the skill evolved, or null otherwise.
+   * Skill evolution replaces the base skill with an upgraded version in the character's skill list.
+   */
+  recordSkillUse(charId: string, skillId: string): SkillGain | null {
+    const char = this.getCharacter(charId);
+    if (!char) return null;
+    if (!char.skillUseCounts) char.skillUseCounts = {};
+    char.skillUseCounts[skillId] = (char.skillUseCounts[skillId] ?? 0) + 1;
+    const useCount = char.skillUseCounts[skillId];
+
+    // Look up evolution path for this skill
+    const skillDef = (skillsData.skills as Array<Record<string, unknown>>).find(
+      (s) => s['id'] === skillId,
+    );
+    if (!skillDef) return null;
+    const evolvesTo = skillDef['evolvesTo'] as string | undefined;
+    const evolvesAtUse = skillDef['evolvesAtUse'] as number | undefined;
+
+    if (evolvesTo && evolvesAtUse && useCount >= evolvesAtUse && !char.skills.includes(evolvesTo)) {
+      // Replace base skill with evolved version (keep slot position)
+      const skillIdx = char.skills.indexOf(skillId);
+      if (skillIdx >= 0) {
+        char.skills[skillIdx] = evolvesTo;
+      } else {
+        char.skills.push(evolvesTo);
+      }
+      return { charName: char.name, skillId: evolvesTo };
+    }
+    return null;
   }
 
   reset(): void {

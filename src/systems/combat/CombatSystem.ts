@@ -8,7 +8,7 @@ import { GameState } from '../../core/state/GameState';
 import skillsData from '../../data/skills.json';
 import itemsData from '../../data/items.json';
 
-export type ActionType = 'attack' | 'skill' | 'item' | 'defend' | 'flee';
+export type ActionType = 'attack' | 'skill' | 'item' | 'defend' | 'flee' | 'rest' | 'reload';
 
 /** Extended skill definition that includes the optional speed modifier field. */
 interface SkillWithSpeed {
@@ -115,6 +115,24 @@ export class CombatSystem {
       case 'defend':
         this.addLog(`${actor.name} takes a defensive stance.`);
         break;
+      case 'rest': {
+        // Restore 50% of max STM; skip if actor has no STM (enemies)
+        if (actor.stats.maxStm > 0) {
+          const stmRestore = Math.ceil(actor.stats.maxStm / 2);
+          actor.restoreStm(stmRestore);
+          this.addLog(`${actor.name} rests and recovers ${stmRestore} Stamina.`);
+          this.bus.emit('combat:stmChange', actor);
+        }
+        break;
+      }
+      case 'reload': {
+        // Forced reload after firing flintlock — remove reloading status
+        actor.removeStatus('reloading');
+        this.statusSystem.remove(actor, 'reloading');
+        this.addLog(`${actor.name} reloads the flintlock and is ready to fire again.`);
+        this.bus.emit('status:removed', actor, 'reloading');
+        break;
+      }
       case 'flee':
         this.bus.emit('combat:fled');
         break;
@@ -141,10 +159,18 @@ export class CombatSystem {
 
   /** Determine the CTB speed modifier for the given action.
    *  Reads `speedModifier` from the skill definition when available;
-   *  defending is a fast action; basic attacks default to 1.0 (no change). */
+   *  defending/resting are fast actions; basic attacks default to 1.0 (no change). */
   private resolveSpeedModifier(action: CombatAction): number {
     if (action.type === 'defend') {
       return CombatSystem.DEFEND_SPEED_MODIFIER;
+    }
+    if (action.type === 'rest') {
+      return 1.0;
+    }
+    if (action.type === 'reload') {
+      // Reload is slower — uses skill def speedModifier from skills.json
+      const reloadSkill = skillsData.skills.find((s) => s.id === 'reload') as (typeof skillsData.skills)[0] & SkillWithSpeed | undefined;
+      return reloadSkill?.speedModifier ?? 1.3;
     }
     if (action.type === 'skill' && action.skillId) {
       const skill = skillsData.skills.find((s) => s.id === action.skillId) as (typeof skillsData.skills)[0] & SkillWithSpeed | undefined;
@@ -153,10 +179,20 @@ export class CombatSystem {
     return 1.0;
   }
 
+  /** STM cost for a basic Attack action. */
+  static readonly ATTACK_STM_COST = 15;
+  /** Defense threshold above which pierce attacks deal triple damage. */
+  static readonly PIERCE_HIGH_DEF_THRESHOLD = 20;
+
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
     this.bus.emit('combat:attackStart', actor, target);
+    // Drain stamina (only for entities that have stamina — players)
+    if (actor.stats.maxStm > 0) {
+      actor.consumeStm(CombatSystem.ATTACK_STM_COST);
+      this.bus.emit('combat:stmChange', actor);
+    }
     const raw = actor.stats.strength * 2;
-    const dmg = Math.max(1, Math.floor(raw - target.stats.defense));
+    const dmg = Math.max(1, Math.floor(raw - target.effectiveDefense()));
     target.applyDamage(dmg);
     this.addLog(`${actor.name} attacks ${target.name} for ${dmg} damage.`);
     this.bus.emit('combat:damage', target, dmg);
@@ -169,11 +205,50 @@ export class CombatSystem {
       this.addLog(`${actor.name} tried to use an unknown skill!`);
       return false;
     }
+
+    // Extended skill fields
+    const skillExt = skill as typeof skill & {
+      stmCost?: number;
+      pierce?: boolean;
+      requiresAmmo?: string;
+      selfStatus?: string;
+      applyStatus?: string;
+      evolvesTo?: string;
+      evolvesAtUse?: number;
+    };
+
+    // Check ammo requirement
+    if (skillExt.requiresAmmo) {
+      const state = GameState.getInstance();
+      if (!state.removeItem(skillExt.requiresAmmo)) {
+        this.addLog(`${actor.name} has no ${skillExt.requiresAmmo === 'gunAmmo' ? 'Flintlock Ammo' : 'Arrows'}!`);
+        return false;
+      }
+    }
+
+    // Check stamina
+    const stmCost = skillExt.stmCost ?? 0;
+    if (actor.stats.maxStm > 0 && stmCost > 0 && actor.stats.stm < stmCost) {
+      this.addLog(`${actor.name} is too exhausted! Not enough Stamina.`);
+      return false;
+    }
+
     if (!actor.consumeMp(skill.mpCost)) {
       this.addLog(`${actor.name} doesn't have enough MP!`);
+      // Refund ammo if we already consumed it
+      if (skillExt.requiresAmmo) {
+        GameState.getInstance().addItem(skillExt.requiresAmmo, 1);
+      }
       return false;
     }
     this.bus.emit('combat:mpChange', actor);
+
+    // Drain stamina
+    if (actor.stats.maxStm > 0 && stmCost > 0) {
+      actor.consumeStm(stmCost);
+      this.bus.emit('combat:stmChange', actor);
+    }
+
     // Resolve targets first so the primary target can be included in the spell animation.
     const targets = this.resolveTargets(actor, skill.target, target);
     const skillElement = (skill as { element?: string }).element ?? null;
@@ -184,16 +259,34 @@ export class CombatSystem {
     // animation (expanding rings at caster) plays instead of a misleading
     // single-target projectile.  For single-target skills, point at the target.
     const animTarget = targets.length === 1 ? targets[0] : null;
-    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply') {
+    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply' || skill.type === 'hybrid') {
       this.bus.emit('combat:spellStart', actor, animTarget, animElement, skill.name);
     }
-    // Physical skills use an attack-move animation; only fire it for single-target
+    // Physical/hybrid skills use an attack-move animation; only fire it for single-target
     // skills to avoid the misleading visual of moving toward one enemy while all
     // enemies take damage (e.g. Ground Slam).
-    if (skill.type === 'physical' && targets.length === 1) {
+    if ((skill.type === 'physical' || skill.type === 'hybrid') && targets.length === 1) {
       this.bus.emit('combat:attackStart', actor, targets[0]);
     }
     targets.forEach((t) => this.applySkillEffect(actor, skill, t));
+
+    // Apply self-inflicted status after the attack (e.g. reloading after flintlockShot)
+    if (skillExt.selfStatus) {
+      this.statusSystem.apply(actor, skillExt.selfStatus);
+      this.addLog(`${actor.name} must reload next turn.`);
+    }
+
+    // Track skill use for evolution (players only)
+    if (actor instanceof PlayerCombatant) {
+      const evo = GameState.getInstance().recordSkillUse(actor.characterId, skillId);
+      if (evo) {
+        this.addLog(`✨ ${actor.name}'s ${skill.name} has evolved into a stronger skill!`);
+        // Sync actor's skill list from the updated game state
+        const charState = GameState.getInstance().getCharacter(actor.characterId);
+        if (charState) actor.skills = [...charState.skills];
+      }
+    }
+
     return true;
   }
 
@@ -229,13 +322,18 @@ export class CombatSystem {
       }
     }
 
-    if (skill.type === 'physical' || skill.type === 'magic') {
+    const skillExt = skill as typeof skill & {
+      pierce?: boolean;
+      applyStatus?: string;
+    };
+
+    if (skill.type === 'physical' || skill.type === 'magic' || skill.type === 'hybrid') {
       const skillElement = (skill as { element?: string }).element ?? null;
 
       // Elemental absorption: if the skill's element matches the target's element, heal instead.
       if (skillElement && target.element === skillElement) {
         const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
-        const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
+        const def = skill.type === 'physical' ? target.effectiveDefense() : target.stats.magicDefense;
         const healed = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
         this.applyHeal(target, healed);
         this.addLog(`${target.name} absorbs ${skill.name}! Healed for ${healed} HP.`);
@@ -250,7 +348,13 @@ export class CombatSystem {
         water: ['lightning'],
       };
       const targetWeaknesses = target.element ? (weaknessMap[target.element] ?? []) : [];
-      const weaknessMultiplier = skillElement && targetWeaknesses.includes(skillElement) ? 2.0 : 1.0;
+      const isWeakness = skillElement !== null && targetWeaknesses.includes(skillElement);
+      const weaknessMultiplier = isWeakness ? 2.0 : 1.0;
+
+      // Extra EXP bonus for crits on weakness — flagged via event for scene to handle
+      if (isWeakness) {
+        this.bus.emit('combat:weaknessHit', actor, target);
+      }
 
       // Bio Drain: use the caster's strongest offensive stat as the base.
       if (skill.id === 'drain') {
@@ -266,22 +370,67 @@ export class CombatSystem {
         return;
       }
 
-      const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
-      const def = skill.type === 'physical' ? target.stats.defense : target.stats.magicDefense;
-      const rawDmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
-      const dmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+      let dmg: number;
 
-      if (weaknessMultiplier > 1.0) {
-        this.addLog(`${actor.name} uses ${skill.name} on ${target.name} — WEAKNESS! ${dmg} damage!`);
-      } else {
-        this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage.`);
+      // ── Hybrid attack (half physical + half magical) ────────────────────────
+      if (skill.type === 'hybrid') {
+        const physBase = actor.stats.strength;
+        const physDef = target.effectiveDefense();
+        const physPart = Math.max(1, Math.floor((physBase * (skill.power ?? 1.0)) - physDef / 2));
+        const magBase = actor.stats.magic;
+        const magDef = target.stats.magicDefense;
+        const magPart = Math.max(1, Math.floor((magBase * (skill.power ?? 1.0)) - magDef / 2));
+        dmg = Math.max(1, Math.floor((physPart + magPart) * weaknessMultiplier));
+        if (weaknessMultiplier > 1.0) {
+          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} — WEAKNESS! ${dmg} damage!`);
+        } else {
+          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (physical+magic).`);
+        }
       }
+      // ── Pierce (flintlock) — ignores defense, triple vs high-DEF ─────────────
+      else if (skillExt.pierce) {
+        const base = actor.stats.strength;
+        const rawDmg = Math.max(1, Math.floor(base * 2 * (skill.power ?? 1.0)));
+        const isHighDef = target.stats.defense >= CombatSystem.PIERCE_HIGH_DEF_THRESHOLD;
+        const pierceMultiplier = isHighDef ? 3.0 : 1.0;
+        dmg = Math.max(1, Math.floor(rawDmg * pierceMultiplier * weaknessMultiplier));
+        if (isHighDef) {
+          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} — PIERCE! ${dmg} damage! (high-DEF triple)`);
+        } else {
+          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (pierce).`);
+        }
+      }
+      // ── Standard physical or magic ──────────────────────────────────────────
+      else {
+        const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
+        const def = skill.type === 'physical' ? target.effectiveDefense() : target.stats.magicDefense;
+        const rawDmg = Math.max(1, Math.floor((base * 2 * (skill.power ?? 1.0)) - def));
+        dmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+        if (weaknessMultiplier > 1.0) {
+          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} — WEAKNESS! ${dmg} damage!`);
+        } else {
+          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage.`);
+        }
+      }
+
       target.applyDamage(dmg);
       this.bus.emit('combat:damage', target, dmg);
       this.checkDefeated(target);
+
+      // Apply on-hit status effects (e.g. bleed from arrows)
+      if (skillExt.applyStatus && !target.isDefeated) {
+        this.statusSystem.apply(target, skillExt.applyStatus);
+        this.addLog(`${target.name} is afflicted with ${skillExt.applyStatus}!`);
+      }
+
     } else if (skill.type === 'heal') {
       const healed = Math.floor(actor.stats.magic * 3 * (skill.power ?? 1.0));
       this.applyHeal(target, healed);
+      // Using a healing spell also fully restores the caster's stamina (if applicable)
+      if (actor.stats.maxStm > 0 && actor === target) {
+        actor.restoreStm(actor.stats.maxStm);
+        this.bus.emit('combat:stmChange', actor);
+      }
       this.addLog(`${actor.name} uses ${skill.name} on ${target.name}, restoring ${healed} HP.`);
     } else if (skill.type === 'revive') {
       if (!target.isDefeated) {
@@ -338,12 +487,23 @@ export class CombatSystem {
     } else {
       if (typeof effect['hp'] === 'number') {
         this.applyHeal(t, effect['hp']);
+        // Using a healing item also restores stamina fully (catching breath)
+        if (t.stats.maxStm > 0) {
+          t.restoreStm(t.stats.maxStm);
+          this.bus.emit('combat:stmChange', t);
+        }
         this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['hp']} HP.`);
       }
       if (typeof effect['mp'] === 'number') {
         t.stats.mp = Math.min(t.stats.maxMp, t.stats.mp + (effect['mp'] as number));
         this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${effect['mp']} MP.`);
         this.bus.emit('combat:heal', t, effect['mp']);
+      }
+      if (typeof effect['stmPercent'] === 'number') {
+        const stmRestore = Math.ceil(t.stats.maxStm * (effect['stmPercent'] as number));
+        t.restoreStm(stmRestore);
+        this.addLog(`${actor.name} uses ${item.name} on ${t.name}, restoring ${stmRestore} Stamina.`);
+        this.bus.emit('combat:stmChange', t);
       }
       if (effect['removePoison'] === true) {
         this.statusSystem.remove(t, 'poison');
