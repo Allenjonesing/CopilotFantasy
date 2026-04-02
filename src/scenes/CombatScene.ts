@@ -253,11 +253,15 @@ export class CombatScene extends Phaser.Scene {
     if (sigSkills.length > 0 && Math.random() < 0.80) {
       // Pick a random signature skill
       const pick = sigSkills[Math.floor(Math.random() * sigSkills.length)];
-      // For zombie-inflicting skills, prefer targets not already zombified
-      const zombifyTarget = (pick === 'zombify' || pick === 'venomStrike')
-        ? (livingPlayers.find((p) => !p.hasStatus('zombie') && !p.hasStatus('poison')) ?? target)
-        : target;
-      const consumed = this.system.executeAction(actor, { type: 'skill', skillId: pick, target: zombifyTarget });
+      // Prefer targets that don't yet have the status this skill would inflict,
+      // so status skills are applied as broadly as possible rather than stacking.
+      let skillTarget = target;
+      if (pick === 'zombify') {
+        skillTarget = livingPlayers.find((p) => !p.hasStatus('zombie')) ?? target;
+      } else if (pick === 'venomStrike') {
+        skillTarget = livingPlayers.find((p) => !p.hasStatus('poison')) ?? target;
+      }
+      const consumed = this.system.executeAction(actor, { type: 'skill', skillId: pick, target: skillTarget });
       if (consumed) return;
     }
 

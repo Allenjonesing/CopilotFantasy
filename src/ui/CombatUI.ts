@@ -888,7 +888,6 @@ export class CombatUI {
         : 'No living allies available for a Team Move.',
     );
 
-    if (this.helpText.active) this.helpText.setText(tooltips[this.selectedMenuIndex] ?? tooltips[0]);
     this.buildMenuItems(labels, disabled, tooltips);
   }
 
@@ -902,7 +901,6 @@ export class CombatUI {
     const tooltips = livingAllies.map(
       (p) => `Call ${p.name} as your combo partner. On ${p.name}'s next turn, they auto-execute a massive combined attack.`,
     );
-    if (this.helpText.active && tooltips[0]) this.helpText.setText(tooltips[0]);
     this.buildMenuItems(labels, labels.map(() => false), tooltips);
   }
 

@@ -672,7 +672,10 @@ export class CombatSystem {
     this.bus.emit('combat:attackStart', ally, target);
 
     // ── Calculate combined damage (both participants attack together) ────────
-    // Base: (initiator.strength + ally.strength) * 2 * 2.0 power — much higher than a solo attack.
+    // Formula: (initiator.str + ally.str) × 2 = comboBase  →  comboBase × 2.0 − def.
+    // Compared to a solo basic attack (actor.str × 2 − def), the combo effectively
+    // pools two fighters' strength and then doubles the sum, making it roughly 4× a
+    // single fighter of the same strength before defence is subtracted.
     const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
     const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
 
