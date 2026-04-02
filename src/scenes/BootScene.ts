@@ -34,6 +34,14 @@ function generateTextures(scene: Phaser.Scene): void {
   makeGoblinSprite(scene);
   makeShadowWispSprite(scene);
   makeIronGolemSprite(scene);
+  makeCaveBatSprite(scene);
+  makeStoneTrollSprite(scene);
+  makeDarkWraithSprite(scene);
+  makeVoidDrakeSprite(scene);
+  makeZombieSlimeSprite(scene);
+  makeMushroomSporeSprite(scene);
+  makeCrystalGolemSprite(scene);
+  makeHealingWispSprite(scene);
   makeCoinSprite(scene);
   makeChestSprite(scene);
   makeShopkeeperSprite(scene);
@@ -529,6 +537,427 @@ function makeIronGolemSprite(scene: Phaser.Scene): void {
   g.fillRect(0, 11, 4, 10);
   g.fillRect(24, 11, 4, 10);
   g.generateTexture('enemy_ironGolem', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 cave bat sprite — dark leathery wings with red eyes. */
+function makeCaveBatSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Left wing (stretched, dark brown)
+  g.fillStyle(0x3a1a0a);
+  g.fillTriangle(0, 14, 10, 6, 12, 20);
+  g.fillTriangle(0, 18, 6, 10, 10, 22);
+  // Right wing
+  g.fillTriangle(28, 14, 18, 6, 16, 20);
+  g.fillTriangle(28, 18, 22, 10, 18, 22);
+  // Wing membranes (lighter veins)
+  g.fillStyle(0x5a2a10);
+  g.fillTriangle(2, 14, 10, 8, 12, 18);
+  g.fillTriangle(26, 14, 18, 8, 16, 18);
+  // Body (dark grey-brown, oval)
+  g.fillStyle(0x2a1a10);
+  g.fillEllipse(14, 15, 10, 12);
+  // Fur highlights
+  g.fillStyle(0x4a3020);
+  g.fillEllipse(14, 13, 7, 6);
+  // Ears (tall, pointed)
+  g.fillStyle(0x2a1a10);
+  g.fillTriangle(9, 8, 11, 2, 13, 8);
+  g.fillTriangle(19, 8, 17, 2, 15, 8);
+  // Inner ears (pink)
+  g.fillStyle(0x8a3030);
+  g.fillTriangle(10, 7, 11, 3, 12, 7);
+  g.fillTriangle(18, 7, 17, 3, 16, 7);
+  // Eyes (glowing red)
+  g.fillStyle(0xcc1100);
+  g.fillCircle(11, 14, 2);
+  g.fillCircle(17, 14, 2);
+  // Eye glow
+  g.fillStyle(0xff4422);
+  g.fillCircle(11, 14, 1);
+  g.fillCircle(17, 14, 1);
+  // Tiny fangs
+  g.fillStyle(0xffffee);
+  g.fillTriangle(12, 19, 13, 22, 14, 19);
+  g.fillTriangle(14, 19, 15, 22, 16, 19);
+  g.generateTexture('enemy_caveBat', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 stone troll sprite — squat rocky humanoid with a club. */
+function makeStoneTrollSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Shadow
+  g.fillStyle(0x111111, 0.4);
+  g.fillEllipse(14, 27, 22, 5);
+  // Legs (stubby, rocky)
+  g.fillStyle(0x6a6050);
+  g.fillRect(6, 21, 7, 7);
+  g.fillRect(15, 21, 7, 7);
+  // Feet (wide, flat)
+  g.fillStyle(0x4a4030);
+  g.fillRect(4, 25, 9, 3);
+  g.fillRect(15, 25, 9, 3);
+  // Body (wide, barrel-shaped, stony)
+  g.fillStyle(0x706858);
+  g.fillRect(4, 10, 20, 12);
+  // Rocky surface texture
+  g.fillStyle(0x888070);
+  g.fillRect(5, 11, 6, 5);
+  g.fillRect(16, 13, 5, 4);
+  g.fillRect(9, 17, 8, 3);
+  // Darker cracks
+  g.lineStyle(1, 0x3a3028, 1);
+  g.lineBetween(8, 12, 10, 16);
+  g.lineBetween(18, 14, 16, 19);
+  // Arms (thick, hanging low)
+  g.fillStyle(0x706858);
+  g.fillRect(0, 11, 5, 10);
+  g.fillRect(23, 11, 5, 10);
+  // Fists (rocky knuckles)
+  g.fillStyle(0x5a5040);
+  g.fillRect(0, 20, 6, 5);
+  g.fillRect(22, 20, 6, 5);
+  // Club (right hand, crude stone-tipped)
+  g.fillStyle(0x8a7a60);
+  g.fillRect(24, 4, 4, 18);
+  g.fillStyle(0xa08868);
+  g.fillRect(23, 2, 6, 6);
+  // Head (large, blocky)
+  g.fillStyle(0x706858);
+  g.fillRect(7, 2, 14, 10);
+  // Brow ridge (overhanging)
+  g.fillStyle(0x4a4030);
+  g.fillRect(7, 2, 14, 3);
+  // Eyes (small, beady, yellow)
+  g.fillStyle(0xcc8800);
+  g.fillRect(10, 5, 3, 3);
+  g.fillRect(15, 5, 3, 3);
+  g.fillStyle(0x220000);
+  g.fillRect(11, 6, 1, 2);
+  g.fillRect(16, 6, 1, 2);
+  // Flat nose
+  g.fillStyle(0x3a3028);
+  g.fillRect(13, 8, 2, 2);
+  // Tusks
+  g.fillStyle(0xffffff);
+  g.fillRect(11, 10, 2, 3);
+  g.fillRect(15, 10, 2, 3);
+  g.generateTexture('enemy_stoneTroll', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 dark wraith sprite — shadowy hooded figure with glowing purple tendrils. */
+function makeDarkWraithSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Outer shadow/aura
+  g.fillStyle(0x110011, 0.6);
+  g.fillEllipse(14, 18, 24, 28);
+  // Flowing shadow tendrils (bottom)
+  g.fillStyle(0x220033);
+  g.fillTriangle(6, 26, 10, 18, 8, 28);
+  g.fillTriangle(22, 26, 18, 18, 20, 28);
+  g.fillTriangle(14, 28, 11, 20, 17, 20);
+  // Robe body (very dark purple)
+  g.fillStyle(0x1a0022);
+  g.fillRect(6, 10, 16, 14);
+  // Robe highlights
+  g.fillStyle(0x330044);
+  g.fillRect(7, 11, 4, 10);
+  g.fillRect(17, 11, 3, 10);
+  // Hood (dark, oversized)
+  g.fillStyle(0x110011);
+  g.fillEllipse(14, 8, 16, 14);
+  g.fillRect(7, 4, 14, 8);
+  // Hood highlight (subtle purple)
+  g.fillStyle(0x220033);
+  g.fillRect(8, 4, 12, 3);
+  // Void inside hood (nearly black)
+  g.fillStyle(0x050005);
+  g.fillEllipse(14, 9, 10, 8);
+  // Glowing eyes (purple-red)
+  g.fillStyle(0xaa00ff);
+  g.fillCircle(11, 9, 2);
+  g.fillCircle(17, 9, 2);
+  // Eye cores
+  g.fillStyle(0xff44ff);
+  g.fillCircle(11, 9, 1);
+  g.fillCircle(17, 9, 1);
+  // Spectral hands (claws)
+  g.fillStyle(0x330044);
+  g.fillRect(2, 14, 5, 4);
+  g.fillRect(21, 14, 5, 4);
+  // Claw tips
+  g.fillStyle(0x9900cc);
+  g.fillTriangle(2, 14, 0, 12, 4, 14);
+  g.fillTriangle(26, 14, 28, 12, 24, 14);
+  // Purple glow ring
+  g.lineStyle(2, 0x6600aa, 0.6);
+  g.strokeCircle(14, 14, 12);
+  g.generateTexture('enemy_darkWraith', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 void drake sprite — dark dragon with iridescent scales and glowing eyes. */
+function makeVoidDrakeSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Left wing (swept back)
+  g.fillStyle(0x1a0022);
+  g.fillTriangle(0, 12, 8, 6, 10, 20);
+  g.fillTriangle(0, 18, 6, 14, 9, 24);
+  // Wing membrane veins
+  g.fillStyle(0x330044);
+  g.fillTriangle(1, 14, 8, 8, 9, 18);
+  // Right wing
+  g.fillStyle(0x1a0022);
+  g.fillTriangle(28, 12, 20, 6, 18, 20);
+  g.fillTriangle(28, 18, 22, 14, 19, 24);
+  g.fillStyle(0x330044);
+  g.fillTriangle(27, 14, 20, 8, 19, 18);
+  // Tail
+  g.fillStyle(0x22003a);
+  g.fillTriangle(10, 26, 2, 28, 14, 22);
+  // Body (dark, scaly)
+  g.fillStyle(0x22003a);
+  g.fillEllipse(14, 17, 14, 12);
+  // Scale highlights (iridescent dark purple)
+  g.fillStyle(0x440066);
+  g.fillRect(8, 14, 4, 4);
+  g.fillRect(13, 12, 4, 4);
+  g.fillRect(17, 15, 3, 3);
+  g.fillStyle(0x220033);
+  g.fillRect(9, 18, 3, 3);
+  g.fillRect(15, 17, 3, 3);
+  // Neck
+  g.fillStyle(0x22003a);
+  g.fillRect(11, 8, 6, 8);
+  // Head (angular, draconic)
+  g.fillStyle(0x22003a);
+  g.fillRect(8, 2, 12, 8);
+  // Head ridge
+  g.fillStyle(0x440066);
+  g.fillRect(9, 2, 10, 2);
+  // Snout (projecting)
+  g.fillStyle(0x1a002a);
+  g.fillRect(7, 5, 5, 4);
+  // Fangs
+  g.fillStyle(0xddeeff);
+  g.fillRect(7, 8, 2, 3);
+  g.fillRect(10, 8, 2, 3);
+  // Eyes (void-blue glow)
+  g.fillStyle(0x0044aa);
+  g.fillCircle(13, 5, 3);
+  g.fillCircle(19, 5, 3);
+  g.fillStyle(0x00aaff);
+  g.fillCircle(13, 5, 2);
+  g.fillCircle(19, 5, 2);
+  g.fillStyle(0xaaddff);
+  g.fillCircle(13, 5, 1);
+  g.fillCircle(19, 5, 1);
+  // Horns
+  g.fillStyle(0x110011);
+  g.fillTriangle(10, 2, 8, 0, 12, 0);
+  g.fillTriangle(18, 2, 20, 0, 16, 0);
+  g.generateTexture('enemy_voidDrake', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 zombie slime sprite — decayed, sickly greenish-grey slime with X eyes. */
+function makeZombieSlimeSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Drop shadow
+  g.fillStyle(0x111100, 0.4);
+  g.fillEllipse(15, 26, 22, 7);
+  // Main body — sickly grey-green
+  g.fillStyle(0x3a5a2a);
+  g.fillCircle(14, 16, 12);
+  // Underside (darker, flattened)
+  g.fillStyle(0x283a1a);
+  g.fillEllipse(14, 23, 22, 7);
+  // Toxic mid-sheen (grey-green tint)
+  g.fillStyle(0x4a6e3a);
+  g.fillCircle(14, 14, 9);
+  // Rotting drips (dark green)
+  g.fillStyle(0x1a3a0a);
+  g.fillCircle(9, 24, 2);
+  g.fillCircle(16, 25, 2);
+  g.fillCircle(12, 26, 2);
+  // Decay spots (darker patches)
+  g.fillStyle(0x223a12);
+  g.fillCircle(9, 12, 2);
+  g.fillCircle(19, 18, 2);
+  g.fillCircle(12, 20, 2);
+  // Dim highlight (sickly)
+  g.fillStyle(0x88aa66, 0.5);
+  g.fillCircle(9, 10, 3);
+  // X eyes (zombie look)
+  g.fillStyle(0xffffff);
+  g.fillCircle(10, 14, 4);
+  g.fillCircle(18, 14, 4);
+  // X pupils (dead)
+  g.lineStyle(2, 0x330000, 1);
+  g.lineBetween(8, 12, 12, 16);
+  g.lineBetween(12, 12, 8, 16);
+  g.lineBetween(16, 12, 20, 16);
+  g.lineBetween(20, 12, 16, 16);
+  // Rotting stench lines
+  g.lineStyle(1, 0x448822, 0.7);
+  g.lineBetween(4, 8, 6, 4);
+  g.lineBetween(22, 6, 24, 2);
+  g.generateTexture('enemy_zombieSlime', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 mushroom spore sprite — round cap with stem and floating spores. */
+function makeMushroomSporeSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Shadow
+  g.fillStyle(0x111111, 0.3);
+  g.fillEllipse(14, 27, 14, 4);
+  // Stem (pale, fleshy)
+  g.fillStyle(0xd4b896);
+  g.fillRect(10, 18, 8, 10);
+  // Stem highlight
+  g.fillStyle(0xe8ceac);
+  g.fillRect(11, 18, 3, 9);
+  // Cap gills (underside, darker)
+  g.fillStyle(0x9a7255);
+  g.fillEllipse(14, 18, 18, 5);
+  // Cap body (rust-brown with purple tinge)
+  g.fillStyle(0x8b4513);
+  g.fillEllipse(14, 12, 22, 14);
+  // Cap highlight (top sheen)
+  g.fillStyle(0xaa6633);
+  g.fillEllipse(14, 10, 16, 8);
+  // Cap top highlight
+  g.fillStyle(0xcc8855);
+  g.fillEllipse(12, 8, 8, 5);
+  // White spots on cap (classic mushroom)
+  g.fillStyle(0xffffff);
+  g.fillCircle(10, 10, 2);
+  g.fillCircle(18, 11, 2);
+  g.fillCircle(14, 8, 2);
+  g.fillCircle(8, 13, 1);
+  g.fillCircle(20, 8, 1);
+  // Eyes (small, beady, front of stem)
+  g.fillStyle(0x220011);
+  g.fillCircle(11, 21, 2);
+  g.fillCircle(17, 21, 2);
+  g.fillStyle(0x880033);
+  g.fillCircle(11, 21, 1);
+  g.fillCircle(17, 21, 1);
+  // Floating spores
+  g.fillStyle(0xddaa66, 0.85);
+  g.fillCircle(3, 6, 2);
+  g.fillCircle(24, 4, 2);
+  g.fillCircle(5, 14, 1);
+  g.fillCircle(25, 12, 2);
+  g.fillCircle(2, 20, 1);
+  g.fillCircle(26, 20, 1);
+  g.generateTexture('enemy_mushroomSpore', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 crystal golem sprite — angular icy-blue construct with glowing inner light. */
+function makeCrystalGolemSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Shadow
+  g.fillStyle(0x001122, 0.4);
+  g.fillEllipse(14, 27, 20, 5);
+  // Legs (crystalline columns)
+  g.fillStyle(0x6699bb);
+  g.fillRect(5, 22, 7, 6);
+  g.fillRect(16, 22, 7, 6);
+  // Crystal facets on legs
+  g.fillStyle(0x88bbdd);
+  g.fillRect(6, 22, 4, 3);
+  g.fillRect(17, 22, 4, 3);
+  // Feet
+  g.fillStyle(0x4477aa);
+  g.fillRect(3, 25, 10, 3);
+  g.fillRect(15, 25, 10, 3);
+  // Body (hexagonal/multi-faceted)
+  g.fillStyle(0x7799cc);
+  g.fillRect(4, 9, 20, 14);
+  // Crystal face highlights
+  g.fillStyle(0x99ccee);
+  g.fillRect(5, 10, 8, 6);
+  g.fillRect(15, 12, 7, 5);
+  g.fillRect(6, 18, 6, 3);
+  // Edge facets (darker blue)
+  g.fillStyle(0x4466aa);
+  g.fillRect(4, 9, 3, 14);
+  g.fillRect(21, 9, 3, 14);
+  // Inner glow (blue-white)
+  g.fillStyle(0xaae8ff, 0.8);
+  g.fillCircle(14, 16, 4);
+  g.fillStyle(0xeeffff);
+  g.fillCircle(14, 16, 2);
+  // Crystal shoulder spikes
+  g.fillStyle(0x99ccee);
+  g.fillTriangle(0, 12, 4, 9, 4, 16);
+  g.fillTriangle(28, 12, 24, 9, 24, 16);
+  // Head (angular facets)
+  g.fillStyle(0x7799cc);
+  g.fillRect(7, 1, 14, 9);
+  // Head crest (sharp, icy)
+  g.fillStyle(0xaaddff);
+  g.fillTriangle(9, 1, 14, 0, 19, 1);
+  // Visor (icy glow)
+  g.fillStyle(0xaaeeff);
+  g.fillRect(9, 3, 10, 4);
+  g.fillStyle(0xeeffff);
+  g.fillRect(10, 4, 8, 2);
+  // Crystal arms (sharp-edged)
+  g.fillStyle(0x6699bb);
+  g.fillRect(0, 11, 4, 9);
+  g.fillRect(24, 11, 4, 9);
+  g.generateTexture('enemy_crystalGolem', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 healing wisp sprite — warm golden healing flame with a gentle glow. */
+function makeHealingWispSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Outer warm glow halo
+  g.fillStyle(0x441100, 0.3);
+  g.fillCircle(14, 15, 14);
+  // Wisp trails at bottom (warm yellow)
+  g.fillStyle(0xcc8800);
+  g.fillTriangle(8, 22, 12, 28, 14, 19);
+  g.fillTriangle(20, 22, 16, 28, 14, 19);
+  g.fillTriangle(14, 24, 11, 28, 17, 28);
+  // Main body (golden flame)
+  g.fillStyle(0xee9900);
+  g.fillCircle(14, 17, 10);
+  // Flame tip (sharp upward)
+  g.fillStyle(0xffbb22);
+  g.fillTriangle(14, 3, 7, 16, 21, 16);
+  // Inner warm glow
+  g.fillStyle(0xffcc44);
+  g.fillCircle(14, 17, 6);
+  // Core (white-yellow, brightest)
+  g.fillStyle(0xffeebb);
+  g.fillCircle(14, 16, 3);
+  // Small sparkle stars
+  g.fillStyle(0xffffff);
+  g.fillCircle(5, 8, 1);
+  g.fillCircle(23, 6, 1);
+  g.fillCircle(3, 18, 1);
+  g.fillCircle(25, 16, 1);
+  // Eyes (gentle warm gold)
+  g.fillStyle(0xffeedd);
+  g.fillCircle(10, 16, 3);
+  g.fillCircle(18, 16, 3);
+  // Irises (warm amber)
+  g.fillStyle(0xee8800);
+  g.fillCircle(10, 16, 2);
+  g.fillCircle(18, 16, 2);
+  // Eye shine
+  g.fillStyle(0xffffff);
+  g.fillCircle(10, 15, 1);
+  g.fillCircle(18, 15, 1);
+  g.generateTexture('enemy_healingWisp', 28, 28);
   g.destroy();
 }
 
