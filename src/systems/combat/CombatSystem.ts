@@ -157,7 +157,10 @@ export class CombatSystem {
         // The ally will auto-execute the combo on their next turn.
         const ally = this.players.find((p) => p.id === action.allyId);
         const comboTarget = action.target;
-        if (ally && comboTarget && !ally.isDefeated && !comboTarget.isDefeated) {
+        // Validate that both the initiator and the chosen ally have enough stamina.
+        const initiatorHasStm = actor.stats.maxStm === 0 || actor.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST;
+        const allyHasStm = ally ? (ally.stats.maxStm === 0 || ally.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST) : false;
+        if (ally && comboTarget && !ally.isDefeated && !comboTarget.isDefeated && initiatorHasStm && allyHasStm) {
           // Drain massive stamina from the initiator
           if (actor.stats.maxStm > 0) {
             actor.consumeStm(CombatSystem.TEAM_MOVE_STM_COST);
@@ -166,6 +169,12 @@ export class CombatSystem {
           this.pendingCombos.set(ally.id, { initiatorId: actor.id, targetId: comboTarget.id, teamMoveId: action.teamMoveId });
           this.addLog(`${actor.name} calls out to ${ally.name}: "Together!" — combo incoming!`);
           this.bus.emit('combat:teamMoveInitiated', actor, ally, comboTarget);
+        } else if (!initiatorHasStm) {
+          this.addLog(`${actor.name} doesn't have enough Stamina to initiate a Team Move!`);
+          turnConsumed = false;
+        } else if (ally && !allyHasStm) {
+          this.addLog(`${ally.name} doesn't have enough Stamina to execute the Team Move!`);
+          turnConsumed = false;
         } else {
           this.addLog(`${actor.name} tried to set up a team move but it failed.`);
           turnConsumed = false;

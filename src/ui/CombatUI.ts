@@ -911,16 +911,27 @@ export class CombatUI {
       tooltips.push(def.description ?? '');
     });
 
-    // ── Team Move: only available if there is at least one living ally ───────
+    // ── Team Move: only available if there is at least one living ally with enough STM ──
     const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
     const hasAlly = livingAllies.length > 0;
-    labels.push('Team Move...');
-    disabled.push(!hasAlly);
-    tooltips.push(
-      hasAlly
-        ? 'Call an ally for a combined attack! Massive damage, but both participants act slower next. Initiates a co-op combo on the ally\'s next turn.'
-        : 'No living allies available for a Team Move.',
+    const actorHasStm = actor && (actor.stats.maxStm === 0 || actor.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST);
+    const anyAllyHasStm = livingAllies.some(
+      (p) => p.stats.maxStm === 0 || p.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST,
     );
+    const teamMoveAvailable = hasAlly && actorHasStm && anyAllyHasStm;
+    labels.push('Team Move...');
+    disabled.push(!teamMoveAvailable);
+    let teamMoveTip: string;
+    if (!hasAlly) {
+      teamMoveTip = 'No living allies available for a Team Move.';
+    } else if (!actorHasStm) {
+      teamMoveTip = `Not enough Stamina (need ${CombatSystem.TEAM_MOVE_STM_COST} STM).`;
+    } else if (!anyAllyHasStm) {
+      teamMoveTip = `No ally has enough Stamina (need ${CombatSystem.TEAM_MOVE_STM_COST} STM).`;
+    } else {
+      teamMoveTip = 'Call an ally for a combined attack! Massive damage, but both participants act slower next. Initiates a co-op combo on the ally\'s next turn.';
+    }
+    tooltips.push(teamMoveTip);
 
     this.buildMenuItems(labels, disabled, tooltips);
   }
@@ -935,11 +946,21 @@ export class CombatUI {
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
     const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
-    const labels = livingAllies.map((p) => `${p.name}  HP:${p.stats.hp}/${p.stats.maxHp}`);
-    const tooltips = livingAllies.map(
-      (p) => `Call ${p.name} as your combo partner for ${moveName}. On ${p.name}'s next turn, they auto-execute the combined attack.`,
+    const labels = livingAllies.map((p) => {
+      const stmLabel = p.stats.maxStm > 0 ? `  STM:${p.stats.stm}/${p.stats.maxStm}` : '';
+      return `${p.name}  HP:${p.stats.hp}/${p.stats.maxHp}${stmLabel}`;
+    });
+    const disabled = livingAllies.map(
+      (p) => p.stats.maxStm > 0 && p.stats.stm < CombatSystem.TEAM_MOVE_STM_COST,
     );
-    this.buildMenuItems(labels, labels.map(() => false), tooltips);
+    const tooltips = livingAllies.map((p) => {
+      const notEnoughStm = p.stats.maxStm > 0 && p.stats.stm < CombatSystem.TEAM_MOVE_STM_COST;
+      if (notEnoughStm) {
+        return `${p.name} doesn't have enough Stamina (need ${CombatSystem.TEAM_MOVE_STM_COST} STM, has ${p.stats.stm}).`;
+      }
+      return `Call ${p.name} as your combo partner for ${moveName}. On ${p.name}'s next turn, they auto-execute the combined attack.`;
+    });
+    this.buildMenuItems(labels, disabled, tooltips);
   }
 
   /** Build the team-move type selection menu showing all moves available to this character. */
@@ -2129,6 +2150,7 @@ export class CombatUI {
 
     // ── Team Move ally selection ─────────────────────────────────────────────
     if (this.menuState === 'team-move-ally') {
+      if (this.menuDisabled[idx]) return null;
       const actor = this.currentActor;
       const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
       const ally = livingAllies[idx];
