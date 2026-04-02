@@ -38,6 +38,13 @@ const ELEMENT_ICONS: Record<string, string> = {
   water: '💧',
 };
 
+/** Job label colours used to badge each ally's class above their battlefield sprite. */
+const JOB_LABEL_COLORS: Record<string, string> = {
+  warrior: '#cc6622',
+  mage: '#5588ff',
+  healer: '#44cc88',
+};
+
 /** Element spell colour for animations. */
 const ELEMENT_COLORS: Record<string, number> = {
   fire: 0xff6600,
@@ -326,15 +333,34 @@ export class CombatUI {
       }
       icon.setInteractive({ useHandCursor: true });
       icon.on('pointerdown', () => this.onEntityTap(p));
+
+      // ── Job label above the player sprite ────────────────────────────────
+      const charState = GameState.getInstance().getCharacter(p.id);
+      const jobId = charState?.job ?? '';
+      const jobName = jobId ? (jobId.charAt(0).toUpperCase() + jobId.slice(1)) : '';
+      const jobColor = JOB_LABEL_COLORS[jobId] ?? '#aaaaaa';
+      if (jobName) {
+        this.scene.add
+          .text(x, y - PLAYER_ICON_H / 2 - 3, jobName, {
+            fontSize: '8px',
+            color: jobColor,
+            fontFamily: 'monospace',
+            stroke: '#000000',
+            strokeThickness: 2,
+          })
+          .setOrigin(0.5, 1)
+          .setDepth(6);
+      }
+
       const nameText = this.scene.add
-        .text(x, y + PLAYER_ICON_H / 2 + 8, p.name, { fontSize: '12px', color: '#aaaaff', fontFamily: 'monospace' })
+        .text(x, y + PLAYER_ICON_H / 2 + 5, p.name, { fontSize: '11px', color: '#aaaaff', fontFamily: 'monospace' })
         .setOrigin(0.5)
         .setDepth(6);
       this.playerIconRects.set(p.id, icon);
       this.playerIconNames.push(nameText);
 
       // ── HP and MP bars directly under the player sprite ──────────────────
-      const hpBarY = y + PLAYER_ICON_H / 2 + 20;
+      const hpBarY = y + PLAYER_ICON_H / 2 + 18;
       const mpBarY = hpBarY + 9;
       const stmBarY = mpBarY + 9;
       const barW = PLAYER_ICON_W;

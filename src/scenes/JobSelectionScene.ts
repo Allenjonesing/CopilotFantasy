@@ -127,16 +127,17 @@ export class JobSelectionScene extends Phaser.Scene {
 
       // Job description
       const jobDesc = this.add.text(14, rowY + 56, this.jobs[this.jobSelections[i]].description, {
-        fontSize: '10px', color: '#aaaaaa', fontFamily: 'monospace',
+        fontSize: '9px', color: '#aaaaaa', fontFamily: 'monospace',
         wordWrap: { width: W - 28 },
       });
       this.jobDescTexts.push(jobDesc);
 
-      // Quick stat preview: HP / MP / STM / STR / MAG
+      // Quick stat preview: HP / MP / STM / STR / MAG / DEF / AGI
       const stats = this.jobs[this.jobSelections[i]].baseStats;
       const statStr = `HP:${stats.hp}  MP:${stats.mp}  STM:${stats.stm}  STR:${stats.strength}  MAG:${stats.magic}  DEF:${stats.defense}  AGI:${stats.agility}`;
-      const statText = this.add.text(14, rowY + 74, statStr, {
+      const statText = this.add.text(14, rowY + 82, statStr, {
         fontSize: '9px', color: '#88ccff', fontFamily: 'monospace',
+        wordWrap: { width: W - 28 },
       });
       this.statTexts.push(statText);
     });
