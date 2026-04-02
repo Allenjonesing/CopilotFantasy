@@ -1,6 +1,7 @@
 import charactersData from '../../data/characters.json';
 import itemsData from '../../data/items.json';
 import skillsData from '../../data/skills.json';
+import jobsData from '../../data/jobs.json';
 
 /** Default stamina for characters whose definition does not specify stm/maxStm. */
 const DEFAULT_STAMINA = 50;
@@ -23,6 +24,8 @@ export interface CharacterStats {
 export interface CharacterState {
   id: string;
   name: string;
+  /** Job (class) assigned to this character. Empty string means use character defaults. */
+  job: string;
   stats: CharacterStats;
   skills: string[];
   statusEffects: string[];
@@ -162,6 +165,7 @@ export class GameState {
     const party: CharacterState[] = charactersData.characters.map((c) => ({
       id: c.id,
       name: c.name,
+      job: c.class.toLowerCase(),
       stats: {
         hp: c.baseStats.hp,
         mp: c.baseStats.mp,
@@ -302,7 +306,13 @@ export class GameState {
       const charDef = charactersData.characters.find((c) => c.id === p.id);
       if (!charDef) return;
 
-      const gains = charDef.levelUpStats as Record<string, number>;
+      // Use job-specific level-up stats if the character has a job assigned.
+      const jobDef = p.job
+        ? (jobsData.jobs as Array<Record<string, unknown>>).find((j) => j['id'] === p.job)
+        : null;
+
+      const gains = (jobDef?.['levelUpStats'] as Record<string, number> | undefined)
+        ?? (charDef.levelUpStats as Record<string, number>);
       p.stats.maxHp += gains['hp'] ?? 0;
       p.stats.maxMp += gains['mp'] ?? 0;
       p.stats.strength += gains['strength'] ?? 0;
@@ -316,7 +326,9 @@ export class GameState {
       p.stats.hp = Math.min(p.stats.hp + (gains['hp'] ?? 0), p.stats.maxHp);
       p.stats.mp = Math.min(p.stats.mp + (gains['mp'] ?? 0), p.stats.maxMp);
 
-      const levelSkills = charDef.levelSkills as Record<string, string | undefined>;
+      // Use job-specific level skills if a job is assigned, otherwise use character defaults.
+      const levelSkills = (jobDef?.['levelSkills'] as Record<string, string | undefined> | undefined)
+        ?? (charDef.levelSkills as Record<string, string | undefined>);
       const newSkill = levelSkills[String(level)];
       if (newSkill && !p.skills.includes(newSkill)) {
         p.skills.push(newSkill);
@@ -438,6 +450,37 @@ export class GameState {
       return { charName: char.name, skillId: evolvesTo };
     }
     return null;
+  }
+
+  /**
+   * Apply a job template to a character, updating their base stats and starting skills.
+   * Called from the job selection screen before the game begins.
+   */
+  applyJobToCharacter(characterId: string, jobId: string): void {
+    const char = this.getCharacter(characterId);
+    if (!char) return;
+    const jobDef = (jobsData.jobs as Array<Record<string, unknown>>).find(
+      (j) => j['id'] === jobId,
+    );
+    if (!jobDef) return;
+    const stats = jobDef['baseStats'] as Record<string, number>;
+    char.job = jobId;
+    char.stats.maxHp = stats['hp'] ?? char.stats.maxHp;
+    char.stats.hp = stats['hp'] ?? char.stats.maxHp;
+    char.stats.maxMp = stats['mp'] ?? char.stats.maxMp;
+    char.stats.mp = stats['mp'] ?? char.stats.maxMp;
+    char.stats.maxStm = stats['maxStm'] ?? stats['stm'] ?? char.stats.maxStm;
+    char.stats.stm = stats['stm'] ?? char.stats.maxStm;
+    char.stats.strength = stats['strength'] ?? char.stats.strength;
+    char.stats.magic = stats['magic'] ?? char.stats.magic;
+    char.stats.defense = stats['defense'] ?? char.stats.defense;
+    char.stats.magicDefense = stats['magicDefense'] ?? char.stats.magicDefense;
+    char.stats.agility = stats['agility'] ?? char.stats.agility;
+    char.stats.luck = stats['luck'] ?? char.stats.luck;
+    const skills = jobDef['skills'] as string[] | undefined;
+    if (skills) char.skills = [...skills];
+    // Reset skill evolution counts when job changes.
+    char.skillUseCounts = {};
   }
 
   reset(): void {

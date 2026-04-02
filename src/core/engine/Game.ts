@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from '../../scenes/BootScene';
 import { MainMenuScene } from '../../scenes/MainMenuScene';
+import { JobSelectionScene } from '../../scenes/JobSelectionScene';
 import { ExplorationScene } from '../../scenes/ExplorationScene';
 import { CombatScene } from '../../scenes/CombatScene';
 import { VictoryScene } from '../../scenes/VictoryScene';
@@ -41,7 +42,7 @@ export function createGame(): Phaser.Game {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, MainMenuScene, ExplorationScene, CombatScene, VictoryScene, GameOverScene, ShopScene],
+    scene: [BootScene, MainMenuScene, JobSelectionScene, ExplorationScene, CombatScene, VictoryScene, GameOverScene, ShopScene],
     audio: { disableWebAudio: false },
   };
 

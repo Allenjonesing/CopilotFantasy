@@ -7,7 +7,6 @@ import { GameState } from '../core/state/GameState';
 import { AccomplishmentSystem } from '../core/state/AccomplishmentSystem';
 import skillsData from '../data/skills.json';
 import itemsData from '../data/items.json';
-import charactersData from '../data/characters.json';
 
 // Fixed/animation constants that don't depend on screen size
 const TIMELINE_H = 36;
@@ -664,14 +663,15 @@ export class CombatUI {
     }
   }
 
-  /** Return the skill-menu label appropriate for the current actor's class. */
+  /** Return the skill-menu label appropriate for the current actor's current job. */
   private skillMenuLabel(): string {
     if (!this.currentActor) return 'Skill';
-    const charDef = (charactersData.characters as Array<{ id: string; class: string }>)
-      .find((c) => c.id === this.currentActor!.id);
-    if (!charDef) return 'Skill';
-    if (charDef.class === 'Mage') return 'Magic';
-    if (charDef.class === 'Healer') return 'White Magic';
+    // Prefer the job stored in GameState (updated by job selection) over the
+    // hardcoded class in characters.json so the label reflects the chosen job.
+    const charState = GameState.getInstance().getCharacter(this.currentActor.id);
+    const job = charState?.job?.toLowerCase() ?? '';
+    if (job === 'mage') return 'Magic';
+    if (job === 'healer') return 'White Magic';
     return 'Skill';
   }
 
@@ -688,29 +688,29 @@ export class CombatUI {
       return;
     }
 
-    const specialSkills = actor ? actor.skills.filter((s) => s !== 'attack') : [];
-    const hasSkills = specialSkills.length > 0;
+    // Only count non-physical, non-hybrid skills (magic/heal/status) for the skill menu.
+    const magicSkills = actor ? actor.skills.filter((s) => {
+      if (s === 'attack') return false;
+      const def = skillsData.skills.find((sk) => sk.id === s);
+      return def && def.type !== 'physical' && def.type !== 'hybrid' && def.type !== 'reload';
+    }) : [];
+    const hasSkills = magicSkills.length > 0;
     const hasItems = GameState.getInstance().data.inventory.filter((i) => {
       const def = itemsData.items.find((it) => it.id === i.id);
       return def && def.type !== 'ammo'; // hide ammo from item menu
     }).length > 0;
     const skillLabel = this.skillMenuLabel();
     const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
+    const isItemStmDepleted = actor
+      ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ITEM_STM_COST)
+      : false;
 
-    // Check if actor has magic skills that enable the attack sub-menu
-    const hasMagicSkills = actor ? actor.skills.some((s) => {
-      if (s === 'attack') return false;
-      const def = skillsData.skills.find((sk) => sk.id === s);
-      return def && (def.type === 'magic' || def.type === 'hybrid');
-    }) : false;
-
-    // "..." suffix indicates a sub-menu will open
-    const attackLabel = hasMagicSkills ? 'Attack...' : 'Attack';
-    const labels = [attackLabel, `${skillLabel}...`, 'Item...', 'Defend [VF]', 'Rest [+STM]', 'Flee'];
+    // Attack always shows "..." — target selection (and physical skill sub-menu) always needed.
+    const labels = ['Attack...', `${skillLabel}...`, 'Item...', 'Defend [VF]', 'Rest [+STM]', 'Flee'];
     const disabled = [
-      isOutOfStm,            // Attack disabled when out of STM
+      isOutOfStm,                         // Attack disabled when out of STM
       !hasSkills,
-      !hasItems,
+      !hasItems || isItemStmDepleted,
       false,
       false,
       this.isBossBattle,
@@ -718,12 +718,12 @@ export class CombatUI {
     const tooltips = [
       isOutOfStm
         ? '⚠ Out of Stamina! Cannot perform physical attacks. Rest or use an item first.'
-        : hasMagicSkills
-          ? 'Attack the enemy — choose a regular strike or a magic-infused strike.'
-          : 'Attack the enemy with a physical strike.',
-      `Use ${actor?.name ?? 'the character'}'s ${skillLabel.toLowerCase()} abilities.`,
-      'Use an item from your inventory (potions, etc.).',
-      'Take a defensive stance to reduce incoming damage. Advances your next turn [VF].',
+        : 'Attack the enemy — choose a physical attack or special move (costs STM).',
+      `Use ${actor?.name ?? 'the character'}'s ${skillLabel.toLowerCase()} abilities (costs MP).`,
+      isItemStmDepleted
+        ? `⚠ Not enough Stamina to use an item (costs ${CombatSystem.ITEM_STM_COST} STM).`
+        : `Use an item from your inventory (costs ${CombatSystem.ITEM_STM_COST} STM).`,
+      `Take a defensive stance. Reduces incoming damage, restores ~25% Stamina. Advances your next turn [VF].`,
       'Rest to recover 50% of Stamina. Uses your turn.',
       'Attempt to flee from the battle. Cannot flee from bosses.',
     ];
@@ -748,20 +748,19 @@ export class CombatUI {
     this.menuTitleBase = `${this.skillMenuLabel()}  [BACK: cancel]`;
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
-    const skillIds = actor ? actor.skills.filter((s) => s !== 'attack') : [];
+    // Only show magic/heal/status skills — physical and hybrid attacks belong in the Attack menu.
+    const skillIds = actor ? actor.skills.filter((s) => {
+      if (s === 'attack') return false;
+      const def = skillsData.skills.find((sk) => sk.id === s);
+      return def && def.type !== 'physical' && def.type !== 'hybrid' && def.type !== 'reload';
+    }) : [];
     const items = skillIds.map((id) => {
       const def = skillsData.skills.find((s) => s.id === id);
       if (!def) return id;
-      const speedMod = (def as { speedModifier?: number }).speedModifier ?? 1.0;
-      let speedTag = '';
-      if (speedMod <= 0.7) speedTag = ' [VF]';
-      else if (speedMod <= 0.9) speedTag = ' [F]';
-      else if (speedMod >= 1.4) speedTag = ' [VS]';
-      else if (speedMod >= 1.2) speedTag = ' [S]';
       const mpStr = def.mpCost > 0 ? ` MP:${def.mpCost}` : '';
       const stmCost = (def as { stmCost?: number }).stmCost ?? 0;
       const stmStr = stmCost > 0 ? ` STM:${stmCost}` : '';
-      return `${def.name}${mpStr}${stmStr}${speedTag}`;
+      return `${def.name}${mpStr}${stmStr}`;
     });
     const inv = GameState.getInstance().data.inventory;
     const disabled = skillIds.map((id) => {
@@ -834,30 +833,39 @@ export class CombatUI {
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
     const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
+    const inv = GameState.getInstance().data.inventory;
 
-    // Check if actor has a magicStrike skill
-    const hasMagicStrike = actor ? actor.skills.includes('magicStrike') : false;
-    const magicStrikeDef = skillsData.skills.find((s) => s.id === 'magicStrike');
-    // Default stmCost for magicStrike matches skills.json (stmCost: 15)
-    const magicStrikeStmCost = (magicStrikeDef as { stmCost?: number } | undefined)?.stmCost ?? CombatSystem.ATTACK_STM_COST;
-    const magicStrikeMpCost = magicStrikeDef?.mpCost ?? 12;
-    const magicStrikeOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < magicStrikeStmCost) : false;
-    const magicStrikeOutOfMp = actor ? actor.stats.mp < magicStrikeMpCost : false;
+    // Collect all physical/hybrid skills the actor has (excluding basic 'attack' which is always first).
+    const physicalSkillIds = actor ? actor.skills.filter((s) => {
+      if (s === 'attack') return false;
+      const def = skillsData.skills.find((sk) => sk.id === s);
+      return def && (def.type === 'physical' || def.type === 'hybrid');
+    }) : [];
 
-    const labels = [
-      'Regular Strike',
-      hasMagicStrike ? `Magic Strike MP:${magicStrikeMpCost} STM:${magicStrikeStmCost}` : 'Magic Strike (unavailable)',
-    ];
-    const disabled = [
-      isOutOfStm,
-      !hasMagicStrike || magicStrikeOutOfStm || magicStrikeOutOfMp,
-    ];
-    const tooltips = [
-      'A standard physical attack.',
-      hasMagicStrike
-        ? 'Imbues a physical blow with magic. Deals half physical + half magical damage. Melee range only.'
-        : 'Learn Magic Strike to use this option.',
-    ];
+    // First option is always "Regular Strike" (basic attack).
+    const labels: string[] = [`Regular Strike  STM:${CombatSystem.ATTACK_STM_COST}`];
+    const disabled: boolean[] = [isOutOfStm];
+    const tooltips: string[] = [`A standard physical attack. Costs ${CombatSystem.ATTACK_STM_COST} Stamina.`];
+
+    // Add each physical/hybrid skill.
+    physicalSkillIds.forEach((id) => {
+      const def = skillsData.skills.find((s) => s.id === id);
+      if (!def) return;
+      const mpStr = def.mpCost > 0 ? ` MP:${def.mpCost}` : '';
+      const stmCost = (def as { stmCost?: number }).stmCost ?? 0;
+      const stmStr = stmCost > 0 ? ` STM:${stmCost}` : '';
+      labels.push(`${def.name}${mpStr}${stmStr}`);
+
+      const notEnoughMp = actor ? actor.stats.mp < def.mpCost : false;
+      const notEnoughStm = actor
+        ? (actor.stats.maxStm > 0 && stmCost > 0 && actor.stats.stm < stmCost)
+        : false;
+      const requiresAmmo = (def as { requiresAmmo?: string }).requiresAmmo;
+      const missingAmmo = requiresAmmo ? !inv.some((i) => i.id === requiresAmmo && i.quantity > 0) : false;
+      disabled.push(notEnoughMp || notEnoughStm || missingAmmo);
+      tooltips.push(def.description ?? '');
+    });
+
     if (this.helpText.active) this.helpText.setText(tooltips[0]);
     this.buildMenuItems(labels, disabled, tooltips);
   }
@@ -1686,13 +1694,31 @@ export class CombatUI {
   private getHoveredSpeedModifier(): number {
     const idx = this.selectedMenuIndex;
     if (this.menuState === 'main') {
-      // Main menu options in order: Attack/Attack..., Skill..., Item..., Defend, Rest, Flee
+      // Main menu options in order: Attack..., Skill..., Item..., Defend, Rest, Flee
       if (idx === 3) return DEFEND_SPEED_MODIFIER; // Defend
       return 1.0;
     }
     if (this.menuState === 'skill' && this.currentActor) {
-      const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
+      // Only magic/heal/status skills in this menu.
+      const skillIds = this.currentActor.skills.filter((s) => {
+        if (s === 'attack') return false;
+        const def = skillsData.skills.find((sk) => sk.id === s);
+        return def && def.type !== 'physical' && def.type !== 'hybrid' && def.type !== 'reload';
+      });
       const skillId = skillIds[idx];
+      if (skillId) {
+        const def = skillsData.skills.find((s) => s.id === skillId);
+        return (def as { speedModifier?: number } | undefined)?.speedModifier ?? 1.0;
+      }
+    }
+    if (this.menuState === 'attack-sub' && this.currentActor) {
+      if (idx === 0) return 1.0; // Regular strike uses default speed
+      const physicalSkillIds = this.currentActor.skills.filter((s) => {
+        if (s === 'attack') return false;
+        const def = skillsData.skills.find((sk) => sk.id === s);
+        return def && (def.type === 'physical' || def.type === 'hybrid');
+      });
+      const skillId = physicalSkillIds[idx - 1];
       if (skillId) {
         const def = skillsData.skills.find((s) => s.id === skillId);
         return (def as { speedModifier?: number } | undefined)?.speedModifier ?? 1.0;
@@ -1910,24 +1936,15 @@ export class CombatUI {
 
     if (this.menuState === 'main') {
       if (this.menuDisabled[idx]) return null;
-      // Main menu options: Attack/Attack..., Skill..., Item..., Defend, Rest, Flee
+      // Main menu options: Attack..., Skill..., Item..., Defend, Rest, Flee
       const mainOptions = ['attack', 'skill', 'item', 'defend', 'rest', 'flee'] as const;
       const choice = mainOptions[idx];
       // Persist this choice so the cursor returns here on the character's next turn.
       this.lastMainMenuIndex.set(this.currentActor.id, idx);
       if (choice === 'attack') {
-        // Check if attack has sub-options (magic + physical hybrid available)
-        const hasMagicSkills = this.currentActor.skills.some((s) => {
-          if (s === 'attack') return false;
-          const def = skillsData.skills.find((sk) => sk.id === s);
-          return def && (def.type === 'magic' || def.type === 'hybrid');
-        });
-        if (hasMagicSkills) {
-          this.menuState = 'attack-sub';
-          this.buildAttackSubMenu();
-          return null;
-        }
-        this.enterTargetMode('attack');
+        // Attack always opens the attack sub-menu (target selection always needed).
+        this.menuState = 'attack-sub';
+        this.buildAttackSubMenu();
         return null;
       } else if (choice === 'skill') {
         this.menuState = 'skill';
@@ -1946,25 +1963,37 @@ export class CombatUI {
       }
     }
 
-    // ── Attack sub-menu (Regular Strike vs Magic Strike) ────────────────────
+    // ── Attack sub-menu (Regular Strike + physical/hybrid skills) ────────────
     if (this.menuState === 'attack-sub') {
       if (this.menuDisabled[idx]) return null;
       if (idx === 0) {
-        // Regular strike — go to target selection
+        // Regular strike — go to target selection for basic attack
         this.menuState = 'main'; // reset so backMenu works properly
         this.enterTargetMode('attack');
         return null;
       } else {
-        // Magic Strike — execute as skill
+        // A physical/hybrid skill — collect physical skills in the same order as buildAttackSubMenu
+        const physicalSkillIds = this.currentActor.skills.filter((s) => {
+          if (s === 'attack') return false;
+          const def = skillsData.skills.find((sk) => sk.id === s);
+          return def && (def.type === 'physical' || def.type === 'hybrid');
+        });
+        const skillId = physicalSkillIds[idx - 1]; // offset by 1 for "Regular Strike"
+        if (!skillId) return null;
         this.menuState = 'main';
-        this.pendingSkillId = 'magicStrike';
+        this.pendingSkillId = skillId;
         this.enterTargetMode('skill');
         return null;
       }
     }
 
     if (this.menuState === 'skill') {
-      const skillIds = this.currentActor.skills.filter((s) => s !== 'attack');
+      // Only magic/heal/status skills in this menu (physical/hybrid are in the attack submenu).
+      const skillIds = this.currentActor.skills.filter((s) => {
+        if (s === 'attack') return false;
+        const def = skillsData.skills.find((sk) => sk.id === s);
+        return def && def.type !== 'physical' && def.type !== 'hybrid' && def.type !== 'reload';
+      });
       const skillId = skillIds[idx];
       if (!skillId) return null;
       // Remember the cursor position in the skill sub-menu for this character.
