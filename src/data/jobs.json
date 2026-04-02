@@ -1,0 +1,64 @@
+{
+  "jobs": [
+    {
+      "id": "warrior",
+      "name": "Warrior",
+      "description": "A battle-hardened fighter. High Strength and Stamina; masters physical attacks and weapon skills.",
+      "baseStats": {
+        "hp": 80,
+        "mp": 15,
+        "stm": 60,
+        "maxStm": 60,
+        "strength": 15,
+        "magic": 2,
+        "defense": 12,
+        "magicDefense": 6,
+        "agility": 6,
+        "luck": 5
+      },
+      "skills": ["attack", "quickHit", "smash", "flintlockShot"],
+      "levelUpStats": { "hp": 8, "mp": 2, "stm": 0, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
+      "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" }
+    },
+    {
+      "id": "mage",
+      "name": "Mage",
+      "description": "A scholar of arcane forces. High Magic and MP; commands powerful elemental spells.",
+      "baseStats": {
+        "hp": 50,
+        "mp": 40,
+        "stm": 30,
+        "maxStm": 30,
+        "strength": 8,
+        "magic": 14,
+        "defense": 8,
+        "magicDefense": 10,
+        "agility": 9,
+        "luck": 5
+      },
+      "skills": ["attack", "fire", "thunder", "blizzard", "water", "magicStrike"],
+      "levelUpStats": { "hp": 5, "mp": 10, "stm": 0, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
+      "levelSkills": { "2": "fira", "3": "blizzara", "4": "thundara", "5": "watera", "6": "firaga", "7": "blizzaga", "8": "thundaga", "9": "waterga" }
+    },
+    {
+      "id": "healer",
+      "name": "Healer",
+      "description": "A devoted healer. Balanced stats with high Agility; uses restorative magic and ranged attacks.",
+      "baseStats": {
+        "hp": 60,
+        "mp": 35,
+        "stm": 45,
+        "maxStm": 45,
+        "strength": 10,
+        "magic": 10,
+        "defense": 10,
+        "magicDefense": 11,
+        "agility": 12,
+        "luck": 6
+      },
+      "skills": ["attack", "cure", "arrowShot"],
+      "levelUpStats": { "hp": 6, "mp": 8, "stm": 0, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
+      "levelSkills": { "2": "cura", "3": "esuna", "4": "raise", "5": "curaga", "6": "reraise", "7": "pray" }
+    }
+  ]
+}

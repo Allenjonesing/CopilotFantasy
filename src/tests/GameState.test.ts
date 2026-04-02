@@ -230,4 +230,33 @@ describe('GameState', () => {
     expect(state.data.preCombatX).toBe(5);
     expect(state.data.preCombatY).toBe(7);
   });
+
+  it('applyJobToCharacter changes stats and skills to match the job', () => {
+    // Default: aria is Warrior
+    const aria = state.getCharacter('aria')!;
+    const originalHp = aria.stats.maxHp;
+    // Apply Mage job to aria
+    state.applyJobToCharacter('aria', 'mage');
+    expect(aria.job).toBe('mage');
+    // Mage has lower HP than Warrior
+    expect(aria.stats.maxHp).toBeLessThan(originalHp);
+    // Mage starts with fire spell
+    expect(aria.skills).toContain('fire');
+    // Mage should not have smash
+    expect(aria.skills).not.toContain('smash');
+  });
+
+  it('applyJobToCharacter resets skillUseCounts', () => {
+    const aria = state.getCharacter('aria')!;
+    aria.skillUseCounts['attack'] = 10;
+    state.applyJobToCharacter('aria', 'healer');
+    expect(aria.skillUseCounts).toEqual({});
+  });
+
+  it('party members have a job field on init', () => {
+    state.data.party.forEach((c) => {
+      expect(c.job).toBeDefined();
+      expect(c.job.length).toBeGreaterThan(0);
+    });
+  });
 });

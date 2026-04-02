@@ -101,7 +101,7 @@ export class MainMenuScene extends Phaser.Scene {
         .setOrigin(0.5);
 
       this.input.once('pointerdown', () => {
-        this.scene.start('ExplorationScene');
+        this.scene.start('JobSelectionScene');
       });
     }
 
@@ -191,7 +191,7 @@ export class MainMenuScene extends Phaser.Scene {
       }
     } else {
       if (Phaser.Input.Keyboard.JustDown(this.startKey)) {
-        this.scene.start('ExplorationScene');
+        this.scene.start('JobSelectionScene');
       }
     }
   }
@@ -216,9 +216,9 @@ export class MainMenuScene extends Phaser.Scene {
       GameState.getInstance().loadSavedGame();
       this.scene.start('ExplorationScene');
     } else {
-      // New game — clear save and reset state
+      // New game — clear save, reset state, then let player select jobs
       GameState.getInstance().reset();
-      this.scene.start('ExplorationScene');
+      this.scene.start('JobSelectionScene');
     }
   }
 }

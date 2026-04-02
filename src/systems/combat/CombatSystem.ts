@@ -112,9 +112,18 @@ export class CombatSystem {
       case 'item':
         this.useItem(actor, action.itemId!, action.target ?? null);
         break;
-      case 'defend':
-        this.addLog(`${actor.name} takes a defensive stance.`);
+      case 'defend': {
+        // Defensive stance: restore 25% STM (half of Rest's 50%) and reduce incoming damage.
+        if (actor.stats.maxStm > 0) {
+          const stmRestore = Math.ceil(actor.stats.maxStm * CombatSystem.DEFEND_STM_RESTORE);
+          actor.restoreStm(stmRestore);
+          this.addLog(`${actor.name} takes a defensive stance, recovering ${stmRestore} Stamina.`);
+          this.bus.emit('combat:stmChange', actor);
+        } else {
+          this.addLog(`${actor.name} takes a defensive stance.`);
+        }
         break;
+      }
       case 'rest': {
         // Restore 50% of max STM; skip if actor has no STM (enemies)
         if (actor.stats.maxStm > 0) {
@@ -156,6 +165,10 @@ export class CombatSystem {
 
   /** Speed modifier applied when the actor defends: acts sooner on their next turn. */
   static readonly DEFEND_SPEED_MODIFIER = 0.5;
+  /** STM cost for using an item (small effort to reach for a potion in the heat of battle). */
+  static readonly ITEM_STM_COST = 5;
+  /** Fraction of max STM restored by taking a defensive stance (half of Rest's restore). */
+  static readonly DEFEND_STM_RESTORE = 0.25;
 
   /** Determine the CTB speed modifier for the given action.
    *  Reads `speedModifier` from the skill definition when available;
@@ -460,6 +473,11 @@ export class CombatSystem {
     if (!state.removeItem(itemId)) {
       this.addLog(`No ${item.name} left!`);
       return;
+    }
+    // Using an item costs a small amount of stamina (reaching for a potion mid-battle).
+    if (actor.stats.maxStm > 0) {
+      actor.consumeStm(CombatSystem.ITEM_STM_COST);
+      this.bus.emit('combat:stmChange', actor);
     }
     const t = target ?? actor;
     const effect = item.effect as Record<string, unknown>;
