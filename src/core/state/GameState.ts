@@ -315,16 +315,17 @@ export class GameState {
         ?? (charDef.levelUpStats as Record<string, number>);
       p.stats.maxHp += gains['hp'] ?? 0;
       p.stats.maxMp += gains['mp'] ?? 0;
+      p.stats.maxStm += gains['stm'] ?? 0;
       p.stats.strength += gains['strength'] ?? 0;
       p.stats.magic += gains['magic'] ?? 0;
       p.stats.defense += gains['defense'] ?? 0;
       p.stats.magicDefense += gains['magicDefense'] ?? 0;
       p.stats.agility += gains['agility'] ?? 0;
       p.stats.luck += gains['luck'] ?? 0;
-      // STM does not scale with level (physical endurance is fixed by job)
-      // Restore some HP/MP on level-up
+      // Restore HP/MP/STM proportional to gains on level-up
       p.stats.hp = Math.min(p.stats.hp + (gains['hp'] ?? 0), p.stats.maxHp);
       p.stats.mp = Math.min(p.stats.mp + (gains['mp'] ?? 0), p.stats.maxMp);
+      p.stats.stm = Math.min(p.stats.stm + (gains['stm'] ?? 0), p.stats.maxStm);
 
       // Use job-specific level skills if a job is assigned, otherwise use character defaults.
       const levelSkills = (jobDef?.['levelSkills'] as Record<string, string | undefined> | undefined)

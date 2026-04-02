@@ -62,7 +62,7 @@
     },
     {
       "id": "fira",
-      "name": "Blazra",
+      "name": "Blaze II",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 18,
@@ -75,7 +75,7 @@
     },
     {
       "id": "firaga",
-      "name": "Blazaga",
+      "name": "Blaze III",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 32,
@@ -99,7 +99,7 @@
     },
     {
       "id": "blizzara",
-      "name": "Frostra",
+      "name": "Frost II",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 18,
@@ -112,7 +112,7 @@
     },
     {
       "id": "blizzaga",
-      "name": "Frostaga",
+      "name": "Frost III",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 32,
@@ -136,7 +136,7 @@
     },
     {
       "id": "thundara",
-      "name": "Sparkra",
+      "name": "Spark II",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 18,
@@ -149,7 +149,7 @@
     },
     {
       "id": "thundaga",
-      "name": "Sparkaga",
+      "name": "Spark III",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 32,
@@ -173,7 +173,7 @@
     },
     {
       "id": "watera",
-      "name": "Surgera",
+      "name": "Surge II",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 18,
@@ -186,7 +186,7 @@
     },
     {
       "id": "waterga",
-      "name": "Surgega",
+      "name": "Surge III",
       "type": "magic",
       "target": "single_enemy",
       "mpCost": 32,
@@ -209,7 +209,7 @@
     },
     {
       "id": "cura",
-      "name": "Cura",
+      "name": "Cure II",
       "type": "heal",
       "target": "single_ally",
       "mpCost": 22,
@@ -221,7 +221,7 @@
     },
     {
       "id": "curaga",
-      "name": "Curaga",
+      "name": "Cure III",
       "type": "heal",
       "target": "single_ally",
       "mpCost": 40,

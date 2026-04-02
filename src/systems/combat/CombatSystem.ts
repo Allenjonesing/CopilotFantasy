@@ -156,6 +156,11 @@ export class CombatSystem {
         const ally = this.players.find((p) => p.id === action.allyId);
         const comboTarget = action.target;
         if (ally && comboTarget && !ally.isDefeated && !comboTarget.isDefeated) {
+          // Drain massive stamina from the initiator
+          if (actor.stats.maxStm > 0) {
+            actor.consumeStm(CombatSystem.TEAM_MOVE_STM_COST);
+            this.bus.emit('combat:stmChange', actor);
+          }
           this.pendingCombos.set(ally.id, { initiatorId: actor.id, targetId: comboTarget.id });
           this.addLog(`${actor.name} calls out to ${ally.name}: "Together!" — combo incoming!`);
           this.bus.emit('combat:teamMoveInitiated', actor, ally, comboTarget);
@@ -196,6 +201,8 @@ export class CombatSystem {
   static readonly TEAM_MOVE_INITIATOR_SPEED = 1.6;
   /** Speed penalty applied to BOTH participants after the combo executes (exhausted). */
   static readonly TEAM_MOVE_COMBO_SPEED = 2.5;
+  /** STM cost for initiating or executing a team move (massive expenditure of effort). */
+  static readonly TEAM_MOVE_STM_COST = 40;
 
   /** Determine the CTB speed modifier for the given action.
    *  Reads `speedModifier` from the skill definition when available;
@@ -678,6 +685,12 @@ export class CombatSystem {
     // single fighter of the same strength before defence is subtracted.
     const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
     const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
+
+    // ── Drain massive stamina from the ally executing the combo ─────────────
+    if (ally.stats.maxStm > 0) {
+      ally.consumeStm(CombatSystem.TEAM_MOVE_STM_COST);
+      this.bus.emit('combat:stmChange', ally);
+    }
 
     target.applyDamage(comboDmg);
     this.addLog(`⚡ ${initiator.name} + ${ally.name} TEAM MOVE on ${target.name} for ${comboDmg} MASSIVE damage!`);
