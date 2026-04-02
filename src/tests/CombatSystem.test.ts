@@ -77,6 +77,29 @@ describe('CTBTimeline', () => {
     expect(aria.ctbValue).toBe(0);
     expect(slime.ctbValue).toBe(slimeBefore);
   });
+
+  it('breaks ties in next() by agility — higher agility acts first', () => {
+    // Aria (agility 6) and Lyra (agility 12) are given identical ctbValues.
+    // Lyra should win the tie because she has higher agility.
+    const aria = new PlayerCombatant('aria');   // agility 6
+    const lyra = new PlayerCombatant('lyra');   // agility 12
+    const timeline = new CTBTimeline([aria, lyra]);
+    // Force both to the same ctbValue to guarantee a tie.
+    aria.ctbValue = 50;
+    lyra.ctbValue = 50;
+    const actor = timeline.next();
+    expect(actor).toBe(lyra);
+  });
+
+  it('breaks ties in preview() by agility — higher agility appears first', () => {
+    const aria = new PlayerCombatant('aria');   // agility 6
+    const lyra = new PlayerCombatant('lyra');   // agility 12
+    const timeline = new CTBTimeline([aria, lyra]);
+    aria.ctbValue = 50;
+    lyra.ctbValue = 50;
+    const order = timeline.preview(1);
+    expect(order[0]).toBe(lyra);
+  });
 });
 
 describe('CombatSystem', () => {

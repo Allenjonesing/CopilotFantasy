@@ -1628,8 +1628,8 @@ export class CombatUI {
       let color: number;
       let strokeColor: number;
       if (isPreview) {
-        color = isPlayer ? 0x997700 : 0x882222;
-        strokeColor = isPlayer ? 0xffdd44 : 0xff8888;
+        color = isPlayer ? 0x224477 : 0x662233;
+        strokeColor = isPlayer ? 0x6699cc : 0xff6688;
       } else {
         color = isPlayer ? 0x4466ff : 0xcc4444;
         strokeColor = isPlayer ? 0x88aaff : 0xff8888;
