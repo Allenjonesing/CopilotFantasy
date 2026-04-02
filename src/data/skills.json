@@ -6,6 +6,7 @@
       "type": "physical",
       "target": "single_enemy",
       "mpCost": 0,
+      "stmCost": 15,
       "power": 1.0,
       "speedModifier": 1.0,
       "description": "A basic physical attack. Fastest free action."
@@ -16,8 +17,11 @@
       "type": "physical",
       "target": "single_enemy",
       "mpCost": 8,
+      "stmCost": 20,
       "power": 1.5,
       "speedModifier": 0.25,
+      "evolvesTo": "hasteBell",
+      "evolvesAtUse": 15,
       "description": "A swift, precise strike that hits hard and advances your next turn dramatically. Costs MP."
     },
     {
@@ -26,8 +30,11 @@
       "type": "physical",
       "target": "single_enemy",
       "mpCost": 0,
+      "stmCost": 25,
       "power": 1.8,
       "speedModifier": 1.3,
+      "evolvesTo": "groundSlam",
+      "evolvesAtUse": 8,
       "description": "A powerful slam dealing heavy physical damage. Slower next turn."
     },
     {
@@ -49,6 +56,8 @@
       "power": 1.2,
       "element": "fire",
       "speedModifier": 1.1,
+      "evolvesTo": "fira",
+      "evolvesAtUse": 5,
       "description": "A burst of searing flame. Fire-elemental. Slightly slower next turn."
     },
     {
@@ -60,6 +69,8 @@
       "power": 2.0,
       "element": "fire",
       "speedModifier": 1.3,
+      "evolvesTo": "firaga",
+      "evolvesAtUse": 10,
       "description": "A roaring column of fire. Strong fire-elemental. Slower next turn."
     },
     {
@@ -82,6 +93,8 @@
       "power": 1.2,
       "element": "ice",
       "speedModifier": 1.1,
+      "evolvesTo": "blizzara",
+      "evolvesAtUse": 5,
       "description": "A shard of biting ice. Ice-elemental. Slightly slower next turn."
     },
     {
@@ -93,6 +106,8 @@
       "power": 2.0,
       "element": "ice",
       "speedModifier": 1.3,
+      "evolvesTo": "blizzaga",
+      "evolvesAtUse": 10,
       "description": "A storm of razor ice crystals. Strong ice-elemental. Slower next turn."
     },
     {
@@ -115,6 +130,8 @@
       "power": 1.2,
       "element": "lightning",
       "speedModifier": 1.1,
+      "evolvesTo": "thundara",
+      "evolvesAtUse": 5,
       "description": "A crackling bolt of electricity. Lightning-elemental. Slightly slower next turn."
     },
     {
@@ -126,6 +143,8 @@
       "power": 2.0,
       "element": "lightning",
       "speedModifier": 1.3,
+      "evolvesTo": "thundaga",
+      "evolvesAtUse": 10,
       "description": "A raging lightning storm. Strong lightning-elemental. Slower next turn."
     },
     {
@@ -148,6 +167,8 @@
       "power": 1.2,
       "element": "water",
       "speedModifier": 1.1,
+      "evolvesTo": "watera",
+      "evolvesAtUse": 5,
       "description": "A surging wave of water. Water-elemental. Slightly slower next turn."
     },
     {
@@ -159,6 +180,8 @@
       "power": 2.0,
       "element": "water",
       "speedModifier": 1.3,
+      "evolvesTo": "waterga",
+      "evolvesAtUse": 10,
       "description": "A crashing torrent of water. Strong water-elemental. Slower next turn."
     },
     {
@@ -180,6 +203,8 @@
       "mpCost": 10,
       "power": 1.0,
       "speedModifier": 1.0,
+      "evolvesTo": "cura",
+      "evolvesAtUse": 5,
       "description": "Restores a small amount of HP to one ally."
     },
     {
@@ -190,6 +215,8 @@
       "mpCost": 22,
       "power": 2.0,
       "speedModifier": 1.2,
+      "evolvesTo": "curaga",
+      "evolvesAtUse": 10,
       "description": "Restores a moderate amount of HP to one ally. Slightly slower next turn."
     },
     {
@@ -338,6 +365,55 @@
       "statusEffect": "reflect",
       "speedModifier": 1.1,
       "description": "Enemy casts a reflect barrier on itself."
+    },
+    {
+      "id": "flintlockShot",
+      "name": "Flintlock Shot",
+      "type": "physical",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "stmCost": 25,
+      "power": 3.0,
+      "pierce": true,
+      "requiresAmmo": "gunAmmo",
+      "selfStatus": "reloading",
+      "speedModifier": 1.0,
+      "description": "A powerful flintlock shot. Pierce: triple damage vs high-DEF enemies (≥20 DEF). Consumes ammo. Must reload next turn (vulnerable while reloading)."
+    },
+    {
+      "id": "reload",
+      "name": "Reload",
+      "type": "reload",
+      "target": "self",
+      "mpCost": 0,
+      "stmCost": 0,
+      "power": 0,
+      "speedModifier": 1.3,
+      "description": "Reload the flintlock. Forced after shooting. You are vulnerable until this completes."
+    },
+    {
+      "id": "arrowShot",
+      "name": "Arrow Shot",
+      "type": "physical",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "stmCost": 20,
+      "power": 1.6,
+      "applyStatus": "bleed",
+      "requiresAmmo": "arrow",
+      "speedModifier": 0.9,
+      "description": "Fires an arrow that inflicts Bleed (10% max HP/turn). Great against unarmored enemies. Requires arrows."
+    },
+    {
+      "id": "magicStrike",
+      "name": "Magic Strike",
+      "type": "hybrid",
+      "target": "single_enemy",
+      "mpCost": 12,
+      "stmCost": 15,
+      "power": 1.0,
+      "speedModifier": 1.1,
+      "description": "Imbues a physical blow with magic. Deals half physical + half magical damage. Melee range only."
     }
   ]
 }

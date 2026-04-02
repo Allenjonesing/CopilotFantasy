@@ -48,9 +48,11 @@ const ELEMENT_COLORS: Record<string, number> = {
   heal: 0x44ff88,
   revive: 0xffffff,
   poison: 0x44cc44,
+  bleed: 0xaa2200,
   haste: 0xffdd44,
   slow: 0x8844cc,
   reraise: 0xaaaaff,
+  hybrid: 0xff88ff,
 };
 
 // Entity icon sizes (fixed pixel sizes)
@@ -69,7 +71,7 @@ const ATTACK_MOVE_RETURN_MS = 300;
 const SPARKLE_MIN_DIST = 36;
 const SPARKLE_DIST_VARIANCE = 28;
 
-type MenuState = 'main' | 'skill' | 'item' | 'target';
+type MenuState = 'main' | 'skill' | 'item' | 'target' | 'attack-sub';
 
 /** Union type for entity icons that may be image sprites or rectangle fallbacks. */
 type EntityIcon = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
@@ -108,6 +110,8 @@ export class CombatUI {
   private playerBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
   // Player MP bars (left status panel)
   private playerMpBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
+  // Player STM bars (below MP bars)
+  private playerStmBars: Map<string, { bg: Phaser.GameObjects.Rectangle; bar: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text }> = new Map();
   // Status effect labels shown under player sprites and next to enemy names
   private playerStatusTexts: Map<string, Phaser.GameObjects.Text> = new Map();
   private enemyStatusTexts: Map<string, Phaser.GameObjects.Text> = new Map();
@@ -176,6 +180,7 @@ export class CombatUI {
   private onCombatTurnStart!: (actor: unknown) => void;
   private onCombatAttackStart!: (actor: unknown, target: unknown) => void;
   private onCombatMpChange!: (entity: unknown) => void;
+  private onCombatStmChange!: (entity: unknown) => void;
   private onStatusApplied!: (entity: unknown, effectId: unknown) => void;
   private onStatusRemoved!: (entity: unknown, effectId: unknown) => void;
   private onStatusDot!: (entity: unknown, effectId: unknown, dmg: unknown) => void;
@@ -328,6 +333,7 @@ export class CombatUI {
       // ── HP and MP bars directly under the player sprite ──────────────────
       const hpBarY = y + PLAYER_ICON_H / 2 + 20;
       const mpBarY = hpBarY + 9;
+      const stmBarY = mpBarY + 9;
       const barW = PLAYER_ICON_W;
       const hpBg  = this.scene.add.rectangle(x, hpBarY, barW, 6, 0x333333).setDepth(6);
       const hpBar = this.scene.add.rectangle(x, hpBarY, barW, 6, 0x44aa44).setDepth(7);
@@ -349,8 +355,25 @@ export class CombatUI {
         .setDepth(7);
       this.playerMpBars.set(p.id, { bg: mpBg, bar: mpBar, text: mpText });
 
-      // Status effect label below the MP bar
-      const statusTextY = mpBarY + 10;
+      // STM bar (below MP bar) — orange color, shown only if character has stamina
+      const stmBg  = this.scene.add.rectangle(x, stmBarY, barW, 5, 0x221100).setDepth(6);
+      const stmBar = this.scene.add.rectangle(x, stmBarY, barW, 5, 0xcc7700).setDepth(7);
+      const stmText = this.scene.add
+        .text(x + barW / 2 + 3, stmBarY - 2, `${p.stats.stm}/${p.stats.maxStm}`, {
+          fontSize: '8px', color: '#ffcc66', fontFamily: 'monospace',
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(7);
+      // Hide STM bar for entities without stamina (maxStm=0)
+      if (p.stats.maxStm === 0) {
+        stmBg.setVisible(false);
+        stmBar.setVisible(false);
+        stmText.setVisible(false);
+      }
+      this.playerStmBars.set(p.id, { bg: stmBg, bar: stmBar, text: stmText });
+
+      // Status effect label below the STM bar
+      const statusTextY = stmBarY + 10;
       const statusText = this.scene.add
         .text(x, statusTextY, '', {
           fontSize: '9px',
@@ -656,23 +679,56 @@ export class CombatUI {
     this.menuTitleBase = 'ACTION';
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
+
+    // ── Special case: actor must reload (forced action) ──────────────────────
+    if (actor?.hasStatus('reloading')) {
+      const tooltips = ['You must reload the flintlock before acting again. You are vulnerable this turn.'];
+      if (this.helpText.active) this.helpText.setText(tooltips[0]);
+      this.buildMenuItems(['⟳ Reload (forced)', ], [false], tooltips);
+      return;
+    }
+
     const specialSkills = actor ? actor.skills.filter((s) => s !== 'attack') : [];
     const hasSkills = specialSkills.length > 0;
-    const hasItems = GameState.getInstance().data.inventory.length > 0;
+    const hasItems = GameState.getInstance().data.inventory.filter((i) => {
+      const def = itemsData.items.find((it) => it.id === i.id);
+      return def && def.type !== 'ammo'; // hide ammo from item menu
+    }).length > 0;
     const skillLabel = this.skillMenuLabel();
+    const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
+
+    // Check if actor has magic skills that enable the attack sub-menu
+    const hasMagicSkills = actor ? actor.skills.some((s) => {
+      if (s === 'attack') return false;
+      const def = skillsData.skills.find((sk) => sk.id === s);
+      return def && (def.type === 'magic' || def.type === 'hybrid');
+    }) : false;
+
+    // "..." suffix indicates a sub-menu will open
+    const attackLabel = hasMagicSkills ? 'Attack...' : 'Attack';
+    const labels = [attackLabel, `${skillLabel}...`, 'Item...', 'Defend [VF]', 'Rest [+STM]', 'Flee'];
+    const disabled = [
+      isOutOfStm,            // Attack disabled when out of STM
+      !hasSkills,
+      !hasItems,
+      false,
+      false,
+      this.isBossBattle,
+    ];
     const tooltips = [
-      'Attack the enemy with a physical strike.',
+      isOutOfStm
+        ? '⚠ Out of Stamina! Cannot perform physical attacks. Rest or use an item first.'
+        : hasMagicSkills
+          ? 'Attack the enemy — choose a regular strike or a magic-infused strike.'
+          : 'Attack the enemy with a physical strike.',
       `Use ${actor?.name ?? 'the character'}'s ${skillLabel.toLowerCase()} abilities.`,
       'Use an item from your inventory (potions, etc.).',
       'Take a defensive stance to reduce incoming damage. Advances your next turn [VF].',
+      'Rest to recover 50% of Stamina. Uses your turn.',
       'Attempt to flee from the battle. Cannot flee from bosses.',
     ];
     if (this.helpText.active) this.helpText.setText(HELP_TEXT_DEFAULT);
-    this.buildMenuItems(
-      ['Attack', skillLabel, 'Item', 'Defend [VF]', 'Flee'],
-      [false, !hasSkills, !hasItems, false, this.isBossBattle],
-      tooltips,
-    );
+    this.buildMenuItems(labels, disabled, tooltips);
     // Restore this character's remembered cursor position (if the saved option is
     // still enabled — e.g. Skills may have become unavailable since last turn).
     if (actor) {
@@ -702,12 +758,24 @@ export class CombatUI {
       else if (speedMod <= 0.9) speedTag = ' [F]';
       else if (speedMod >= 1.4) speedTag = ' [VS]';
       else if (speedMod >= 1.2) speedTag = ' [S]';
-      return `${def.name} MP:${def.mpCost}${speedTag}`;
+      const mpStr = def.mpCost > 0 ? ` MP:${def.mpCost}` : '';
+      const stmCost = (def as { stmCost?: number }).stmCost ?? 0;
+      const stmStr = stmCost > 0 ? ` STM:${stmCost}` : '';
+      return `${def.name}${mpStr}${stmStr}${speedTag}`;
     });
+    const inv = GameState.getInstance().data.inventory;
     const disabled = skillIds.map((id) => {
       const def = skillsData.skills.find((s) => s.id === id);
       if (!def || !actor) return false;
-      return actor.stats.mp < def.mpCost;
+      // Disable if not enough MP
+      if (actor.stats.mp < def.mpCost) return true;
+      // Disable if not enough STM
+      const stmCost = (def as { stmCost?: number }).stmCost ?? 0;
+      if (actor.stats.maxStm > 0 && stmCost > 0 && actor.stats.stm < stmCost) return true;
+      // Disable if missing required ammo
+      const requiresAmmo = (def as { requiresAmmo?: string }).requiresAmmo;
+      if (requiresAmmo && !inv.some((i) => i.id === requiresAmmo && i.quantity > 0)) return true;
+      return false;
     });
     const tooltips = skillIds.map((id) => {
       const def = skillsData.skills.find((s) => s.id === id);
@@ -734,7 +802,11 @@ export class CombatUI {
   private buildItemMenu(): void {
     this.menuTitleBase = 'ITEM   [BACK: cancel]';
     this.menuTitle.setText(this.menuTitleBase);
-    const inv = GameState.getInstance().data.inventory;
+    // Filter out ammo items — they are consumed automatically and cannot be used from the item menu
+    const inv = GameState.getInstance().data.inventory.filter((i) => {
+      const def = itemsData.items.find((it) => it.id === i.id);
+      return def && def.type !== 'ammo';
+    });
     const items = inv.map((i) => {
       const def = itemsData.items.find((it) => it.id === i.id);
       return def ? `${def.name} x${i.quantity}` : `${i.id} x${i.quantity}`;
@@ -755,6 +827,39 @@ export class CombatUI {
       const tip = this.menuTooltips[clampedIdx];
       if (tip && this.helpText.active) this.helpText.setText(tip);
     }
+  }
+
+  private buildAttackSubMenu(): void {
+    this.menuTitleBase = 'ATTACK  [BACK: cancel]';
+    this.menuTitle.setText(this.menuTitleBase);
+    const actor = this.currentActor;
+    const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
+
+    // Check if actor has a magicStrike skill
+    const hasMagicStrike = actor ? actor.skills.includes('magicStrike') : false;
+    const magicStrikeDef = skillsData.skills.find((s) => s.id === 'magicStrike');
+    // Default stmCost for magicStrike matches skills.json (stmCost: 15)
+    const magicStrikeStmCost = (magicStrikeDef as { stmCost?: number } | undefined)?.stmCost ?? CombatSystem.ATTACK_STM_COST;
+    const magicStrikeMpCost = magicStrikeDef?.mpCost ?? 12;
+    const magicStrikeOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < magicStrikeStmCost) : false;
+    const magicStrikeOutOfMp = actor ? actor.stats.mp < magicStrikeMpCost : false;
+
+    const labels = [
+      'Regular Strike',
+      hasMagicStrike ? `Magic Strike MP:${magicStrikeMpCost} STM:${magicStrikeStmCost}` : 'Magic Strike (unavailable)',
+    ];
+    const disabled = [
+      isOutOfStm,
+      !hasMagicStrike || magicStrikeOutOfStm || magicStrikeOutOfMp,
+    ];
+    const tooltips = [
+      'A standard physical attack.',
+      hasMagicStrike
+        ? 'Imbues a physical blow with magic. Deals half physical + half magical damage. Melee range only.'
+        : 'Learn Magic Strike to use this option.',
+    ];
+    if (this.helpText.active) this.helpText.setText(tooltips[0]);
+    this.buildMenuItems(labels, disabled, tooltips);
   }
 
   private enterTargetMode(actionType: 'attack' | 'skill' | 'item'): void {
@@ -937,6 +1042,7 @@ export class CombatUI {
       }
     };
     this.onCombatMpChange = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
+    this.onCombatStmChange = (entity) => this.refreshEntityDisplay(entity as CombatEntity);
     this.onCombatTurnStart = (actor) => {
       if (!this.menuContainer.active) return;
       this.currentActor = actor as CombatEntity;
@@ -987,6 +1093,7 @@ export class CombatUI {
     this.bus.on('combat:damage', this.onCombatDamage);
     this.bus.on('combat:heal', this.onCombatHeal);
     this.bus.on('combat:mpChange', this.onCombatMpChange);
+    this.bus.on('combat:stmChange', this.onCombatStmChange);
     this.bus.on('combat:turnStart', this.onCombatTurnStart);
     this.bus.on('combat:attackStart', this.onCombatAttackStart);
     this.bus.on('combat:spellStart', this.onCombatSpellStart);
@@ -1068,6 +1175,19 @@ export class CombatUI {
           mpBars.text.setText(`${entity.stats.mp}/${entity.stats.maxMp}`);
         }
       }
+      // Update STM bar
+      const stmBars = this.playerStmBars.get(entity.id);
+      if (stmBars && entity.stats.maxStm > 0) {
+        const stmRatio = entity.stats.stm / entity.stats.maxStm;
+        stmBars.bar.setScale(stmRatio, 1);
+        stmBars.bar.setPosition(stmBars.bg.x - this.BAR_HALF_W * (1 - stmRatio), stmBars.bg.y);
+        // Color shifts to red when critically low
+        const stmColor = stmRatio < 0.25 ? 0xff4400 : stmRatio < 0.5 ? 0xffaa00 : 0xcc7700;
+        if (stmBars.bar.active) stmBars.bar.setFillStyle(stmColor);
+        if (stmBars.text.active) {
+          stmBars.text.setText(`${entity.stats.stm}/${entity.stats.maxStm}`);
+        }
+      }
       // Dim the player icon if defeated
       const icon = this.playerIconRects.get(entity.id);
       if (icon && icon.active) {
@@ -1108,6 +1228,8 @@ export class CombatUI {
     slow: '🐢S',
     reraise: '✨AL',
     poison: '☠P',
+    bleed: '🩸BLD',
+    reloading: '⟳RLD',
     powerDown: '↓STR',
     provoked: '😡PRV',
   };
@@ -1564,10 +1686,8 @@ export class CombatUI {
   private getHoveredSpeedModifier(): number {
     const idx = this.selectedMenuIndex;
     if (this.menuState === 'main') {
-      // Main menu options in order: Attack, Skill/Magic/White Magic, Item, Defend, Flee
-      const mainOptions = ['attack', 'skill', 'item', 'defend', 'flee'] as const;
-      const choice = mainOptions[idx];
-      if (choice === 'defend') return DEFEND_SPEED_MODIFIER;
+      // Main menu options in order: Attack/Attack..., Skill..., Item..., Defend, Rest, Flee
+      if (idx === 3) return DEFEND_SPEED_MODIFIER; // Defend
       return 1.0;
     }
     if (this.menuState === 'skill' && this.currentActor) {
@@ -1783,13 +1903,30 @@ export class CombatUI {
     if (!this.currentActor) return null;
     const idx = this.selectedMenuIndex;
 
+    // ── Forced reload (actor has reloading status) ───────────────────────────
+    if (this.menuState === 'main' && this.currentActor.hasStatus('reloading')) {
+      return { type: 'reload' };
+    }
+
     if (this.menuState === 'main') {
       if (this.menuDisabled[idx]) return null;
-      const mainOptions = ['attack', 'skill', 'item', 'defend', 'flee'] as const;
+      // Main menu options: Attack/Attack..., Skill..., Item..., Defend, Rest, Flee
+      const mainOptions = ['attack', 'skill', 'item', 'defend', 'rest', 'flee'] as const;
       const choice = mainOptions[idx];
       // Persist this choice so the cursor returns here on the character's next turn.
       this.lastMainMenuIndex.set(this.currentActor.id, idx);
       if (choice === 'attack') {
+        // Check if attack has sub-options (magic + physical hybrid available)
+        const hasMagicSkills = this.currentActor.skills.some((s) => {
+          if (s === 'attack') return false;
+          const def = skillsData.skills.find((sk) => sk.id === s);
+          return def && (def.type === 'magic' || def.type === 'hybrid');
+        });
+        if (hasMagicSkills) {
+          this.menuState = 'attack-sub';
+          this.buildAttackSubMenu();
+          return null;
+        }
         this.enterTargetMode('attack');
         return null;
       } else if (choice === 'skill') {
@@ -1802,8 +1939,27 @@ export class CombatUI {
         return null;
       } else if (choice === 'defend') {
         return { type: 'defend' };
+      } else if (choice === 'rest') {
+        return { type: 'rest' };
       } else if (choice === 'flee') {
         return { type: 'flee' };
+      }
+    }
+
+    // ── Attack sub-menu (Regular Strike vs Magic Strike) ────────────────────
+    if (this.menuState === 'attack-sub') {
+      if (this.menuDisabled[idx]) return null;
+      if (idx === 0) {
+        // Regular strike — go to target selection
+        this.menuState = 'main'; // reset so backMenu works properly
+        this.enterTargetMode('attack');
+        return null;
+      } else {
+        // Magic Strike — execute as skill
+        this.menuState = 'main';
+        this.pendingSkillId = 'magicStrike';
+        this.enterTargetMode('skill');
+        return null;
       }
     }
 
@@ -1825,7 +1981,11 @@ export class CombatUI {
     }
 
     if (this.menuState === 'item') {
-      const inv = GameState.getInstance().data.inventory;
+      // Use filtered inventory (no ammo)
+      const inv = GameState.getInstance().data.inventory.filter((i) => {
+        const def = itemsData.items.find((it) => it.id === i.id);
+        return def && def.type !== 'ammo';
+      });
       const item = inv[idx];
       if (!item) return null;
       // Remember the cursor position in the item sub-menu globally.
@@ -1866,9 +2026,15 @@ export class CombatUI {
         this.buildSkillMenu();
       } else if (prev === 'item') {
         this.buildItemMenu();
+      } else if (prev === 'attack-sub') {
+        this.menuState = 'attack-sub';
+        this.buildAttackSubMenu();
       } else {
         this.buildMainMenu();
       }
+    } else if (this.menuState === 'attack-sub') {
+      this.menuState = 'main';
+      this.buildMainMenu();
     } else {
       this.menuState = 'main';
       this.buildMainMenu();
@@ -1920,6 +2086,7 @@ export class CombatUI {
     this.bus.off('combat:damage', this.onCombatDamage);
     this.bus.off('combat:heal', this.onCombatHeal);
     this.bus.off('combat:mpChange', this.onCombatMpChange);
+    this.bus.off('combat:stmChange', this.onCombatStmChange);
     this.bus.off('combat:turnStart', this.onCombatTurnStart);
     this.bus.off('combat:attackStart', this.onCombatAttackStart);
     this.bus.off('combat:spellStart', this.onCombatSpellStart);
@@ -1948,6 +2115,11 @@ export class CombatUI {
       text.destroy();
     });
     this.playerMpBars.forEach(({ bg, bar, text }) => {
+      bg.destroy();
+      bar.destroy();
+      text.destroy();
+    });
+    this.playerStmBars.forEach(({ bg, bar, text }) => {
       bg.destroy();
       bar.destroy();
       text.destroy();

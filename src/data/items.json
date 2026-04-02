@@ -99,6 +99,36 @@
       "description": "Removes ALL status effects (buffs and debuffs) from one target.",
       "buyPrice": 200,
       "sellPrice": 100
+    },
+    {
+      "id": "gunAmmo",
+      "name": "Flintlock Ammo",
+      "type": "ammo",
+      "target": "self",
+      "effect": { "ammo": true },
+      "description": "Ammunition for flintlock weapons. Used automatically when firing — cannot be used from the item menu.",
+      "buyPrice": 8,
+      "sellPrice": 3
+    },
+    {
+      "id": "arrow",
+      "name": "Arrow",
+      "type": "ammo",
+      "target": "self",
+      "effect": { "ammo": true },
+      "description": "Ammunition for bows and crossbows. Used automatically when firing — cannot be used from the item menu.",
+      "buyPrice": 5,
+      "sellPrice": 2
+    },
+    {
+      "id": "staminaPotion",
+      "name": "Stamina Tonic",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "stmPercent": 1.0 },
+      "description": "Fully restores one ally's Stamina.",
+      "buyPrice": 60,
+      "sellPrice": 30
     }
   ]
 }

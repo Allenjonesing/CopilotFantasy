@@ -1,6 +1,9 @@
 import { CombatEntity, Stats } from './CombatEntity';
 import { GameState } from '../../core/state/GameState';
 
+/** Default stamina for characters whose definition does not specify stm/maxStm. */
+const DEFAULT_STAMINA = 50;
+
 export class PlayerCombatant extends CombatEntity {
   readonly characterId: string;
 
@@ -13,6 +16,8 @@ export class PlayerCombatant extends CombatEntity {
       maxHp: charState.stats.maxHp,
       mp: charState.stats.mp,
       maxMp: charState.stats.maxMp,
+      stm: charState.stats.stm ?? DEFAULT_STAMINA,
+      maxStm: charState.stats.maxStm ?? DEFAULT_STAMINA,
       strength: charState.stats.strength,
       magic: charState.stats.magic,
       defense: charState.stats.defense,

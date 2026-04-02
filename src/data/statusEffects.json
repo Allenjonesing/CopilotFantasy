@@ -71,6 +71,23 @@
       "reflectsMagic": true,
       "duration": -1,
       "description": "Reflects all incoming magic spells back at the caster. Permanent until cured."
+    },
+    {
+      "id": "bleed",
+      "name": "Bleed",
+      "color": 11010048,
+      "type": "debuff",
+      "dotPercent": 0.10,
+      "duration": -1,
+      "description": "Deals 10% max HP per turn from bleeding wounds. Worse than Poison. Permanent until cured."
+    },
+    {
+      "id": "reloading",
+      "name": "Reloading",
+      "color": 16776960,
+      "type": "debuff",
+      "duration": -1,
+      "description": "Must spend next turn reloading the flintlock. Defense is halved while reloading."
     }
   ]
 }
