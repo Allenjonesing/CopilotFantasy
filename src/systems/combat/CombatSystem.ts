@@ -8,7 +8,7 @@ import { GameState } from '../../core/state/GameState';
 import skillsData from '../../data/skills.json';
 import itemsData from '../../data/items.json';
 
-export type ActionType = 'attack' | 'skill' | 'item' | 'defend' | 'flee' | 'rest' | 'reload';
+export type ActionType = 'attack' | 'skill' | 'item' | 'defend' | 'flee' | 'rest' | 'reload' | 'team-move';
 
 /** Extended skill definition that includes the optional speed modifier field. */
 interface SkillWithSpeed {
@@ -20,6 +20,8 @@ export interface CombatAction {
   skillId?: string;
   itemId?: string;
   target?: CombatEntity;
+  /** For team-move: the entity ID of the ally who will execute the combo on their next turn. */
+  allyId?: string;
 }
 
 export type BattleType = 'normal' | 'preemptive' | 'ambush';
@@ -41,6 +43,12 @@ export class CombatSystem {
   private bus: EventBus;
   currentActor: CombatEntity | null = null;
   log: string[] = [];
+
+  /**
+   * Pending team-move combos keyed by the co-op ally's entity ID.
+   * When an ally's turn arrives with an entry here, the combo is auto-executed.
+   */
+  private pendingCombos: Map<string, { initiatorId: string; targetId: string }> = new Map();
 
   constructor(players: PlayerCombatant[], enemies: EnemyCombatant[]) {
     this.players = players;
@@ -142,6 +150,21 @@ export class CombatSystem {
         this.bus.emit('status:removed', actor, 'reloading');
         break;
       }
+      case 'team-move': {
+        // Initiator calls out a co-op ally and a target.
+        // The ally will auto-execute the combo on their next turn.
+        const ally = this.players.find((p) => p.id === action.allyId);
+        const comboTarget = action.target;
+        if (ally && comboTarget && !ally.isDefeated && !comboTarget.isDefeated) {
+          this.pendingCombos.set(ally.id, { initiatorId: actor.id, targetId: comboTarget.id });
+          this.addLog(`${actor.name} calls out to ${ally.name}: "Together!" — combo incoming!`);
+          this.bus.emit('combat:teamMoveInitiated', actor, ally, comboTarget);
+        } else {
+          this.addLog(`${actor.name} tried to set up a team move but it failed.`);
+          turnConsumed = false;
+        }
+        break;
+      }
       case 'flee':
         this.bus.emit('combat:fled');
         break;
@@ -169,6 +192,10 @@ export class CombatSystem {
   static readonly ITEM_STM_COST = 5;
   /** Fraction of max STM restored by taking a defensive stance (half of Rest's restore). */
   static readonly DEFEND_STM_RESTORE = 0.25;
+  /** Speed penalty applied to the team-move initiator (slow — calling for help takes time). */
+  static readonly TEAM_MOVE_INITIATOR_SPEED = 1.6;
+  /** Speed penalty applied to BOTH participants after the combo executes (exhausted). */
+  static readonly TEAM_MOVE_COMBO_SPEED = 2.5;
 
   /** Determine the CTB speed modifier for the given action.
    *  Reads `speedModifier` from the skill definition when available;
@@ -184,6 +211,9 @@ export class CombatSystem {
       // Reload is slower — uses skill def speedModifier from skills.json
       const reloadSkill = skillsData.skills.find((s) => s.id === 'reload') as (typeof skillsData.skills)[0] & SkillWithSpeed | undefined;
       return reloadSkill?.speedModifier ?? 1.3;
+    }
+    if (action.type === 'team-move') {
+      return CombatSystem.TEAM_MOVE_INITIATOR_SPEED;
     }
     if (action.type === 'skill' && action.skillId) {
       const skill = skillsData.skills.find((s) => s.id === action.skillId) as (typeof skillsData.skills)[0] & SkillWithSpeed | undefined;
@@ -246,7 +276,12 @@ export class CombatSystem {
       return false;
     }
 
-    if (!actor.consumeMp(skill.mpCost)) {
+    // Enemies with signature skills cast them for free (0 MP cost), so they can
+    // spam their elemental or status-inflicting moves without running out of MP.
+    const isSignatureSkill = (actor instanceof EnemyCombatant)
+      && actor.signatureSkills.includes(skillId);
+
+    if (!isSignatureSkill && !actor.consumeMp(skill.mpCost)) {
       this.addLog(`${actor.name} doesn't have enough MP!`);
       // Refund ammo if we already consumed it
       if (skillExt.requiresAmmo) {
@@ -254,7 +289,9 @@ export class CombatSystem {
       }
       return false;
     }
-    this.bus.emit('combat:mpChange', actor);
+    if (!isSignatureSkill) {
+      this.bus.emit('combat:mpChange', actor);
+    }
 
     // Drain stamina
     if (actor.stats.maxStm > 0 && stmCost > 0) {
@@ -598,6 +635,68 @@ export class CombatSystem {
   /** Return the predicted turn order if actor uses a skill with the given speed modifier. */
   getTimelinePreviewWithModifier(actor: CombatEntity, speedModifier: number, count = 10): CombatEntity[] {
     return this.timeline.previewWithSpeedModifier(actor, speedModifier, count);
+  }
+
+  /** Return true if actor has a pending team-move combo waiting to be executed. */
+  hasPendingCombo(actor: CombatEntity): boolean {
+    return this.pendingCombos.has(actor.id);
+  }
+
+  /**
+   * Execute the team-move combo for an ally who has a pending combo set by the initiator.
+   * Both the initiator and the ally deal combined massive damage to the target, then
+   * both receive a heavy CTB slowdown (exhausted after the effort).
+   */
+  executePendingCombo(ally: CombatEntity): void {
+    const combo = this.pendingCombos.get(ally.id);
+    if (!combo) return;
+    this.pendingCombos.delete(ally.id);
+
+    const initiator = [...this.players, ...this.enemies].find((e) => e.id === combo.initiatorId);
+    const target = [...this.players, ...this.enemies].find((e) => e.id === combo.targetId);
+
+    if (!initiator || !target || target.isDefeated) {
+      this.addLog(`${ally.name}'s combo fizzled — target is gone!`);
+      // Still consumes the ally's turn with a heavy penalty
+      const beforeOrder = this.timeline.preview(10);
+      this.timeline.endTurn(ally, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+      const afterOrder = this.timeline.preview(10);
+      this.bus.emit('combat:timelineShift', ally, beforeOrder, afterOrder, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+      this.bus.emit('combat:actionEnd', ally);
+      this.statusSystem.processTurn(ally);
+      return;
+    }
+
+    // ── Animate both participants lunging at the target ──────────────────────
+    this.bus.emit('combat:attackStart', initiator, target);
+    this.bus.emit('combat:attackStart', ally, target);
+
+    // ── Calculate combined damage (both participants attack together) ────────
+    // Formula: (initiator.str + ally.str) × 2 = comboBase  →  comboBase × 2.0 − def.
+    // Compared to a solo basic attack (actor.str × 2 − def), the combo effectively
+    // pools two fighters' strength and then doubles the sum, making it roughly 4× a
+    // single fighter of the same strength before defence is subtracted.
+    const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
+    const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
+
+    target.applyDamage(comboDmg);
+    this.addLog(`⚡ ${initiator.name} + ${ally.name} TEAM MOVE on ${target.name} for ${comboDmg} MASSIVE damage!`);
+    this.bus.emit('combat:damage', target, comboDmg);
+    this.checkDefeated(target);
+
+    // ── Apply heavy CTB slowdown to BOTH participants ────────────────────────
+    // Initiator's turn was already ended in executeAction; apply extra penalty directly.
+    const initiatorCtbPenalty = Math.ceil(initiator.effectiveAgility() * CombatSystem.TEAM_MOVE_COMBO_SPEED);
+    initiator.ctbValue = Math.max(initiator.ctbValue, initiatorCtbPenalty);
+
+    // End ally's turn with the heavy penalty
+    const beforeOrder = this.timeline.preview(10);
+    this.timeline.endTurn(ally, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+    const afterOrder = this.timeline.preview(10);
+    this.bus.emit('combat:timelineShift', ally, beforeOrder, afterOrder, CombatSystem.TEAM_MOVE_COMBO_SPEED);
+    this.bus.emit('combat:actionEnd', ally);
+    this.statusSystem.processTurn(ally);
+    this.checkDefeated(ally);
   }
 
   checkResult(): CombatResult | null {

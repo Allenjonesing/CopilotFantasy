@@ -94,6 +94,15 @@ export class JobSelectionScene extends Phaser.Scene {
       });
 
       // Job selector: ◄ JobName ►
+      // Create the row-focus zone BEFORE the arrows so the arrows sit higher in
+      // the display list and receive pointer events first (Phaser checks topmost
+      // interactive objects first when input.topOnly = true).
+      const rowZone = this.add.zone(W / 2, rowY + ROW_H / 2, W, ROW_H).setInteractive();
+      rowZone.on('pointerdown', () => {
+        this.focusRow = i;
+        this.refreshHighlights();
+      });
+
       const arrowL = this.add.text(14, rowY + 32, '◄', {
         fontSize: '20px', color: '#ffdd44', fontFamily: 'monospace',
       }).setInteractive({ useHandCursor: true });
@@ -130,13 +139,6 @@ export class JobSelectionScene extends Phaser.Scene {
         fontSize: '9px', color: '#88ccff', fontFamily: 'monospace',
       });
       this.statTexts.push(statText);
-
-      // Tap anywhere in the row to focus it
-      const rowZone = this.add.zone(W / 2, rowY + ROW_H / 2, W, ROW_H).setInteractive();
-      rowZone.on('pointerdown', () => {
-        this.focusRow = i;
-        this.refreshHighlights();
-      });
     });
 
     // Confirm button

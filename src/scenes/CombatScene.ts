@@ -201,6 +201,14 @@ export class CombatScene extends Phaser.Scene {
     const actor = this.system.nextTurn();
     const isPlayer = this.system.players.includes(actor as PlayerCombatant);
     if (isPlayer) {
+      // If this player has a pending team-move combo, auto-execute it instead of
+      // asking for input (their ally already committed them to this action).
+      if (this.system.hasPendingCombo(actor)) {
+        this.system.executePendingCombo(actor);
+        // Combo execution is visually intense — use a longer delay before advancing.
+        this.time.delayedCall(ENEMY_TURN_ADVANCE_DELAY_MS, () => this.advanceTurn());
+        return;
+      }
       // Autosave at the start of every player turn so a forced close can be
       // resumed with up-to-date HP values for both party and enemies.
       this.saveBattleState();
@@ -235,6 +243,26 @@ export class CombatScene extends Phaser.Scene {
       );
     } else {
       target = livingPlayers[Math.floor(Math.random() * livingPlayers.length)];
+    }
+
+    // ── Signature skill spam (~80% chance) ──────────────────────────────────
+    // Enemies with signature skills (elemental spells, venom, zombify) use them
+    // very frequently since they cost no MP — this is their defining trait.
+    const sigSkills = enemy.signatureSkills ?? [];
+    // Prefer targeting players who don't already have the status being inflicted
+    if (sigSkills.length > 0 && Math.random() < 0.80) {
+      // Pick a random signature skill
+      const pick = sigSkills[Math.floor(Math.random() * sigSkills.length)];
+      // Prefer targets that don't yet have the status this skill would inflict,
+      // so status skills are applied as broadly as possible rather than stacking.
+      let skillTarget = target;
+      if (pick === 'zombify') {
+        skillTarget = livingPlayers.find((p) => !p.hasStatus('zombie')) ?? target;
+      } else if (pick === 'venomStrike') {
+        skillTarget = livingPlayers.find((p) => !p.hasStatus('poison')) ?? target;
+      }
+      const consumed = this.system.executeAction(actor, { type: 'skill', skillId: pick, target: skillTarget });
+      if (consumed) return;
     }
 
     // ── Choose action ─────────────────────────────────────────────────────────

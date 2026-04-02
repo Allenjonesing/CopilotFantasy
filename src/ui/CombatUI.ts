@@ -70,7 +70,7 @@ const ATTACK_MOVE_RETURN_MS = 300;
 const SPARKLE_MIN_DIST = 36;
 const SPARKLE_DIST_VARIANCE = 28;
 
-type MenuState = 'main' | 'skill' | 'item' | 'target' | 'attack-sub';
+type MenuState = 'main' | 'skill' | 'item' | 'target' | 'attack-sub' | 'team-move-ally';
 
 /** Union type for entity icons that may be image sprites or rectangle fallbacks. */
 type EntityIcon = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
@@ -138,6 +138,8 @@ export class CombatUI {
   private pendingActionType: 'attack' | 'skill' | 'item' | null = null;
   private pendingSkillId: string | null = null;
   private pendingItemId: string | null = null;
+  /** Ally ID selected for an in-progress team-move setup. */
+  private pendingTeamAllyId: string | null = null;
   /** Remembered main-menu cursor index per character — restored on each character's turn. */
   private lastMainMenuIndex: Map<string, number> = new Map();
   /** Remembered skill sub-menu cursor index per character — restored when skill menu opens. */
@@ -272,7 +274,9 @@ export class CombatUI {
           .setDisplaySize(ENEMY_W, ENEMY_H)
           .setDepth(5);
       } else {
-        icon = this.scene.add.rectangle(x, y, ENEMY_W, ENEMY_H, 0xcc4444).setDepth(5);
+        // Use the enemy's own color from enemies.json for the fallback rectangle
+        // so each enemy type is visually distinct rather than being a uniform red square.
+        icon = this.scene.add.rectangle(x, y, ENEMY_W, ENEMY_H, enemyCombatant.color).setDepth(5);
       }
       icon.setInteractive({ useHandCursor: true });
       icon.on('pointerdown', () => this.onEntityTap(e));
@@ -594,14 +598,21 @@ export class CombatUI {
     this.fullMenuItems = [...items];
     this.menuDisabled = disabled.length === items.length ? [...disabled] : items.map(() => false);
     this.menuTooltips = tooltips.length === items.length ? [...tooltips] : items.map(() => '');
-    this.selectedMenuIndex = 0;
     this.menuScrollOffset = 0;
+    // If index 0 is disabled, advance to the first enabled option so the cursor
+    // never rests on a greyed-out item after the menu is (re)built.
+    this.selectedMenuIndex = 0;
+    if (this.menuDisabled[0]) {
+      const firstEnabled = this.menuDisabled.findIndex((d) => !d);
+      if (firstEnabled >= 0) this.selectedMenuIndex = firstEnabled;
+    }
     // Compute max visible items from the available menu area height (minus title row)
     const menuAreaH = this.H - NAV_BTN_H - this.BOTTOM_Y;
     this.menuMaxVisible = Math.max(3, Math.floor((menuAreaH - MENU_TITLE_H) / MENU_ITEM_H));
-    // Show the tooltip for the first (auto-selected) item immediately.
-    if (this.menuTooltips[0] && this.helpText?.active) {
-      this.helpText.setText(this.menuTooltips[0]);
+    // Show the tooltip for the initially selected item immediately.
+    const initTip = this.menuTooltips[this.selectedMenuIndex];
+    if (initTip && this.helpText?.active) {
+      this.helpText.setText(initTip);
     }
     this.renderMenuWindow();
   }
@@ -866,8 +877,31 @@ export class CombatUI {
       tooltips.push(def.description ?? '');
     });
 
-    if (this.helpText.active) this.helpText.setText(tooltips[0]);
+    // ── Team Move: only available if there is at least one living ally ───────
+    const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
+    const hasAlly = livingAllies.length > 0;
+    labels.push('Team Move...');
+    disabled.push(!hasAlly);
+    tooltips.push(
+      hasAlly
+        ? 'Call an ally for a combined attack! Massive damage, but both participants act slower next. Initiates a co-op combo on the ally\'s next turn.'
+        : 'No living allies available for a Team Move.',
+    );
+
     this.buildMenuItems(labels, disabled, tooltips);
+  }
+
+  /** Build the ally-selection menu for initiating a team move. */
+  private buildTeamMoveAllyMenu(): void {
+    this.menuTitleBase = 'TEAM MOVE — Choose Ally  [BACK: cancel]';
+    this.menuTitle.setText(this.menuTitleBase);
+    const actor = this.currentActor;
+    const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
+    const labels = livingAllies.map((p) => `${p.name}  HP:${p.stats.hp}/${p.stats.maxHp}`);
+    const tooltips = livingAllies.map(
+      (p) => `Call ${p.name} as your combo partner. On ${p.name}'s next turn, they auto-execute a massive combined attack.`,
+    );
+    this.buildMenuItems(labels, labels.map(() => false), tooltips);
   }
 
   private enterTargetMode(actionType: 'attack' | 'skill' | 'item'): void {
@@ -1214,7 +1248,7 @@ export class CombatUI {
           rect.setTint(entity.isDefeated ? 0x333333 : 0xffffff);
           rect.setAlpha(entity.isDefeated ? 0.4 : 1.0);
         } else {
-          (rect as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x333333 : 0xcc4444);
+          (rect as Phaser.GameObjects.Rectangle).setFillStyle(entity.isDefeated ? 0x333333 : (entity as EnemyCombatant).color ?? 0xcc4444);
           (rect as Phaser.GameObjects.Rectangle).setAlpha(entity.isDefeated ? 0.4 : 1.0);
         }
       }
@@ -1273,6 +1307,9 @@ export class CombatUI {
     const dx = tPos.x - origX;
     const dy = tPos.y - origY;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    // Guard against NaN when actor and target occupy the same position (e.g. self-targeting
+    // buff/skill). With dist ≈ 0, dx/dist would produce NaN and the sprite would disappear.
+    if (dist < 1) return;
     const moveAmount = Math.min(ATTACK_MOVE_MAX_PX, dist * ATTACK_MOVE_RATIO);
     const destX = origX + (dx / dist) * moveAmount;
     const destY = origY + (dy / dist) * moveAmount;
@@ -1368,6 +1405,7 @@ export class CombatUI {
           });
         } else {
           const rect = icon as Phaser.GameObjects.Rectangle;
+          const enemyColor = (entity as EnemyCombatant).color ?? 0xcc4444;
           rect.setFillStyle(isKillingBlow ? 0xff2222 : 0xffffff);
           this.scene.tweens.add({
             targets: rect,
@@ -1378,7 +1416,7 @@ export class CombatUI {
             onComplete: () => {
               if (rect.active) {
                 rect.setAlpha(isKillingBlow ? 0.4 : 1);
-                rect.setFillStyle(isKillingBlow ? 0x333333 : 0xcc4444);
+                rect.setFillStyle(isKillingBlow ? 0x333333 : enemyColor);
               }
             },
           });
@@ -1718,6 +1756,8 @@ export class CombatUI {
         const def = skillsData.skills.find((sk) => sk.id === s);
         return def && (def.type === 'physical' || def.type === 'hybrid');
       });
+      const teamMoveIdx = 1 + physicalSkillIds.length;
+      if (idx === teamMoveIdx) return CombatSystem.TEAM_MOVE_INITIATOR_SPEED;
       const skillId = physicalSkillIds[idx - 1];
       if (skillId) {
         const def = skillsData.skills.find((s) => s.id === skillId);
@@ -1729,7 +1769,7 @@ export class CombatUI {
 
   /** Called whenever the highlighted menu item changes to refresh the timeline preview. */
   private onMenuSelectionChanged(): void {
-    if (!this.currentActor || this.menuState === 'target') return;
+    if (!this.currentActor || this.menuState === 'target' || this.menuState === 'team-move-ally') return;
     this.refreshTimeline(this.getHoveredSpeedModifier());
   }
 
@@ -1963,7 +2003,7 @@ export class CombatUI {
       }
     }
 
-    // ── Attack sub-menu (Regular Strike + physical/hybrid skills) ────────────
+    // ── Attack sub-menu (Regular Strike + physical/hybrid skills + Team Move) ─
     if (this.menuState === 'attack-sub') {
       if (this.menuDisabled[idx]) return null;
       if (idx === 0) {
@@ -1978,6 +2018,14 @@ export class CombatUI {
           const def = skillsData.skills.find((sk) => sk.id === s);
           return def && (def.type === 'physical' || def.type === 'hybrid');
         });
+        // Check if this is the "Team Move..." option (appended after all physical skills)
+        const teamMoveIdx = 1 + physicalSkillIds.length;
+        if (idx === teamMoveIdx) {
+          // Open ally selection menu
+          this.menuState = 'team-move-ally';
+          this.buildTeamMoveAllyMenu();
+          return null;
+        }
         const skillId = physicalSkillIds[idx - 1]; // offset by 1 for "Regular Strike"
         if (!skillId) return null;
         this.menuState = 'main';
@@ -1985,6 +2033,29 @@ export class CombatUI {
         this.enterTargetMode('skill');
         return null;
       }
+    }
+
+    // ── Team Move ally selection ─────────────────────────────────────────────
+    if (this.menuState === 'team-move-ally') {
+      const actor = this.currentActor;
+      const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
+      const ally = livingAllies[idx];
+      if (!ally) return null;
+      this.pendingTeamAllyId = ally.id;
+      // Now enter target selection for the enemy to hit
+      this.menuStateBeforeTarget = 'team-move-ally';
+      this.menuState = 'target';
+      this.pendingActionType = 'attack'; // reuse attack-target selection (enemies only)
+      this.pendingTargetsAll = false;
+      this.targetIsPositive = false;
+      const livingEnemies = this.system.enemies.filter((e) => !e.isDefeated);
+      this.targetList = livingEnemies;
+      this.menuTitleBase = 'TEAM MOVE — Choose Target  [BACK: cancel]';
+      this.menuTitle.setText(this.menuTitleBase);
+      const targetLabels = livingEnemies.map((e) => `${e.name}  HP:${e.stats.hp}/${e.stats.maxHp}`);
+      this.buildMenuItems(targetLabels, targetLabels.map(() => false));
+      this.updateTargetCursor();
+      return null;
     }
 
     if (this.menuState === 'skill') {
@@ -2028,6 +2099,13 @@ export class CombatUI {
       const target = this.targetList[idx];
       if (!target) return null;
       const actionType = this.pendingActionType!;
+      // ── Team Move target confirmed ──────────────────────────────────────────
+      if (this.menuStateBeforeTarget === 'team-move-ally' && this.pendingTeamAllyId) {
+        const allyId = this.pendingTeamAllyId;
+        this.pendingTeamAllyId = null;
+        this.resetToMain();
+        return { type: 'team-move', allyId, target };
+      }
       if (actionType === 'attack') {
         this.resetToMain();
         return { type: 'attack', target };
@@ -2055,12 +2133,19 @@ export class CombatUI {
         this.buildSkillMenu();
       } else if (prev === 'item') {
         this.buildItemMenu();
+      } else if (prev === 'team-move-ally') {
+        this.menuState = 'team-move-ally';
+        this.buildTeamMoveAllyMenu();
       } else if (prev === 'attack-sub') {
         this.menuState = 'attack-sub';
         this.buildAttackSubMenu();
       } else {
         this.buildMainMenu();
       }
+    } else if (this.menuState === 'team-move-ally') {
+      this.pendingTeamAllyId = null;
+      this.menuState = 'attack-sub';
+      this.buildAttackSubMenu();
     } else if (this.menuState === 'attack-sub') {
       this.menuState = 'main';
       this.buildMainMenu();

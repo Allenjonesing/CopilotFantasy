@@ -23,12 +23,20 @@ interface EnemyDef {
     defense: number; magicDefense: number; agility: number; luck: number;
   };
   skills: string[];
+  /** Skills this enemy may use for free (no MP cost). */
+  signatureSkills?: string[];
+  /** Status effects applied to this enemy at spawn (e.g. zombie for zombie-type enemies). */
+  initialStatuses?: string[];
   rewards: { exp: number; gold: number; items: string[] };
   possibleDrops?: Array<{ id: string; chance: number }>;
 }
 
 export class EnemyCombatant extends CombatEntity {
   readonly enemyId: string;
+  /** The enemy's display color (from enemies.json) used as the fallback sprite color. */
+  readonly color: number;
+  /** Skills this enemy can use for free (no MP cost), enabling them to spam signature moves. */
+  readonly signatureSkills: string[];
   readonly rewards: { exp: number; gold: number; items: string[] };
 
   /** Monotonically increasing counter so each instance gets a unique entity ID. */
@@ -78,6 +86,11 @@ export class EnemyCombatant extends CombatEntity {
     const uniqueId = `${enemyId}_${EnemyCombatant.nextId++}`;
     super(uniqueId, displayName ?? def.name, stats);
     this.enemyId = enemyId;
+    this.color = def.color;
+    this.signatureSkills = def.signatureSkills ?? [];
+
+    // Apply initial statuses (e.g. zombie-type enemies start with zombie status).
+    (def.initialStatuses ?? []).forEach((s) => this.addStatus(s));
 
     // Randomly assign elemental affinity from the enemy's possible elements list.
     // null entries in the array represent "no element", making it weighted toward none.

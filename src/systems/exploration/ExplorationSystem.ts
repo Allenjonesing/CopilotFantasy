@@ -435,7 +435,7 @@ export class ExplorationSystem {
     }
   }
 
-  /** Spawn a shopkeeper NPC on floor 2+ with 35% chance. */
+  /** Spawn a shopkeeper NPC on floor 2+ with 60% chance. */
   private spawnShopkeeper(): void {
     const state = GameState.getInstance();
 
@@ -449,7 +449,7 @@ export class ExplorationSystem {
     }
 
     // Fresh floor roll.
-    if (state.data.difficultyLevel < 2 || Math.random() >= 0.35) {
+    if (state.data.difficultyLevel < 2 || Math.random() >= 0.60) {
       state.data.pendingShopkeeper = false;
       return;
     }

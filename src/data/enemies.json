@@ -17,6 +17,7 @@
         "luck": 3
       },
       "skills": ["attack", "fire", "blizzard", "thunder", "water", "venomStrike"],
+      "signatureSkills": ["venomStrike"],
       "rewards": { "exp": 18, "gold": 8, "items": [] },
       "possibleDrops": [{ "id": "potion", "chance": 0.55 }]
     },
@@ -37,6 +38,7 @@
         "luck": 5
       },
       "skills": ["attack", "smash", "fire", "thunder"],
+      "signatureSkills": ["fire", "thunder"],
       "rewards": { "exp": 70, "gold": 28, "items": ["potion"] },
       "possibleDrops": [{ "id": "ether", "chance": 0.45 }]
     },
@@ -57,6 +59,7 @@
         "luck": 4
       },
       "skills": ["attack", "smash", "fire", "enemyCure"],
+      "signatureSkills": ["fire"],
       "rewards": { "exp": 220, "gold": 95, "items": ["ether"] },
       "possibleDrops": [{ "id": "hiPotion", "chance": 0.55 }]
     },
@@ -77,6 +80,7 @@
         "luck": 9
       },
       "skills": ["attack", "fire", "blizzard", "thunder", "water", "fira", "drain", "enemyCure"],
+      "signatureSkills": ["fire", "blizzard", "thunder", "water", "fira"],
       "rewards": { "exp": 105, "gold": 48, "items": [] },
       "possibleDrops": [{ "id": "ether", "chance": 0.55 }, { "id": "potion", "chance": 0.40 }]
     },
@@ -97,6 +101,7 @@
         "luck": 7
       },
       "skills": ["attack", "smash", "venomStrike", "slowBell", "zombify"],
+      "signatureSkills": ["venomStrike", "zombify"],
       "rewards": { "exp": 45, "gold": 18, "items": [] },
       "possibleDrops": [{ "id": "antidote", "chance": 0.50 }]
     },
@@ -137,6 +142,7 @@
         "luck": 8
       },
       "skills": ["attack", "drain", "blizzara", "thundara", "venomStrike", "enemyCure"],
+      "signatureSkills": ["blizzara", "thundara", "venomStrike"],
       "rewards": { "exp": 175, "gold": 75, "items": [] },
       "possibleDrops": [{ "id": "ether", "chance": 0.55 }, { "id": "antidote", "chance": 0.30 }]
     },
@@ -157,6 +163,7 @@
         "luck": 10
       },
       "skills": ["attack", "smash", "firaga", "blizzaga", "thundaga", "drain", "enemyCure", "enemyReflect"],
+      "signatureSkills": ["firaga", "blizzaga", "thundaga"],
       "rewards": { "exp": 320, "gold": 130, "items": ["ether"] },
       "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }, { "id": "ether", "chance": 0.40 }]
     },
@@ -177,6 +184,8 @@
         "luck": 3
       },
       "skills": ["attack", "venomStrike", "zombify"],
+      "signatureSkills": ["zombify", "venomStrike"],
+      "initialStatuses": ["zombie"],
       "rewards": { "exp": 35, "gold": 15, "items": [] },
       "possibleDrops": [{ "id": "antidote", "chance": 0.60 }, { "id": "zombieDust", "chance": 0.30 }]
     },
@@ -197,6 +206,7 @@
         "luck": 5
       },
       "skills": ["attack", "venomStrike", "slowBell", "enemyCure"],
+      "signatureSkills": ["venomStrike"],
       "rewards": { "exp": 55, "gold": 22, "items": [] },
       "possibleDrops": [{ "id": "antidote", "chance": 0.50 }, { "id": "freezeBomb", "chance": 0.30 }]
     },
@@ -217,6 +227,7 @@
         "luck": 4
       },
       "skills": ["attack", "smash", "blizzard", "enemyReflect"],
+      "signatureSkills": ["blizzard"],
       "rewards": { "exp": 140, "gold": 60, "items": [] },
       "possibleDrops": [{ "id": "mirrorShard", "chance": 0.40 }]
     },
