@@ -1602,9 +1602,19 @@ export class CombatUI {
     this.timelineSlotIcons.forEach(([icon]) => icon.setScale(1, 1));
 
     const isPreview = previewSpeedMod !== undefined && this.currentActor !== null;
-    const order = isPreview
-      ? this.system.getTimelinePreviewWithModifier(this.currentActor!, previewSpeedMod!, 10)
-      : this.system.getTimelinePreview(10);
+
+    // Build the turn order to display.
+    // In preview mode: keep the current actor fixed at slot[0] (they are still acting,
+    // just choosing their move) and fill slots 1..9 with the predicted future after this action.
+    // In normal mode: preview() naturally places the current actor at slot[0] because their
+    // ctbValue is 0 while they are acting; after they act (ctbValue > 0) they move back.
+    let order: CombatEntity[];
+    if (isPreview) {
+      const futureOrder = this.system.getTimelinePreviewWithModifier(this.currentActor!, previewSpeedMod!, 9);
+      order = [this.currentActor!, ...futureOrder];
+    } else {
+      order = this.system.getTimelinePreview(10);
+    }
     const cy = TIMELINE_H / 2;
 
     // Create any missing slot icons (first call creates all 10; subsequent calls
@@ -1624,10 +1634,18 @@ export class CombatUI {
     // Update each slot in-place to reflect the current (or preview) order.
     order.forEach((entity, idx) => {
       const isPlayer = this.system.players.includes(entity as PlayerCombatant);
-      // Preview mode: tint player slots gold to distinguish from the actual timeline.
+      // Slot 0 with the currently-acting entity gets a gold "active" highlight.
+      // This is true both during the actor's turn and while they are hovering over
+      // menu options (preview mode), since they have not yet committed to an action.
+      const isActiveSlot = idx === 0 && entity === this.currentActor && this.currentActor.ctbValue === 0;
       let color: number;
       let strokeColor: number;
-      if (isPreview) {
+      if (isActiveSlot) {
+        // Gold highlight: this entity is the current active actor
+        color = 0x886600;
+        strokeColor = 0xffdd00;
+      } else if (isPreview) {
+        // Preview future slots: dimmed to distinguish from the active slot
         color = isPlayer ? 0x224477 : 0x662233;
         strokeColor = isPlayer ? 0x6699cc : 0xff6688;
       } else {
@@ -1639,6 +1657,7 @@ export class CombatUI {
       icon.setStrokeStyle(1, strokeColor);
       icon.setVisible(true);
       label.setText(entity.name.substring(0, TIMELINE_NAME_LEN));
+      label.setColor('#ffffff');
       label.setVisible(true);
     });
 
@@ -1649,8 +1668,15 @@ export class CombatUI {
       label.setVisible(false);
     }
 
-    // Pulse the first slot (next actor).
-    if (this.timelineSlotIcons.length > 0) {
+    // Pulse slot[0] ONLY when it shows the entity who is currently acting (ctbValue === 0).
+    // This prevents the slot from pulsing as "active" after an action has been taken
+    // but before the next turn officially starts.
+    const activeAtSlotZero =
+      this.timelineSlotIcons.length > 0 &&
+      order.length > 0 &&
+      order[0] === this.currentActor &&
+      this.currentActor.ctbValue === 0;
+    if (activeAtSlotZero) {
       const [firstIcon] = this.timelineSlotIcons[0];
       this.timelinePulseTween = this.scene.tweens.add({
         targets: firstIcon,
