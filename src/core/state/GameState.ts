@@ -2,6 +2,9 @@ import charactersData from '../../data/characters.json';
 import itemsData from '../../data/items.json';
 import skillsData from '../../data/skills.json';
 
+/** Default stamina for characters whose definition does not specify stm/maxStm. */
+const DEFAULT_STAMINA = 50;
+
 export interface CharacterStats {
   hp: number;
   mp: number;
@@ -164,8 +167,8 @@ export class GameState {
         mp: c.baseStats.mp,
         maxHp: c.baseStats.hp,
         maxMp: c.baseStats.mp,
-        stm: (c.baseStats as { stm?: number }).stm ?? 50,
-        maxStm: (c.baseStats as { maxStm?: number }).maxStm ?? 50,
+        stm: (c.baseStats as { stm?: number }).stm ?? DEFAULT_STAMINA,
+        maxStm: (c.baseStats as { maxStm?: number }).maxStm ?? DEFAULT_STAMINA,
         strength: c.baseStats.strength,
         magic: c.baseStats.magic,
         defense: c.baseStats.defense,

@@ -695,7 +695,7 @@ export class CombatUI {
       return def && def.type !== 'ammo'; // hide ammo from item menu
     }).length > 0;
     const skillLabel = this.skillMenuLabel();
-    const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < 15) : false;
+    const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
 
     // Check if actor has magic skills that enable the attack sub-menu
     const hasMagicSkills = actor ? actor.skills.some((s) => {
@@ -833,12 +833,13 @@ export class CombatUI {
     this.menuTitleBase = 'ATTACK  [BACK: cancel]';
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
-    const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < 15) : false;
+    const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
 
     // Check if actor has a magicStrike skill
     const hasMagicStrike = actor ? actor.skills.includes('magicStrike') : false;
     const magicStrikeDef = skillsData.skills.find((s) => s.id === 'magicStrike');
-    const magicStrikeStmCost = (magicStrikeDef as { stmCost?: number } | undefined)?.stmCost ?? 15;
+    // Default stmCost for magicStrike matches skills.json (stmCost: 15)
+    const magicStrikeStmCost = (magicStrikeDef as { stmCost?: number } | undefined)?.stmCost ?? CombatSystem.ATTACK_STM_COST;
     const magicStrikeMpCost = magicStrikeDef?.mpCost ?? 12;
     const magicStrikeOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < magicStrikeStmCost) : false;
     const magicStrikeOutOfMp = actor ? actor.stats.mp < magicStrikeMpCost : false;
