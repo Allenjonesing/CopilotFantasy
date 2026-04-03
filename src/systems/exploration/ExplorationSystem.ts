@@ -87,7 +87,7 @@ function bossTypeForDifficulty(difficulty: number): string {
 }
 
 /** Scale multiplier applied to the floor boss on top of variant scale. */
-const BOSS_SCALE = 3.0;
+const BOSS_SCALE = 2.5;
 
 /** All possible shop item IDs — each visit picks a random subset. */
 const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 'smokeBomb', 'freezeBomb', 'mirrorShard', 'zombieDust', 'dispelHerb'];

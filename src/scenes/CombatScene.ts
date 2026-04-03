@@ -64,7 +64,7 @@ export class CombatScene extends Phaser.Scene {
       if (typeof e === 'string') {
         return new EnemyCombatant(e, baseScale, undefined, currentFloor);
       }
-      return new EnemyCombatant(e.typeId, baseScale * e.variantScale, e.displayName, currentFloor);
+      return new EnemyCombatant(e.typeId, baseScale * e.variantScale, e.displayName, currentFloor, e.isBoss);
     });
 
     // When resuming from an autosave, restore the saved enemy HP/MP so the
