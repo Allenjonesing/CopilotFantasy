@@ -5,6 +5,8 @@ import jobsData from '../../data/jobs.json';
 
 /** Default stamina for characters whose definition does not specify stm/maxStm. */
 const DEFAULT_STAMINA = 50;
+/** Default team move for characters who have no job-defined team moves. */
+const DEFAULT_TEAM_MOVE = 'teamStrike';
 
 export interface CharacterStats {
   hp: number;
@@ -32,6 +34,10 @@ export interface CharacterState {
   alive: boolean;
   /** Tracks how many times each skill has been used. Used for skill evolution. */
   skillUseCounts: Record<string, number>;
+  /** Team moves available to this character as initiator. */
+  teamMoves: string[];
+  /** Tracks how many times each team move has been used. Used for team move evolution. */
+  teamMoveUseCounts: Record<string, number>;
 }
 
 export interface InventoryItem {
@@ -162,29 +168,36 @@ export class GameState {
   }
 
   private init(): void {
-    const party: CharacterState[] = charactersData.characters.map((c) => ({
-      id: c.id,
-      name: c.name,
-      job: c.class.toLowerCase(),
-      stats: {
-        hp: c.baseStats.hp,
-        mp: c.baseStats.mp,
-        maxHp: c.baseStats.hp,
-        maxMp: c.baseStats.mp,
-        stm: (c.baseStats as { stm?: number }).stm ?? DEFAULT_STAMINA,
-        maxStm: (c.baseStats as { maxStm?: number }).maxStm ?? DEFAULT_STAMINA,
-        strength: c.baseStats.strength,
-        magic: c.baseStats.magic,
-        defense: c.baseStats.defense,
-        magicDefense: c.baseStats.magicDefense,
-        agility: c.baseStats.agility,
-        luck: c.baseStats.luck,
-      },
-      skills: [...c.skills],
-      statusEffects: [],
-      alive: true,
-      skillUseCounts: {},
-    }));
+    const party: CharacterState[] = charactersData.characters.map((c) => {
+      const jobId = c.class.toLowerCase();
+      const jobDef = (jobsData.jobs as Array<Record<string, unknown>>).find((j) => j['id'] === jobId);
+      const startingTeamMoves = (jobDef?.['teamMoves'] as string[] | undefined) ?? [DEFAULT_TEAM_MOVE];
+      return {
+        id: c.id,
+        name: c.name,
+        job: jobId,
+        stats: {
+          hp: c.baseStats.hp,
+          mp: c.baseStats.mp,
+          maxHp: c.baseStats.hp,
+          maxMp: c.baseStats.mp,
+          stm: (c.baseStats as { stm?: number }).stm ?? DEFAULT_STAMINA,
+          maxStm: (c.baseStats as { maxStm?: number }).maxStm ?? DEFAULT_STAMINA,
+          strength: c.baseStats.strength,
+          magic: c.baseStats.magic,
+          defense: c.baseStats.defense,
+          magicDefense: c.baseStats.magicDefense,
+          agility: c.baseStats.agility,
+          luck: c.baseStats.luck,
+        },
+        skills: [...c.skills],
+        statusEffects: [],
+        alive: true,
+        skillUseCounts: {},
+        teamMoves: [...startingTeamMoves],
+        teamMoveUseCounts: {},
+      };
+    });
 
     const highScore = this.loadHighScore();
 
@@ -335,6 +348,15 @@ export class GameState {
         p.skills.push(newSkill);
         skillsGained.push({ charName: p.name, skillId: newSkill });
       }
+
+      // Unlock new team moves at this level (job-specific).
+      if (!p.teamMoves) p.teamMoves = [];
+      const levelTeamMoves = (jobDef?.['levelTeamMoves'] as Record<string, string | undefined> | undefined) ?? {};
+      const newTeamMove = levelTeamMoves[String(level)];
+      if (newTeamMove && !p.teamMoves.includes(newTeamMove)) {
+        p.teamMoves.push(newTeamMove);
+        skillsGained.push({ charName: p.name, skillId: newTeamMove });
+      }
     });
     return skillsGained;
   }
@@ -454,6 +476,39 @@ export class GameState {
   }
 
   /**
+   * Record a team move use for a character and check if it has evolved.
+   * Returns a SkillGain if the team move evolved, or null otherwise.
+   * Evolution replaces the base team move with an upgraded version in-place.
+   */
+  recordTeamMoveUse(charId: string, teamMoveId: string): SkillGain | null {
+    const char = this.getCharacter(charId);
+    if (!char) return null;
+    if (!char.teamMoveUseCounts) char.teamMoveUseCounts = {};
+    char.teamMoveUseCounts[teamMoveId] = (char.teamMoveUseCounts[teamMoveId] ?? 0) + 1;
+    const useCount = char.teamMoveUseCounts[teamMoveId];
+
+    const moveDef = (skillsData.skills as Array<Record<string, unknown>>).find(
+      (s) => s['id'] === teamMoveId,
+    );
+    if (!moveDef) return null;
+    const evolvesTo = moveDef['evolvesTo'] as string | undefined;
+    const evolvesAtUse = moveDef['evolvesAtUse'] as number | undefined;
+
+    if (!char.teamMoves) char.teamMoves = [];
+    if (evolvesTo && evolvesAtUse && useCount >= evolvesAtUse && !char.teamMoves.includes(evolvesTo)) {
+      // Replace base team move with evolved version (keep slot position)
+      const moveIdx = char.teamMoves.indexOf(teamMoveId);
+      if (moveIdx >= 0) {
+        char.teamMoves[moveIdx] = evolvesTo;
+      } else {
+        char.teamMoves.push(evolvesTo);
+      }
+      return { charName: char.name, skillId: evolvesTo };
+    }
+    return null;
+  }
+
+  /**
    * Apply a job template to a character, updating their base stats and starting skills.
    * Called from the job selection screen before the game begins.
    */
@@ -482,6 +537,11 @@ export class GameState {
     if (skills) char.skills = [...skills];
     // Reset skill evolution counts when job changes.
     char.skillUseCounts = {};
+    // Set team moves from the new job.
+    const teamMoves = jobDef['teamMoves'] as string[] | undefined;
+    if (teamMoves) char.teamMoves = [...teamMoves];
+    else if (!char.teamMoves) char.teamMoves = [DEFAULT_TEAM_MOVE];
+    char.teamMoveUseCounts = {};
   }
 
   reset(): void {

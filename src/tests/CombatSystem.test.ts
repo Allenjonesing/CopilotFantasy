@@ -1224,40 +1224,76 @@ describe('Team Move Stamina Cost', () => {
 
   it('team move initiator loses TEAM_MOVE_STM_COST stamina', () => {
     const system = new CombatSystem(
-      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
       [new EnemyCombatant('slime')],
     );
     const aria = system.players[0];
-    const kael = system.players[1];
+    const lyra = system.players[1];
     const slime = system.enemies[0];
 
     const stmBefore = aria.stats.stm;
     system.nextTurn();
-    system.executeAction(aria, { type: 'team-move', allyId: kael.id, target: slime });
+    system.executeAction(aria, { type: 'team-move', allyId: lyra.id, target: slime });
 
     expect(aria.stats.stm).toBe(Math.max(0, stmBefore - CombatSystem.TEAM_MOVE_STM_COST));
   });
 
   it('ally executing combo loses TEAM_MOVE_STM_COST stamina', () => {
     const system = new CombatSystem(
-      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
       [new EnemyCombatant('slime')],
     );
     const aria = system.players[0];
-    const kael = system.players[1];
+    const lyra = system.players[1];
     const slime = system.enemies[0];
 
     system.nextTurn();
-    system.executeAction(aria, { type: 'team-move', allyId: kael.id, target: slime });
+    system.executeAction(aria, { type: 'team-move', allyId: lyra.id, target: slime });
 
-    const kaelStmBefore = kael.stats.stm;
-    system.executePendingCombo(kael);
+    const lyraStmBefore = lyra.stats.stm;
+    system.executePendingCombo(lyra);
 
-    expect(kael.stats.stm).toBe(Math.max(0, kaelStmBefore - CombatSystem.TEAM_MOVE_STM_COST));
+    expect(lyra.stats.stm).toBe(Math.max(0, lyraStmBefore - CombatSystem.TEAM_MOVE_STM_COST));
   });
 
   it('TEAM_MOVE_STM_COST is at least 40 (massive cost)', () => {
     expect(CombatSystem.TEAM_MOVE_STM_COST).toBeGreaterThanOrEqual(40);
+  });
+
+  it('team move is blocked when initiator lacks enough STM', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+    // Drain aria's STM below the cost threshold
+    aria.consumeStm(aria.stats.stm); // drain all
+    const stmBefore = aria.stats.stm; // should be 0
+    system.nextTurn();
+    const consumed = system.executeAction(aria, { type: 'team-move', allyId: lyra.id, target: slime });
+    // Action should fail (not consume a turn) and no combo should be pending
+    expect(consumed).toBe(false);
+    expect(aria.stats.stm).toBe(stmBefore);
+    expect(system.hasPendingCombo(lyra)).toBe(false);
+  });
+
+  it('team move is blocked when ally lacks enough STM', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+    // Drain lyra's STM below the cost threshold
+    lyra.consumeStm(lyra.stats.stm); // drain all
+    system.nextTurn();
+    const consumed = system.executeAction(aria, { type: 'team-move', allyId: lyra.id, target: slime });
+    // Action should fail and aria's STM should be untouched
+    expect(consumed).toBe(false);
+    expect(system.hasPendingCombo(lyra)).toBe(false);
   });
 });
 
@@ -1338,5 +1374,232 @@ describe('Skill II/III/IV Naming Convention', () => {
     for (const skillId of evolvedFromLevelUp) {
       expect(kael.skills).not.toContain(skillId);
     }
+  });
+});
+
+describe('Team Move Types', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('characters start with job-defined team moves', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    const kael = state.getCharacter('kael')!;
+    const lyra = state.getCharacter('lyra')!;
+    // Warrior starts with physical team move
+    expect(aria.teamMoves).toContain('teamStrike');
+    // Mage starts with magic team move
+    expect(kael.teamMoves).toContain('teamSpell');
+    // Healer starts with both
+    expect(lyra.teamMoves).toContain('teamStrike');
+    expect(lyra.teamMoves).toContain('teamSpell');
+  });
+
+  it('physical team move uses combined strength for damage', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+    const initialHp = slime.stats.hp;
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'team-move', allyId: lyra.id, teamMoveId: 'teamStrike', target: slime });
+    system.executePendingCombo(lyra);
+
+    // Physical team move should deal strength-based damage
+    expect(slime.stats.hp).toBeLessThan(initialHp);
+  });
+
+  it('magic team move (teamSpell) uses combined magic for damage', () => {
+    const state = GameState.getInstance();
+    // Give Kael enough STM to participate (his base is 30, below the 40 cost)
+    state.getCharacter('kael')!.stats.stm = 50;
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const kael = system.players[1];
+    const slime = system.enemies[0];
+    const initialHp = slime.stats.hp;
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'team-move', allyId: kael.id, teamMoveId: 'teamSpell', target: slime });
+    system.executePendingCombo(kael);
+
+    // Magic team move should deal magic-based damage
+    expect(slime.stats.hp).toBeLessThan(initialHp);
+  });
+
+  it('fast physical team move (teamSwift) has lower speedModifier than default', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    // Grant teamSwift to Aria for testing
+    aria.teamMoves.push('teamSwift');
+
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria2 = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+
+    const ctbBefore = aria2.ctbValue;
+    system.nextTurn();
+    // Flash Strike has speedModifier=0.6 — initiator's next turn comes faster
+    system.executeAction(aria2, { type: 'team-move', allyId: lyra.id, teamMoveId: 'teamSwift', target: slime });
+
+    // After the fast team move, aria's CTB should be low (fast next turn)
+    // Compare to TEAM_MOVE_INITIATOR_SPEED=1.6 default
+    expect(aria2.ctbValue).toBeLessThan(ctbBefore + 100);
+  });
+
+  it('team move uses comboSpeedModifier from move definition', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'team-move', allyId: lyra.id, teamMoveId: 'teamStrike', target: slime });
+
+    const lyraCtbBefore = lyra.ctbValue;
+    system.executePendingCombo(lyra);
+    // teamStrike has comboSpeedModifier=2.0 — slower than default TEAM_MOVE_COMBO_SPEED=2.5
+    // but still slower than a normal turn (lyra's CTB should have increased)
+    expect(lyra.ctbValue).toBeGreaterThan(lyraCtbBefore);
+  });
+
+  it('elemental fire team move (teamBlaze) deals damage', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    aria.teamMoves.push('teamBlaze');
+
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria2 = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+    const initialHp = slime.stats.hp;
+
+    system.nextTurn();
+    system.executeAction(aria2, { type: 'team-move', allyId: lyra.id, teamMoveId: 'teamBlaze', target: slime });
+    system.executePendingCombo(lyra);
+
+    expect(slime.stats.hp).toBeLessThan(initialHp);
+  });
+
+  it('team move physical (teamStrike) evolves after 5 uses via recordTeamMoveUse', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    expect(aria.teamMoves).toContain('teamStrike');
+
+    for (let i = 0; i < 5; i++) state.recordTeamMoveUse('aria', 'teamStrike');
+
+    expect(aria.teamMoves).toContain('teamStrikeII');
+    expect(aria.teamMoves).not.toContain('teamStrike');
+  });
+
+  it('team move evolves further (teamStrikeII → teamStrikeIII at 10 uses)', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    // Evolve to tier 2 first
+    for (let i = 0; i < 5; i++) state.recordTeamMoveUse('aria', 'teamStrike');
+    expect(aria.teamMoves).toContain('teamStrikeII');
+
+    // Evolve to tier 3
+    for (let i = 0; i < 10; i++) state.recordTeamMoveUse('aria', 'teamStrikeII');
+    expect(aria.teamMoves).toContain('teamStrikeIII');
+    expect(aria.teamMoves).not.toContain('teamStrikeII');
+  });
+
+  it('team move swift evolves (teamSwift → teamSwiftII at 5 uses)', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    aria.teamMoves.push('teamSwift');
+
+    for (let i = 0; i < 5; i++) state.recordTeamMoveUse('aria', 'teamSwift');
+    expect(aria.teamMoves).toContain('teamSwiftII');
+    expect(aria.teamMoves).not.toContain('teamSwift');
+  });
+
+  it('team moves unlock at level-up (Aria gets teamSwift at level 3)', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    expect(aria.teamMoves).not.toContain('teamSwift');
+
+    // Level up to 3 (gain enough EXP)
+    while (state.data.level < 3) state.gainExp(10000);
+
+    expect(aria.teamMoves).toContain('teamSwift');
+  });
+
+  it('team moves unlock at level-up (Kael gets teamBlaze at level 3)', () => {
+    const state = GameState.getInstance();
+    const kael = state.getCharacter('kael')!;
+    expect(kael.teamMoves).not.toContain('teamBlaze');
+
+    while (state.data.level < 3) state.gainExp(10000);
+
+    expect(kael.teamMoves).toContain('teamBlaze');
+  });
+
+  it('team moves unlock at level-up (Lyra gets teamSwift at level 4)', () => {
+    const state = GameState.getInstance();
+    const lyra = state.getCharacter('lyra')!;
+    expect(lyra.teamMoves).not.toContain('teamSwift');
+
+    while (state.data.level < 4) state.gainExp(10000);
+
+    expect(lyra.teamMoves).toContain('teamSwift');
+  });
+
+  it('backward-compatible team move (no teamMoveId) still deals damage', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+    const initialHp = slime.stats.hp;
+
+    system.nextTurn();
+    // Omit teamMoveId — should fall back to legacy physical formula
+    system.executeAction(aria, { type: 'team-move', allyId: lyra.id, target: slime });
+    system.executePendingCombo(lyra);
+
+    expect(slime.stats.hp).toBeLessThan(initialHp);
+  });
+
+  it('magic team move logs include "magic damage"', () => {
+    const state = GameState.getInstance();
+    // Give Kael enough STM to participate (his base is 30, below the 40 cost)
+    state.getCharacter('kael')!.stats.stm = 50;
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const kael = system.players[1];
+    const slime = system.enemies[0];
+
+    system.nextTurn();
+    system.executeAction(aria, { type: 'team-move', allyId: kael.id, teamMoveId: 'teamSpell', target: slime });
+    system.executePendingCombo(kael);
+
+    const hasSpellLog = system.log.some((msg) => msg.includes('magic damage') || msg.includes('Arcane Union'));
+    expect(hasSpellLog).toBe(true);
   });
 });
