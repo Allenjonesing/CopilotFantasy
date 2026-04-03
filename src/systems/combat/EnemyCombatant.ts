@@ -31,6 +31,9 @@ interface EnemyDef {
   possibleDrops?: Array<{ id: string; chance: number }>;
 }
 
+/** Status effects that bosses are immune to (most debuffs). */
+const BOSS_STATUS_IMMUNITIES = ['poison', 'slow', 'powerDown', 'provoked', 'zombie', 'bleed', 'reloading'];
+
 export class EnemyCombatant extends CombatEntity {
   readonly enemyId: string;
   /** The enemy's display color (from enemies.json) used as the fallback sprite color. */
@@ -49,8 +52,10 @@ export class EnemyCombatant extends CombatEntity {
    * @param currentFloor   The current dungeon floor (default 1). Used to
    *                       downscale enemies that appear below their natural
    *                       floor tier without changing the UI variant label.
+   * @param isBoss         When true, this enemy is a floor boss and gains
+   *                       immunity to most debuff status effects.
    */
-  constructor(enemyId: string, difficultyScale = 1.0, displayName?: string, currentFloor = 1) {
+  constructor(enemyId: string, difficultyScale = 1.0, displayName?: string, currentFloor = 1, isBoss = false) {
     const def = (enemiesData.enemies as EnemyDef[]).find((e) => e.id === enemyId);
     if (!def) throw new Error(`Unknown enemy: ${enemyId}`);
 
@@ -109,5 +114,10 @@ export class EnemyCombatant extends CombatEntity {
       items: [...def.rewards.items, ...rolledItems],
     };
     this.skills = def.skills;
+
+    // Bosses are immune to most debuff status effects.
+    if (isBoss) {
+      BOSS_STATUS_IMMUNITIES.forEach((id) => this.statusImmunities.add(id));
+    }
   }
 }

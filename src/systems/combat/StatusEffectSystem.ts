@@ -24,6 +24,11 @@ export class StatusEffectSystem {
   apply(entity: CombatEntity, effectId: string): void {
     const def = statusData.statusEffects.find((s) => s.id === effectId) as StatusDef | undefined;
     if (!def) return;
+    // Skip application if the entity is immune to this status effect.
+    if (entity.statusImmunities.has(effectId)) {
+      this.bus.emit('combat:log', `${entity.name} is immune to ${def.name ?? effectId}!`);
+      return;
+    }
     entity.addStatus(effectId);
     if (!this.durations.has(entity.id)) this.durations.set(entity.id, new Map());
     this.durations.get(entity.id)!.set(effectId, def.duration);

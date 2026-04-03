@@ -19,6 +19,8 @@ export abstract class CombatEntity {
   stats: Stats;
   ctbValue: number;
   statusEffects: Set<string> = new Set();
+  /** Status effects this entity is immune to and cannot receive. */
+  statusImmunities: Set<string> = new Set();
   skills: string[] = [];
   /** Elemental affinity of this entity (enemies may be fire/ice/lightning/water, players have none). */
   element: string | null = null;

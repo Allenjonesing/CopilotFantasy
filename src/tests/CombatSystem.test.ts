@@ -209,9 +209,9 @@ describe('CombatSystem', () => {
     expect(target.stats.hp).toBeGreaterThan(0);
   });
 
-  it('slime base HP is 28', () => {
+  it('slime base HP is 32', () => {
     const slime = new EnemyCombatant('slime');
-    expect(slime.stats.maxHp).toBe(28);
+    expect(slime.stats.maxHp).toBe(32);
   });
 
   it('iron golem agility is at least 10', () => {
@@ -403,6 +403,26 @@ describe('StatusEffectSystem', () => {
     const ses = new StatusEffectSystem();
     ses.apply(kael, 'haste');
     expect(kael.effectiveAgility()).toBe(18); // 9 * 2 = 18
+  });
+
+  it('boss enemies are immune to debuff statuses like poison and slow', () => {
+    const bossSlime = new EnemyCombatant('slime', 1.0, 'Boss Slime', 1, true);
+    const ses = new StatusEffectSystem();
+    ses.apply(bossSlime, 'poison');
+    ses.apply(bossSlime, 'slow');
+    ses.apply(bossSlime, 'bleed');
+    expect(bossSlime.hasStatus('poison')).toBe(false);
+    expect(bossSlime.hasStatus('slow')).toBe(false);
+    expect(bossSlime.hasStatus('bleed')).toBe(false);
+  });
+
+  it('regular enemies are not immune to debuff statuses', () => {
+    const regularSlime = new EnemyCombatant('slime');
+    const ses = new StatusEffectSystem();
+    ses.apply(regularSlime, 'poison');
+    ses.apply(regularSlime, 'slow');
+    expect(regularSlime.hasStatus('poison')).toBe(true);
+    expect(regularSlime.hasStatus('slow')).toBe(true);
   });
 });
 
