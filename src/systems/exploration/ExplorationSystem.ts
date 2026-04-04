@@ -403,8 +403,14 @@ export class ExplorationSystem {
         const gold = isChest
           ? (5 + Math.floor(Math.random() * 20)) * difficulty
           : (2 + Math.floor(Math.random() * 8)) * difficulty;
-        // Chests sometimes contain an item too.
+        // Chests sometimes contain an item. Gun-class parties find ammo readily.
+        const gunJobs = ['gunsmith'];
+        const partyHasGunClass = state.data.party.some((c) => gunJobs.includes(c.job));
         const itemPool = ['potion', 'ether', 'antidote'];
+        if (partyHasGunClass) {
+          // ~50% of chests for gun-class parties contain ammo (high find rate).
+          itemPool.push('gunAmmo', 'gunAmmo', 'gunAmmo');
+        }
         const itemId = isChest && Math.random() < 0.5 ? itemPool[Math.floor(Math.random() * itemPool.length)] : undefined;
 
         generated.push({ id: `pickup_${i}`, kind, gold, itemId, x: tx, y: ty });
