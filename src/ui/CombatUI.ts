@@ -43,6 +43,7 @@ const JOB_LABEL_COLORS: Record<string, string> = {
   warrior: '#cc6622',
   mage: '#5588ff',
   healer: '#44cc88',
+  gunsmith: '#cc9922',
 };
 
 /** Element spell colour for animations. */
@@ -717,7 +718,18 @@ export class CombatUI {
     const job = charState?.job?.toLowerCase() ?? '';
     if (job === 'mage') return 'Magic';
     if (job === 'healer') return 'White Magic';
+    if (job === 'gunsmith') return 'Skill';
     return 'Skill';
+  }
+
+  /**
+   * Returns true if the given entity uses a gun (flintlockShot) as their primary attack,
+   * meaning they have flintlockShot in their skills but no generic 'attack' skill.
+   * Used to swap out "Regular Strike" for "Flintlock Shot" in the attack sub-menu.
+   */
+  private actorUsesGunAsPrimary(actor: CombatEntity | null): boolean {
+    if (!actor) return false;
+    return actor.skills.includes('flintlockShot') && !actor.skills.includes('attack');
   }
 
   private buildMainMenu(): void {
@@ -880,17 +892,45 @@ export class CombatUI {
     const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
     const inv = GameState.getInstance().data.inventory;
 
-    // Collect all physical/hybrid skills the actor has (excluding basic 'attack' which is always first).
+    // Check if this character uses a gun as their primary attack (e.g. Gunsmith —
+    // has flintlockShot in skills but no generic 'attack' skill).
+    const hasGunPrimary = this.actorUsesGunAsPrimary(actor);
+
+    // Collect all physical/hybrid skills the actor has (excluding basic 'attack' which is always first,
+    // and excluding flintlockShot when it is the primary attack to avoid showing it twice).
     const physicalSkillIds = actor ? actor.skills.filter((s) => {
       if (s === 'attack') return false;
+      if (hasGunPrimary && s === 'flintlockShot') return false; // shown as primary instead
       const def = skillsData.skills.find((sk) => sk.id === s);
       return def && (def.type === 'physical' || def.type === 'hybrid');
     }) : [];
 
-    // First option is always "Regular Strike" (basic attack).
-    const labels: string[] = [`Regular Strike  STM:${CombatSystem.ATTACK_STM_COST}`];
-    const disabled: boolean[] = [isOutOfStm];
-    const tooltips: string[] = [`A standard physical attack. Costs ${CombatSystem.ATTACK_STM_COST} Stamina.`];
+    const labels: string[] = [];
+    const disabled: boolean[] = [];
+    const tooltips: string[] = [];
+
+    if (hasGunPrimary) {
+      // Gunsmith: Flintlock Shot replaces Regular Strike as the primary attack option
+      const flintDef = skillsData.skills.find((s) => s.id === 'flintlockShot');
+      const stmCost = (flintDef as { stmCost?: number } | undefined)?.stmCost ?? 25;
+      const ammoCount = inv.find((i) => i.id === 'gunAmmo')?.quantity ?? 0;
+      const notEnoughStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < stmCost) : false;
+      const missingAmmo = ammoCount <= 0;
+      labels.push(`Flintlock Shot  STM:${stmCost}  [AMMO:${ammoCount}]`);
+      disabled.push(notEnoughStm || missingAmmo);
+      if (missingAmmo) {
+        tooltips.push('⚠ No Flintlock Ammo! Acquire ammo to fire again.');
+      } else if (notEnoughStm) {
+        tooltips.push(`⚠ Not enough Stamina (need ${stmCost} STM).`);
+      } else {
+        tooltips.push(flintDef?.description ?? 'Fire the flintlock. Must reload next turn.');
+      }
+    } else {
+      // Standard characters: Regular Strike (basic attack)
+      labels.push(`Regular Strike  STM:${CombatSystem.ATTACK_STM_COST}`);
+      disabled.push(isOutOfStm);
+      tooltips.push(`A standard physical attack. Costs ${CombatSystem.ATTACK_STM_COST} Stamina.`);
+    }
 
     // Add each physical/hybrid skill.
     physicalSkillIds.forEach((id) => {
@@ -942,21 +982,29 @@ export class CombatUI {
       ? skillsData.skills.find((s) => s.id === this.pendingTeamMoveId)
       : null;
     const moveName = selectedMove?.name ?? 'Team Move';
+    const moveMpCost = selectedMove ? (selectedMove as { mpCost?: number }).mpCost ?? 0 : 0;
     this.menuTitleBase = `TEAM MOVE — ${moveName} — Choose Ally  [BACK: cancel]`;
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
     const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
     const labels = livingAllies.map((p) => {
       const stmLabel = p.stats.maxStm > 0 ? `  STM:${p.stats.stm}/${p.stats.maxStm}` : '';
-      return `${p.name}  HP:${p.stats.hp}/${p.stats.maxHp}${stmLabel}`;
+      const mpLabel = moveMpCost > 0 ? `  MP:${p.stats.mp}` : '';
+      return `${p.name}  HP:${p.stats.hp}/${p.stats.maxHp}${stmLabel}${mpLabel}`;
     });
-    const disabled = livingAllies.map(
-      (p) => p.stats.maxStm > 0 && p.stats.stm < CombatSystem.TEAM_MOVE_STM_COST,
-    );
+    const disabled = livingAllies.map((p) => {
+      const notEnoughStm = p.stats.maxStm > 0 && p.stats.stm < CombatSystem.TEAM_MOVE_STM_COST;
+      const notEnoughMp = p.stats.mp < moveMpCost;
+      return notEnoughStm || notEnoughMp;
+    });
     const tooltips = livingAllies.map((p) => {
       const notEnoughStm = p.stats.maxStm > 0 && p.stats.stm < CombatSystem.TEAM_MOVE_STM_COST;
+      const notEnoughMp = p.stats.mp < moveMpCost;
       if (notEnoughStm) {
         return `${p.name} doesn't have enough Stamina (need ${CombatSystem.TEAM_MOVE_STM_COST} STM, has ${p.stats.stm}).`;
+      }
+      if (notEnoughMp) {
+        return `${p.name} doesn't have enough MP for ${moveName} (need ${moveMpCost} MP, has ${p.stats.mp}).`;
       }
       return `Call ${p.name} as your combo partner for ${moveName}. On ${p.name}'s next turn, they auto-execute the combined attack.`;
     });
@@ -2101,18 +2149,28 @@ export class CombatUI {
       }
     }
 
-    // ── Attack sub-menu (Regular Strike + physical/hybrid skills + Team Move) ─
+    // ── Attack sub-menu (Regular Strike / Flintlock Shot + physical/hybrid skills + Team Move) ─
     if (this.menuState === 'attack-sub') {
       if (this.menuDisabled[idx]) return null;
       if (idx === 0) {
+        const actor = this.currentActor;
+        // Gunsmith: primary attack is Flintlock Shot, not a basic strike
+        if (this.actorUsesGunAsPrimary(actor)) {
+          this.menuState = 'main';
+          this.pendingSkillId = 'flintlockShot';
+          this.enterTargetMode('skill');
+          return null;
+        }
         // Regular strike — go to target selection for basic attack
         this.menuState = 'main'; // reset so backMenu works properly
         this.enterTargetMode('attack');
         return null;
       } else {
         // A physical/hybrid skill — collect physical skills in the same order as buildAttackSubMenu
+        const hasGunPrimary = this.actorUsesGunAsPrimary(this.currentActor);
         const physicalSkillIds = this.currentActor.skills.filter((s) => {
           if (s === 'attack') return false;
+          if (hasGunPrimary && s === 'flintlockShot') return false;
           const def = skillsData.skills.find((sk) => sk.id === s);
           return def && (def.type === 'physical' || def.type === 'hybrid');
         });
@@ -2124,7 +2182,7 @@ export class CombatUI {
           this.buildTeamMoveSelectMenu();
           return null;
         }
-        const skillId = physicalSkillIds[idx - 1]; // offset by 1 for "Regular Strike"
+        const skillId = physicalSkillIds[idx - 1]; // offset by 1 for primary attack slot
         if (!skillId) return null;
         this.menuState = 'main';
         this.pendingSkillId = skillId;

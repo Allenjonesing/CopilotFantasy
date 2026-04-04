@@ -160,7 +160,13 @@ export class CombatSystem {
         // Validate that both the initiator and the chosen ally have enough stamina.
         const initiatorHasStm = actor.stats.maxStm === 0 || actor.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST;
         const allyHasStm = ally ? (ally.stats.maxStm === 0 || ally.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST) : false;
-        if (ally && comboTarget && !ally.isDefeated && !comboTarget.isDefeated && initiatorHasStm && allyHasStm) {
+        // Validate that the ally has enough MP for the chosen team move.
+        const teamMoveDef = action.teamMoveId
+          ? (skillsData.skills.find((s) => s.id === action.teamMoveId) as { mpCost?: number } | undefined)
+          : null;
+        const teamMoveMpCost = teamMoveDef?.mpCost ?? 0;
+        const allyHasMp = ally ? ally.stats.mp >= teamMoveMpCost : false;
+        if (ally && comboTarget && !ally.isDefeated && !comboTarget.isDefeated && initiatorHasStm && allyHasStm && allyHasMp) {
           // Drain massive stamina from the initiator
           if (actor.stats.maxStm > 0) {
             actor.consumeStm(CombatSystem.TEAM_MOVE_STM_COST);
@@ -174,6 +180,12 @@ export class CombatSystem {
           turnConsumed = false;
         } else if (ally && !allyHasStm) {
           this.addLog(`${ally.name} doesn't have enough Stamina to execute the Team Move!`);
+          turnConsumed = false;
+        } else if (ally && !allyHasMp) {
+          const moveName = action.teamMoveId
+            ? (skillsData.skills.find((s) => s.id === action.teamMoveId)?.name ?? 'the Team Move')
+            : 'the Team Move';
+          this.addLog(`${ally.name} doesn't have enough MP to execute ${moveName}!`);
           turnConsumed = false;
         } else {
           this.addLog(`${actor.name} tried to set up a team move but it failed.`);
