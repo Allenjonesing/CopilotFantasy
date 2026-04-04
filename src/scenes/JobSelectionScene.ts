@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameState } from '../core/state/GameState';
+import { GameState, GUN_JOBS } from '../core/state/GameState';
 import jobsData from '../data/jobs.json';
 import charactersData from '../data/characters.json';
 
@@ -224,8 +224,7 @@ export class JobSelectionScene extends Phaser.Scene {
       gs.applyJobToCharacter(id, this.jobs[this.jobSelections[i]].id);
     });
     // Grant starting ammo if any character chose a gun class.
-    const gunJobs = ['gunsmith'];
-    const hasGunClass = this.jobSelections.some((idx) => gunJobs.includes(this.jobs[idx].id));
+    const hasGunClass = this.jobSelections.some((idx) => (GUN_JOBS as readonly string[]).includes(this.jobs[idx].id));
     if (hasGunClass) {
       gs.addItem('gunAmmo', 12);
     }

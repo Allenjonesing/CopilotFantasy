@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { MapManager } from './MapManager';
 import { EventBus } from '../../core/events/EventBus';
-import { GameState, PersistentMapEnemy, PersistentPickup } from '../../core/state/GameState';
+import { GameState, GUN_JOBS, PersistentMapEnemy, PersistentPickup } from '../../core/state/GameState';
 import { BattleType } from '../combat/CombatSystem';
 
 export interface CombatEnemySpec {
@@ -404,8 +404,7 @@ export class ExplorationSystem {
           ? (5 + Math.floor(Math.random() * 20)) * difficulty
           : (2 + Math.floor(Math.random() * 8)) * difficulty;
         // Chests sometimes contain an item. Gun-class parties find ammo readily.
-        const gunJobs = ['gunsmith'];
-        const partyHasGunClass = state.data.party.some((c) => gunJobs.includes(c.job));
+        const partyHasGunClass = state.data.party.some((c) => (GUN_JOBS as readonly string[]).includes(c.job));
         const itemPool = ['potion', 'ether', 'antidote'];
         if (partyHasGunClass) {
           // ~50% of chests for gun-class parties contain ammo (high find rate).
