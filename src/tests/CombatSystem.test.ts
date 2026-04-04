@@ -1623,3 +1623,145 @@ describe('Team Move Types', () => {
     expect(hasSpellLog).toBe(true);
   });
 });
+
+describe('Gunsmith Job', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('gunsmith job can be applied to a character', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'gunsmith');
+    const aria = state.getCharacter('aria')!;
+    expect(aria.job).toBe('gunsmith');
+    expect(aria.stats.strength).toBe(18);
+  });
+
+  it('gunsmith job grants flintlockShot as primary skill', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'gunsmith');
+    const aria = state.getCharacter('aria')!;
+    expect(aria.skills).toContain('flintlockShot');
+    expect(aria.skills).not.toContain('attack');
+  });
+
+  it('gunsmith job has teamStrike team move', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'gunsmith');
+    const aria = state.getCharacter('aria')!;
+    expect(aria.teamMoves).toContain('teamStrike');
+  });
+
+  it('warrior job does not include flintlockShot', () => {
+    const state = GameState.getInstance();
+    const aria = state.getCharacter('aria')!;
+    // Aria starts as Warrior — should not have flintlockShot
+    expect(aria.job).toBe('warrior');
+    expect(aria.skills).not.toContain('flintlockShot');
+  });
+
+  it('gunsmith can fire flintlockShot and gains reloading status', () => {
+    const state = GameState.getInstance();
+    state.addItem('gunAmmo', 3);
+    state.applyJobToCharacter('aria', 'gunsmith');
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 55;
+    system.nextTurn();
+    system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: slime });
+    expect(aria.hasStatus('reloading')).toBe(true);
+  });
+});
+
+describe('Team Move Ally MP Requirement', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('magic team move (teamSpell) is blocked when ally lacks enough MP', () => {
+    const state = GameState.getInstance();
+    // Give both characters enough STM
+    state.getCharacter('aria')!.stats.stm = 60;
+    state.getCharacter('kael')!.stats.stm = 50;
+    // Drain Kael's MP below teamSpell's mpCost (15)
+    state.getCharacter('kael')!.stats.mp = 0;
+
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const kael = system.players[1];
+    const slime = system.enemies[0];
+    kael.stats.mp = 0;
+
+    system.nextTurn();
+    const consumed = system.executeAction(aria, {
+      type: 'team-move',
+      allyId: kael.id,
+      teamMoveId: 'teamSpell',
+      target: slime,
+    });
+    expect(consumed).toBe(false);
+    expect(system.hasPendingCombo(kael)).toBe(false);
+    expect(system.log.some((l) => l.includes('MP'))).toBe(true);
+  });
+
+  it('magic team move proceeds when ally has enough MP', () => {
+    const state = GameState.getInstance();
+    state.getCharacter('aria')!.stats.stm = 60;
+    state.getCharacter('kael')!.stats.stm = 50;
+
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const kael = system.players[1];
+    const slime = system.enemies[0];
+    // Ensure Kael has enough MP (teamSpell costs 15 MP)
+    kael.stats.mp = 40;
+
+    system.nextTurn();
+    const consumed = system.executeAction(aria, {
+      type: 'team-move',
+      allyId: kael.id,
+      teamMoveId: 'teamSpell',
+      target: slime,
+    });
+    expect(consumed).toBe(true);
+    expect(system.hasPendingCombo(kael)).toBe(true);
+  });
+
+  it('physical team move (teamStrike, 0 MP cost) ignores ally MP', () => {
+    const state = GameState.getInstance();
+    state.getCharacter('aria')!.stats.stm = 60;
+    state.getCharacter('lyra')!.stats.stm = 50;
+
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const lyra = system.players[1];
+    const slime = system.enemies[0];
+    // Drain Lyra's MP completely — teamStrike has 0 MP cost so it should still work
+    lyra.stats.mp = 0;
+
+    system.nextTurn();
+    const consumed = system.executeAction(aria, {
+      type: 'team-move',
+      allyId: lyra.id,
+      teamMoveId: 'teamStrike',
+      target: slime,
+    });
+    expect(consumed).toBe(true);
+    expect(system.hasPendingCombo(lyra)).toBe(true);
+  });
+});

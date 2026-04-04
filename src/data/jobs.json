@@ -16,7 +16,7 @@
         "agility": 6,
         "luck": 5
       },
-      "skills": ["attack", "quickHit", "smash", "flintlockShot"],
+      "skills": ["attack", "quickHit", "smash"],
       "levelUpStats": { "hp": 8, "mp": 2, "stm": 5, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
       "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" },
       "teamMoves": ["teamStrike"],
@@ -65,6 +65,28 @@
       "levelSkills": { "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" },
       "teamMoves": ["teamStrike", "teamSpell"],
       "levelTeamMoves": { "4": "teamSwift", "6": "teamBolt", "8": "teamTide" }
+    },
+    {
+      "id": "gunsmith",
+      "name": "Gunsmith",
+      "description": "A master marksman. The flintlock is their weapon — every shot is devastating but demands a reload. Attacks every other turn; reload turn leaves them vulnerable.",
+      "baseStats": {
+        "hp": 70,
+        "mp": 10,
+        "stm": 55,
+        "maxStm": 55,
+        "strength": 18,
+        "magic": 3,
+        "defense": 10,
+        "magicDefense": 5,
+        "agility": 8,
+        "luck": 7
+      },
+      "skills": ["flintlockShot"],
+      "levelUpStats": { "hp": 7, "mp": 1, "stm": 5, "strength": 2, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 1 },
+      "levelSkills": { "3": "smash", "5": "venomStrike", "7": "groundSlam" },
+      "teamMoves": ["teamStrike"],
+      "levelTeamMoves": { "3": "teamSwift", "6": "teamBolt" }
     }
   ]
 }

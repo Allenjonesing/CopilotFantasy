@@ -295,4 +295,20 @@ describe('GameState', () => {
     while (state.data.level < 3) state.gainExp(10000);
     expect(aria.teamMoves).toContain('teamSwift');
   });
+
+  it('applyJobToCharacter applies gunsmith job with correct stats and skills', () => {
+    const aria = state.getCharacter('aria')!;
+    state.applyJobToCharacter('aria', 'gunsmith');
+    expect(aria.job).toBe('gunsmith');
+    expect(aria.stats.strength).toBe(18);
+    expect(aria.skills).toContain('flintlockShot');
+    expect(aria.skills).not.toContain('attack');
+    expect(aria.teamMoves).toContain('teamStrike');
+  });
+
+  it('warrior job does not include flintlockShot by default', () => {
+    const aria = state.getCharacter('aria')!;
+    expect(aria.job).toBe('warrior');
+    expect(aria.skills).not.toContain('flintlockShot');
+  });
 });
