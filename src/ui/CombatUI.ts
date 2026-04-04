@@ -722,6 +722,16 @@ export class CombatUI {
     return 'Skill';
   }
 
+  /**
+   * Returns true if the given entity uses a gun (flintlockShot) as their primary attack,
+   * meaning they have flintlockShot in their skills but no generic 'attack' skill.
+   * Used to swap out "Regular Strike" for "Flintlock Shot" in the attack sub-menu.
+   */
+  private actorUsesGunAsPrimary(actor: CombatEntity | null): boolean {
+    if (!actor) return false;
+    return actor.skills.includes('flintlockShot') && !actor.skills.includes('attack');
+  }
+
   private buildMainMenu(): void {
     this.menuTitleBase = 'ACTION';
     this.menuTitle.setText(this.menuTitleBase);
@@ -884,9 +894,7 @@ export class CombatUI {
 
     // Check if this character uses a gun as their primary attack (e.g. Gunsmith —
     // has flintlockShot in skills but no generic 'attack' skill).
-    const hasGunPrimary = actor
-      ? actor.skills.includes('flintlockShot') && !actor.skills.includes('attack')
-      : false;
+    const hasGunPrimary = this.actorUsesGunAsPrimary(actor);
 
     // Collect all physical/hybrid skills the actor has (excluding basic 'attack' which is always first,
     // and excluding flintlockShot when it is the primary attack to avoid showing it twice).
@@ -2147,10 +2155,7 @@ export class CombatUI {
       if (idx === 0) {
         const actor = this.currentActor;
         // Gunsmith: primary attack is Flintlock Shot, not a basic strike
-        const hasGunPrimary = actor
-          ? actor.skills.includes('flintlockShot') && !actor.skills.includes('attack')
-          : false;
-        if (hasGunPrimary) {
+        if (this.actorUsesGunAsPrimary(actor)) {
           this.menuState = 'main';
           this.pendingSkillId = 'flintlockShot';
           this.enterTargetMode('skill');
@@ -2162,10 +2167,7 @@ export class CombatUI {
         return null;
       } else {
         // A physical/hybrid skill — collect physical skills in the same order as buildAttackSubMenu
-        const actor = this.currentActor;
-        const hasGunPrimary = actor
-          ? actor.skills.includes('flintlockShot') && !actor.skills.includes('attack')
-          : false;
+        const hasGunPrimary = this.actorUsesGunAsPrimary(this.currentActor);
         const physicalSkillIds = this.currentActor.skills.filter((s) => {
           if (s === 'attack') return false;
           if (hasGunPrimary && s === 'flintlockShot') return false;

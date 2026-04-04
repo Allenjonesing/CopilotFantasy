@@ -181,7 +181,7 @@ export class CombatSystem {
         } else if (ally && !allyHasStm) {
           this.addLog(`${ally.name} doesn't have enough Stamina to execute the Team Move!`);
           turnConsumed = false;
-        } else if (ally && !allyHasMp && teamMoveMpCost > 0) {
+        } else if (ally && !allyHasMp) {
           const moveName = action.teamMoveId
             ? (skillsData.skills.find((s) => s.id === action.teamMoveId)?.name ?? 'the Team Move')
             : 'the Team Move';
