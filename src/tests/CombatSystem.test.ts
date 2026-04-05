@@ -1519,7 +1519,7 @@ describe('Team Move Types', () => {
 
     const system = new CombatSystem(
       [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
-      // Use stoneTroll: possibleElements are all null — no elemental absorption risk
+      // Use stoneTroll: no elemental variations — avoids fire-absorption interference
       [new EnemyCombatant('stoneTroll', 1.0, undefined, 1)],
     );
     const aria2 = system.players[0];
