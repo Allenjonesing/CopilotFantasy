@@ -258,8 +258,8 @@ export class CombatSystem {
 
   /** STM cost for a basic Attack action. */
   static readonly ATTACK_STM_COST = 15;
-  /** Defense threshold above which pierce attacks deal triple damage. */
-  static readonly PIERCE_HIGH_DEF_THRESHOLD = 20;
+  /** Probability that a physical attack successfully hits. Magic always hits (1.0). */
+  static readonly PHYSICAL_HIT_CHANCE = 0.75;
 
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
     this.bus.emit('combat:attackStart', actor, target);
@@ -267,6 +267,12 @@ export class CombatSystem {
     if (actor.stats.maxStm > 0) {
       actor.consumeStm(CombatSystem.ATTACK_STM_COST);
       this.bus.emit('combat:stmChange', actor);
+    }
+    // Physical attacks have a 75% chance to hit.
+    if (Math.random() >= CombatSystem.PHYSICAL_HIT_CHANCE) {
+      this.addLog(`${actor.name} attacks ${target.name} but misses!`);
+      this.bus.emit('combat:miss', actor, target);
+      return;
     }
     const raw = actor.stats.strength * 2;
     const dmg = Math.max(1, Math.floor(raw - target.effectiveDefense()));
@@ -414,6 +420,15 @@ export class CombatSystem {
     if (skill.type === 'physical' || skill.type === 'magic' || skill.type === 'hybrid') {
       const skillElement = (skill as { element?: string }).element ?? null;
 
+      // ── Miss check: physical and hybrid attacks have 75% hit chance; magic always hits. ─
+      if (skill.type === 'physical' || skill.type === 'hybrid') {
+        if (Math.random() >= CombatSystem.PHYSICAL_HIT_CHANCE) {
+          this.addLog(`${actor.name} uses ${skill.name} — but misses ${target.name}!`);
+          this.bus.emit('combat:miss', actor, target);
+          return;
+        }
+      }
+
       // Elemental absorption: if the skill's element matches the target's element, heal instead.
       if (skillElement && target.element === skillElement) {
         const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
@@ -471,18 +486,12 @@ export class CombatSystem {
           this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (physical+magic).`);
         }
       }
-      // ── Pierce (flintlock) — ignores defense, triple vs high-DEF ─────────────
+      // ── Pierce (flintlock) — ignores defense entirely ─────────────────────────
       else if (skillExt.pierce) {
         const base = actor.stats.strength;
         const rawDmg = Math.max(1, Math.floor(base * 2 * (skill.power ?? 1.0)));
-        const isHighDef = target.stats.defense >= CombatSystem.PIERCE_HIGH_DEF_THRESHOLD;
-        const pierceMultiplier = isHighDef ? 3.0 : 1.0;
-        dmg = Math.max(1, Math.floor(rawDmg * pierceMultiplier * weaknessMultiplier));
-        if (isHighDef) {
-          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} — PIERCE! ${dmg} damage! (high-DEF triple)`);
-        } else {
-          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (pierce).`);
-        }
+        dmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+        this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (pierce).`);
       }
       // ── Standard physical or magic ──────────────────────────────────────────
       else {
@@ -741,6 +750,24 @@ export class CombatSystem {
       const weaknessMultiplier = isWeakness ? 2.0 : 1.0;
       const moveName = moveDef.name;
 
+      // ── Miss check: physical and hybrid team moves have 75% hit chance; magic always hits. ─
+      const isMissableTeamMove = moveType === 'physical' || moveType === 'hybrid';
+      if (isMissableTeamMove && Math.random() >= CombatSystem.PHYSICAL_HIT_CHANCE) {
+        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} — misses ${target.name}!`);
+        this.bus.emit('combat:miss', ally, target);
+        // Track the attempt for evolution even on miss, then skip damage.
+        if (combo.teamMoveId) {
+          const initiatorPlayer = initiator instanceof PlayerCombatant ? initiator : null;
+          if (initiatorPlayer) {
+            const evolved = GameState.getInstance().recordTeamMoveUse(initiatorPlayer.characterId, combo.teamMoveId);
+            if (evolved) {
+              this.bus.emit('skill:evolved', initiatorPlayer, evolved.skillId);
+            }
+          }
+        }
+        // Fall through to CTB slowdown below.
+      } else {
+
       // Elemental absorption: if skill's element matches target's element, heal instead
       if (moveElement && target.element === moveElement) {
         const combinedMag = initiator.stats.magic + ally.stats.magic;
@@ -799,6 +826,7 @@ export class CombatSystem {
           }
         }
       }
+      } // end hit branch
     } else {
       // ── Legacy fallback: old combined physical formula ────────────────────
       // Formula: (initiator.str + ally.str) × 2 = comboBase  →  comboBase × 2.0 − def.

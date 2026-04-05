@@ -224,9 +224,10 @@ export class JobSelectionScene extends Phaser.Scene {
       gs.applyJobToCharacter(id, this.jobs[this.jobSelections[i]].id);
     });
     // Grant starting ammo if any character chose a gun class.
-    const hasGunClass = this.jobSelections.some((idx) => (GUN_JOBS as readonly string[]).includes(this.jobs[idx].id));
-    if (hasGunClass) {
-      gs.addItem('gunAmmo', 12);
+    // Give each gunsmith a share of ammo to start: 8 rounds per gunsmith in the party.
+    const gunClassCount = this.jobSelections.filter((idx) => (GUN_JOBS as readonly string[]).includes(this.jobs[idx].id)).length;
+    if (gunClassCount > 0) {
+      gs.addItem('gunAmmo', gunClassCount * 8);
     }
     this.scene.start('ExplorationScene');
   }
