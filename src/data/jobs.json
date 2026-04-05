@@ -87,6 +87,94 @@
       "levelSkills": { "3": "smash", "5": "venomStrike", "7": "groundSlam" },
       "teamMoves": ["teamStrike"],
       "levelTeamMoves": { "3": "teamSwift", "6": "teamBolt" }
+    },
+    {
+      "id": "ranger",
+      "name": "Ranger",
+      "description": "A swift hunter. Strikes from range with bow and arrow. High Agility makes them the fastest on the field.",
+      "baseStats": {
+        "hp": 65,
+        "mp": 20,
+        "stm": 50,
+        "maxStm": 50,
+        "strength": 12,
+        "magic": 5,
+        "defense": 9,
+        "magicDefense": 8,
+        "agility": 14,
+        "luck": 8
+      },
+      "skills": ["attack", "arrowShot", "quickHit"],
+      "levelUpStats": { "hp": 6, "mp": 3, "stm": 4, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 1, "luck": 1 },
+      "levelSkills": { "3": "hasteBell", "5": "venomStrike", "7": "slowBell", "9": "groundSlam" },
+      "teamMoves": ["teamSwift"],
+      "levelTeamMoves": { "3": "teamStrike", "5": "teamBolt", "7": "teamTide" }
+    },
+    {
+      "id": "thief",
+      "name": "Thief",
+      "description": "A cunning rogue. Lightning-fast strikes and exceptional Luck; excels at finding loot and landing criticals.",
+      "baseStats": {
+        "hp": 55,
+        "mp": 20,
+        "stm": 50,
+        "maxStm": 50,
+        "strength": 11,
+        "magic": 6,
+        "defense": 8,
+        "magicDefense": 9,
+        "agility": 15,
+        "luck": 12
+      },
+      "skills": ["attack", "quickHit", "drain"],
+      "levelUpStats": { "hp": 5, "mp": 3, "stm": 4, "strength": 1, "magic": 0, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 1 },
+      "levelSkills": { "3": "venomStrike", "5": "hasteBell", "6": "smash", "8": "groundSlam" },
+      "teamMoves": ["teamSwift"],
+      "levelTeamMoves": { "4": "teamStrike", "6": "teamBolt", "8": "teamBlaze" }
+    },
+    {
+      "id": "paladin",
+      "name": "Paladin",
+      "description": "A holy knight. Exceptional Defense and HP; balances physical might with restorative light magic.",
+      "baseStats": {
+        "hp": 90,
+        "mp": 25,
+        "stm": 55,
+        "maxStm": 55,
+        "strength": 14,
+        "magic": 8,
+        "defense": 16,
+        "magicDefense": 12,
+        "agility": 5,
+        "luck": 6
+      },
+      "skills": ["attack", "cure", "smash"],
+      "levelUpStats": { "hp": 10, "mp": 4, "stm": 5, "strength": 1, "magic": 1, "defense": 2, "magicDefense": 1, "agility": 0, "luck": 0 },
+      "levelSkills": { "2": "esuna", "4": "drain", "6": "pray", "8": "reraise" },
+      "teamMoves": ["teamStrike", "teamSpell"],
+      "levelTeamMoves": { "3": "teamBlaze", "6": "teamFrost", "8": "teamTide" }
+    },
+    {
+      "id": "berserker",
+      "name": "Berserker",
+      "description": "A raging destroyer. Monstrous Strength and Stamina; unleashes devastating melee attacks but shuns all magic.",
+      "baseStats": {
+        "hp": 85,
+        "mp": 8,
+        "stm": 65,
+        "maxStm": 65,
+        "strength": 22,
+        "magic": 1,
+        "defense": 11,
+        "magicDefense": 4,
+        "agility": 7,
+        "luck": 4
+      },
+      "skills": ["attack", "smash", "venomStrike"],
+      "levelUpStats": { "hp": 9, "mp": 1, "stm": 6, "strength": 2, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 1, "luck": 0 },
+      "levelSkills": { "2": "quickHit", "4": "groundSlam", "6": "hasteBell", "8": "slowBell" },
+      "teamMoves": ["teamStrike"],
+      "levelTeamMoves": { "3": "teamBolt", "5": "teamBlaze", "7": "teamSwift" }
     }
   ]
 }

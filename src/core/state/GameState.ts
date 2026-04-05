@@ -7,6 +7,8 @@ import jobsData from '../../data/jobs.json';
 const DEFAULT_STAMINA = 50;
 /** Default team move for characters who have no job-defined team moves. */
 const DEFAULT_TEAM_MOVE = 'teamStrike';
+/** Job IDs that use guns as primary weapon. Used to gate ammo drops and starting inventory. */
+export const GUN_JOBS = ['gunsmith'] as const;
 
 export interface CharacterStats {
   hp: number;

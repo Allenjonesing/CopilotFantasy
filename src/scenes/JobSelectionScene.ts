@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameState } from '../core/state/GameState';
+import { GameState, GUN_JOBS } from '../core/state/GameState';
 import jobsData from '../data/jobs.json';
 import charactersData from '../data/characters.json';
 
@@ -26,6 +26,11 @@ const JOB_COLORS: Record<string, number> = {
   warrior: 0xcc6622,
   mage: 0x4466ff,
   healer: 0x44cc88,
+  gunsmith: 0xcc8833,
+  ranger: 0x44aa44,
+  thief: 0xaa44cc,
+  paladin: 0xffdd66,
+  berserker: 0xff4422,
 };
 
 export class JobSelectionScene extends Phaser.Scene {
@@ -132,10 +137,10 @@ export class JobSelectionScene extends Phaser.Scene {
       });
       this.jobDescTexts.push(jobDesc);
 
-      // Quick stat preview: HP / MP / STM / STR / MAG / DEF / AGI
+      // Quick stat preview at the bottom of the row: HP / MP / STM / STR / MAG / DEF / AGI
       const stats = this.jobs[this.jobSelections[i]].baseStats;
       const statStr = `HP:${stats.hp}  MP:${stats.mp}  STM:${stats.stm}  STR:${stats.strength}  MAG:${stats.magic}  DEF:${stats.defense}  AGI:${stats.agility}`;
-      const statText = this.add.text(14, rowY + 82, statStr, {
+      const statText = this.add.text(14, rowY + ROW_H - 16, statStr, {
         fontSize: '9px', color: '#88ccff', fontFamily: 'monospace',
         wordWrap: { width: W - 28 },
       });
@@ -218,6 +223,11 @@ export class JobSelectionScene extends Phaser.Scene {
     this.characterIds.forEach((id, i) => {
       gs.applyJobToCharacter(id, this.jobs[this.jobSelections[i]].id);
     });
+    // Grant starting ammo if any character chose a gun class.
+    const hasGunClass = this.jobSelections.some((idx) => (GUN_JOBS as readonly string[]).includes(this.jobs[idx].id));
+    if (hasGunClass) {
+      gs.addItem('gunAmmo', 12);
+    }
     this.scene.start('ExplorationScene');
   }
 }
