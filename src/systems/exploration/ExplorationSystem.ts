@@ -95,28 +95,36 @@ const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 's
 /** Jobs that primarily use arrows (rangers and healers who have arrowShot). */
 const ARROW_JOBS = ['ranger', 'healer'] as const;
 
+/** Fisher-Yates shuffle — unbiased in-place shuffle. */
+function shuffleArray<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 /**
  * Generate a randomised shop inventory for each visit (3–5 unique items).
- * When party job IDs are provided, class-specific ammo is added to the pool
- * with extra weight so it appears more often for parties that need it.
+ * When party job IDs are provided, class-specific ammo is guaranteed to
+ * appear (if the party has gun or archer classes) and fills one slot;
+ * remaining slots come from the general pool.
  */
 function generateShopInventory(partyJobs: string[] = []): string[] {
-  const pool = [...ALL_SHOP_ITEMS];
-  // Add class-specific ammo to the pool based on party composition.
   const hasGunClass = partyJobs.some((j) => (GUN_JOBS as readonly string[]).includes(j));
   const hasArcherClass = partyJobs.some((j) => (ARROW_JOBS as readonly string[]).includes(j));
-  if (hasGunClass) {
-    // Triple-weight gunAmmo so gun-class parties see it frequently.
-    pool.push('gunAmmo', 'gunAmmo', 'gunAmmo');
-  }
-  if (hasArcherClass) {
-    // Triple-weight arrows for archer/healer parties.
-    pool.push('arrow', 'arrow', 'arrow');
-  }
-  const numItems = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 items
-  const shuffled = pool.sort(() => Math.random() - 0.5);
-  // Deduplicate so the same item doesn't fill all slots.
-  return [...new Set(shuffled)].slice(0, numItems);
+
+  // Guaranteed class-specific items always appear first.
+  const guaranteed: string[] = [];
+  if (hasGunClass) guaranteed.push('gunAmmo');
+  if (hasArcherClass) guaranteed.push('arrow');
+
+  // Fill remaining slots from the shuffled general pool (excluding already-guaranteed items).
+  const numItems = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 items total
+  const remaining = numItems - guaranteed.length;
+  const pool = ALL_SHOP_ITEMS.filter((id) => !guaranteed.includes(id));
+  shuffleArray(pool);
+  return [...guaranteed, ...pool.slice(0, Math.max(0, remaining))];
 }
 
 export class ExplorationSystem {

@@ -261,6 +261,10 @@ export class CombatSystem {
   static readonly ATTACK_STM_COST = 15;
   /** Probability that a physical attack successfully hits. Magic always hits (1.0). */
   static readonly PHYSICAL_HIT_CHANCE = 0.75;
+  /** Per-item chance multiplier applied when a thief uses Steal (2× the normal drop chance). */
+  static readonly STEAL_BOOST = 2.0;
+  /** Maximum per-item steal chance regardless of boost (caps the chance at 95%). */
+  static readonly MAX_STEAL_CHANCE = 0.95;
 
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
     this.bus.emit('combat:attackStart', actor, target);
@@ -550,10 +554,9 @@ export class CombatSystem {
         type EnemyDataDef = { id: string; possibleDrops?: EnemyDropDef[] };
         const enemyDef = (enemiesData.enemies as EnemyDataDef[]).find((e) => e.id === target.enemyId);
         const possibleDrops = enemyDef?.possibleDrops ?? [];
-        // Steal gives double the base drop chance for each item (better chance at rare loot).
-        const STEAL_BOOST = 2.0;
+        // Steal gives a boosted chance for each drop (better odds at rare loot).
         const stolenItems = possibleDrops
-          .filter((drop) => Math.random() < Math.min(drop.chance * STEAL_BOOST, 0.95))
+          .filter((drop) => Math.random() < Math.min(drop.chance * CombatSystem.STEAL_BOOST, CombatSystem.MAX_STEAL_CHANCE))
           .map((drop) => drop.id);
         if (stolenItems.length > 0) {
           const state = GameState.getInstance();
