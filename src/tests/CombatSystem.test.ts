@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PlayerCombatant } from '../systems/combat/PlayerCombatant';
 import { EnemyCombatant } from '../systems/combat/EnemyCombatant';
 import { CTBTimeline } from '../systems/combat/CTBTimeline';
@@ -119,7 +119,10 @@ describe('CombatSystem', () => {
     const initialHp = slime.stats.hp;
     system.nextTurn();
     const actor = system.currentActor!;
+    // Force hit (physical attacks have 75% hit chance)
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
     system.executeAction(actor, { type: 'attack', target: slime });
+    vi.restoreAllMocks();
     expect(slime.stats.hp).toBeLessThan(initialHp);
   });
 
@@ -965,7 +968,10 @@ describe('Bleed Status Effect', () => {
     lyra.stats.stm = 60;
     if (!lyra.skills.includes('arrowShot')) lyra.skills.push('arrowShot');
     system.nextTurn();
+    // Force hit (physical attacks have 75% hit chance)
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
     system.executeAction(lyra, { type: 'skill', skillId: 'arrowShot', target: troll });
+    vi.restoreAllMocks();
     expect(troll.hasStatus('bleed')).toBe(true);
   });
 
@@ -1074,10 +1080,10 @@ describe('Flintlock / Pierce System', () => {
     expect(consumed).toBe(true);
   });
 
-  it('pierce skill deals triple damage to high-DEF enemies', () => {
+  it('pierce skill ignores enemy DEF and deals consistent damage regardless of DEF', () => {
     const state = GameState.getInstance();
     state.addItem('gunAmmo', 10);
-    // Spawn ironGolem at its natural floor (8) so floor penalty doesn't apply
+    // Spawn ironGolem (high DEF) — pierce should ignore DEF entirely
     const system = new CombatSystem(
       [new PlayerCombatant('aria')],
       [new EnemyCombatant('ironGolem', 1.0, undefined, 8)],
@@ -1086,15 +1092,16 @@ describe('Flintlock / Pierce System', () => {
     const golem = system.enemies[0];
     aria.stats.stm = 60;
     if (!aria.skills.includes('flintlockShot')) aria.skills.push('flintlockShot');
-    // ironGolem at floor 8 has full 30 DEF >= PIERCE_HIGH_DEF_THRESHOLD(20)
-    expect(golem.stats.defense).toBeGreaterThanOrEqual(CombatSystem.PIERCE_HIGH_DEF_THRESHOLD);
     const hpBefore = golem.stats.hp;
     system.nextTurn();
+    // Force hit (physical attacks have 75% hit chance)
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
     system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: golem });
+    vi.restoreAllMocks();
     const dmg = hpBefore - golem.stats.hp;
-    // Pierce ignores DEF and deals triple damage: strength * 2 * power * 3
-    const expectedMin = Math.floor(aria.stats.strength * 2 * 3.0);
-    expect(dmg).toBeGreaterThanOrEqual(expectedMin);
+    // Pierce ignores DEF: damage = strength * 2 * power (no DEF subtracted, no triple multiplier)
+    const expected = Math.floor(aria.stats.strength * 2 * 1.0);
+    expect(dmg).toBe(expected);
   });
 });
 
@@ -1116,7 +1123,10 @@ describe('Hybrid Magic-Physical Attack', () => {
     if (!kael.skills.includes('magicStrike')) kael.skills.push('magicStrike');
     const hpBefore = slime.stats.hp;
     system.nextTurn();
+    // Force hit (hybrid attacks have 75% hit chance — physical accuracy takes priority)
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
     system.executeAction(kael, { type: 'skill', skillId: 'magicStrike', target: slime });
+    vi.restoreAllMocks();
     expect(slime.stats.hp).toBeLessThan(hpBefore);
   });
 
@@ -1429,7 +1439,10 @@ describe('Team Move Types', () => {
 
     system.nextTurn();
     system.executeAction(aria, { type: 'team-move', allyId: lyra.id, teamMoveId: 'teamStrike', target: slime });
+    // Force hit for the physical combo (physical team moves have 75% hit chance)
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
     system.executePendingCombo(lyra);
+    vi.restoreAllMocks();
 
     // Physical team move should deal strength-based damage
     expect(slime.stats.hp).toBeLessThan(initialHp);
@@ -1506,18 +1519,19 @@ describe('Team Move Types', () => {
 
     const system = new CombatSystem(
       [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
-      [new EnemyCombatant('slime')],
+      // Use stoneTroll: no elemental variations — avoids fire-absorption interference
+      [new EnemyCombatant('stoneTroll', 1.0, undefined, 1)],
     );
     const aria2 = system.players[0];
     const lyra = system.players[1];
-    const slime = system.enemies[0];
-    const initialHp = slime.stats.hp;
+    const troll = system.enemies[0];
+    const initialHp = troll.stats.hp;
 
     system.nextTurn();
-    system.executeAction(aria2, { type: 'team-move', allyId: lyra.id, teamMoveId: 'teamBlaze', target: slime });
+    system.executeAction(aria2, { type: 'team-move', allyId: lyra.id, teamMoveId: 'teamBlaze', target: troll });
     system.executePendingCombo(lyra);
 
-    expect(slime.stats.hp).toBeLessThan(initialHp);
+    expect(troll.stats.hp).toBeLessThan(initialHp);
   });
 
   it('team move physical (teamStrike) evolves after 5 uses via recordTeamMoveUse', () => {
@@ -1598,7 +1612,10 @@ describe('Team Move Types', () => {
     system.nextTurn();
     // Omit teamMoveId — should fall back to legacy physical formula
     system.executeAction(aria, { type: 'team-move', allyId: lyra.id, target: slime });
+    // Force hit for the legacy physical combo (physical team moves have 75% hit chance)
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
     system.executePendingCombo(lyra);
+    vi.restoreAllMocks();
 
     expect(slime.stats.hp).toBeLessThan(initialHp);
   });
@@ -1763,5 +1780,221 @@ describe('Team Move Ally MP Requirement', () => {
     });
     expect(consumed).toBe(true);
     expect(system.hasPendingCombo(lyra)).toBe(true);
+  });
+});
+
+describe('Physical Miss Chance', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('physical attack misses when Math.random >= PHYSICAL_HIT_CHANCE', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    const hpBefore = slime.stats.hp;
+    system.nextTurn();
+    // Force miss: Math.random returns 0.99 >= 0.75
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.99);
+    system.executeAction(aria, { type: 'attack', target: slime });
+    vi.restoreAllMocks();
+    // Miss: HP should be unchanged
+    expect(slime.stats.hp).toBe(hpBefore);
+    // Miss logged
+    expect(system.log.some((msg) => msg.includes('misses'))).toBe(true);
+  });
+
+  it('physical attack hits when Math.random < PHYSICAL_HIT_CHANCE', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    const hpBefore = slime.stats.hp;
+    system.nextTurn();
+    // Force hit: Math.random returns 0.0 < 0.75
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.0);
+    system.executeAction(aria, { type: 'attack', target: slime });
+    vi.restoreAllMocks();
+    expect(slime.stats.hp).toBeLessThan(hpBefore);
+  });
+
+  it('physical attack still consumes STM on a miss', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    const stmBefore = aria.stats.stm;
+    system.nextTurn();
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.99); // force miss
+    system.executeAction(aria, { type: 'attack', target: slime });
+    vi.restoreAllMocks();
+    // STM consumed even on miss
+    expect(aria.stats.stm).toBeLessThan(stmBefore);
+  });
+
+  it('magic skill always hits (100% accuracy)', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const kael = system.players[0];
+    const slime = system.enemies[0];
+    kael.stats.mp = 50;
+    system.nextTurn();
+    // Even with Math.random returning 0.99, magic should never miss
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    system.executeAction(kael, { type: 'skill', skillId: 'fire', target: slime });
+    vi.restoreAllMocks();
+    // Magic has 100% accuracy — the log must NOT contain any "misses" message
+    expect(system.log.some((msg) => msg.includes('misses'))).toBe(false);
+    expect(system.log.length).toBeGreaterThan(0);
+  });
+
+  it('hybrid (magic+physical) skill misses at 75% rate — physical accuracy takes priority', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const kael = system.players[0];
+    const slime = system.enemies[0];
+    kael.stats.mp = 50;
+    kael.stats.stm = 30;
+    if (!kael.skills.includes('magicStrike')) kael.skills.push('magicStrike');
+    const hpBefore = slime.stats.hp;
+    system.nextTurn();
+    // Force miss on hybrid (magicStrike)
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.99);
+    system.executeAction(kael, { type: 'skill', skillId: 'magicStrike', target: slime });
+    vi.restoreAllMocks();
+    expect(slime.stats.hp).toBe(hpBefore);
+    expect(system.log.some((msg) => msg.includes('misses'))).toBe(true);
+  });
+
+  it('PHYSICAL_HIT_CHANCE constant is 0.75', () => {
+    expect(CombatSystem.PHYSICAL_HIT_CHANCE).toBe(0.75);
+  });
+});
+
+describe('Gunsmith Damage Nerf', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('flintlockShot power is 1.0 (nerfed from 3.0)', () => {
+    const state = GameState.getInstance();
+    state.addItem('gunAmmo', 5);
+    state.applyJobToCharacter('aria', 'gunsmith');
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('ironGolem', 1.0, undefined, 8)],
+    );
+    const aria = system.players[0];
+    const golem = system.enemies[0];
+    aria.stats.stm = 55;
+    const hpBefore = golem.stats.hp;
+    system.nextTurn();
+    // Force hit
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
+    system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: golem });
+    vi.restoreAllMocks();
+    const dmg = hpBefore - golem.stats.hp;
+    // With power=1.0 and pierce (no DEF): damage = strength * 2 * 1.0 = 36
+    const expected = Math.floor(aria.stats.strength * 2 * 1.0);
+    expect(dmg).toBe(expected);
+  });
+
+  it('flintlockShot deals SAME damage to high-DEF and low-DEF enemies (no inverse scaling)', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'gunsmith');
+
+    // Shoot a low-DEF enemy (stoneTroll has enough HP to survive the hit)
+    state.addItem('gunAmmo', 5);
+    const sysLow = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('stoneTroll', 1.0, undefined, 1)],
+    );
+    const ariaLow = sysLow.players[0];
+    const lowDefEnemy = sysLow.enemies[0];
+    ariaLow.stats.stm = 55;
+    const hpBeforeLow = lowDefEnemy.stats.hp;
+    sysLow.nextTurn();
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
+    sysLow.executeAction(ariaLow, { type: 'skill', skillId: 'flintlockShot', target: lowDefEnemy });
+    vi.restoreAllMocks();
+    const dmgLow = hpBeforeLow - lowDefEnemy.stats.hp;
+
+    // Shoot a high-DEF enemy (ironGolem)
+    GameState.getInstance().reset();
+    state.applyJobToCharacter('aria', 'gunsmith');
+    state.addItem('gunAmmo', 5);
+    const sysHigh = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('ironGolem', 1.0, undefined, 8)],
+    );
+    const ariaHigh = sysHigh.players[0];
+    const highDefEnemy = sysHigh.enemies[0];
+    ariaHigh.stats.stm = 55;
+    const hpBeforeHigh = highDefEnemy.stats.hp;
+    sysHigh.nextTurn();
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0);
+    sysHigh.executeAction(ariaHigh, { type: 'skill', skillId: 'flintlockShot', target: highDefEnemy });
+    vi.restoreAllMocks();
+    const dmgHigh = hpBeforeHigh - highDefEnemy.stats.hp;
+
+    // Both should deal the same damage (pierce ignores DEF, no triple multiplier)
+    expect(dmgLow).toBe(dmgHigh);
+  });
+});
+
+describe('Paladin Offensive Capability', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('paladin job grants holyLight as an offensive skill', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'paladin');
+    const aria = state.getCharacter('aria')!;
+    expect(aria.skills).toContain('holyLight');
+  });
+
+  it('holyLight is a magic skill that always hits', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'paladin');
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.mp = 25;
+    const hpBefore = slime.stats.hp;
+    system.nextTurn();
+    // Even with Math.random returning 0.99, magic should always hit
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    system.executeAction(aria, { type: 'skill', skillId: 'holyLight', target: slime });
+    vi.restoreAllMocks();
+    // holyLight should deal damage (it's a magic type skill)
+    expect(slime.stats.hp).toBeLessThan(hpBefore);
+  });
+
+  it('paladin has both offensive (attack, holyLight, smash) and healing (cure) skills', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'paladin');
+    const aria = state.getCharacter('aria')!;
+    expect(aria.skills).toContain('attack');
+    expect(aria.skills).toContain('holyLight');
+    expect(aria.skills).toContain('smash');
+    expect(aria.skills).toContain('cure');
   });
 });

@@ -90,7 +90,7 @@ function bossTypeForDifficulty(difficulty: number): string {
 const BOSS_SCALE = 2.5;
 
 /** All possible shop item IDs — each visit picks a random subset. */
-const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 'smokeBomb', 'freezeBomb', 'mirrorShard', 'zombieDust', 'dispelHerb'];
+const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 'smokeBomb', 'freezeBomb', 'mirrorShard', 'zombieDust', 'dispelHerb', 'gunAmmo'];
 
 /** Generate a randomised shop inventory for each visit (3–5 items with possible duplicates). */
 function generateShopInventory(): string[] {

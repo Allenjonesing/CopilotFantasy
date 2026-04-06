@@ -44,6 +44,7 @@ const JOB_LABEL_COLORS: Record<string, string> = {
   mage: '#5588ff',
   healer: '#44cc88',
   gunsmith: '#cc9922',
+  paladin: '#ffdd66',
 };
 
 /** Element spell colour for animations. */
@@ -718,6 +719,7 @@ export class CombatUI {
     const job = charState?.job?.toLowerCase() ?? '';
     if (job === 'mage') return 'Magic';
     if (job === 'healer') return 'White Magic';
+    if (job === 'paladin') return 'Holy Magic';
     if (job === 'gunsmith') return 'Skill';
     return 'Skill';
   }

@@ -148,7 +148,7 @@
         "agility": 5,
         "luck": 6
       },
-      "skills": ["attack", "cure", "smash"],
+      "skills": ["attack", "holyLight", "cure", "smash"],
       "levelUpStats": { "hp": 10, "mp": 4, "stm": 5, "strength": 1, "magic": 1, "defense": 2, "magicDefense": 1, "agility": 0, "luck": 0 },
       "levelSkills": { "2": "esuna", "4": "drain", "6": "pray", "8": "reraise" },
       "teamMoves": ["teamStrike", "teamSpell"],

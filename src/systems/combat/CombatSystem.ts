@@ -258,15 +258,21 @@ export class CombatSystem {
 
   /** STM cost for a basic Attack action. */
   static readonly ATTACK_STM_COST = 15;
-  /** Defense threshold above which pierce attacks deal triple damage. */
-  static readonly PIERCE_HIGH_DEF_THRESHOLD = 20;
+  /** Probability that a physical attack successfully hits. Magic always hits (1.0). */
+  static readonly PHYSICAL_HIT_CHANCE = 0.75;
 
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
     this.bus.emit('combat:attackStart', actor, target);
-    // Drain stamina (only for entities that have stamina — players)
+    // Drain stamina before hit/miss check — effort is expended regardless of outcome.
     if (actor.stats.maxStm > 0) {
       actor.consumeStm(CombatSystem.ATTACK_STM_COST);
       this.bus.emit('combat:stmChange', actor);
+    }
+    // Physical attacks have a 75% chance to hit.
+    if (Math.random() >= CombatSystem.PHYSICAL_HIT_CHANCE) {
+      this.addLog(`${actor.name} attacks ${target.name} but misses!`);
+      this.bus.emit('combat:miss', actor, target);
+      return;
     }
     const raw = actor.stats.strength * 2;
     const dmg = Math.max(1, Math.floor(raw - target.effectiveDefense()));
@@ -414,6 +420,15 @@ export class CombatSystem {
     if (skill.type === 'physical' || skill.type === 'magic' || skill.type === 'hybrid') {
       const skillElement = (skill as { element?: string }).element ?? null;
 
+      // ── Miss check: physical and hybrid attacks have 75% hit chance; magic always hits. ─
+      if (skill.type === 'physical' || skill.type === 'hybrid') {
+        if (Math.random() >= CombatSystem.PHYSICAL_HIT_CHANCE) {
+          this.addLog(`${actor.name} uses ${skill.name} — but misses ${target.name}!`);
+          this.bus.emit('combat:miss', actor, target);
+          return;
+        }
+      }
+
       // Elemental absorption: if the skill's element matches the target's element, heal instead.
       if (skillElement && target.element === skillElement) {
         const base = skill.type === 'physical' ? actor.stats.strength : actor.stats.magic;
@@ -471,18 +486,12 @@ export class CombatSystem {
           this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (physical+magic).`);
         }
       }
-      // ── Pierce (flintlock) — ignores defense, triple vs high-DEF ─────────────
+      // ── Pierce (flintlock) — ignores defense entirely ─────────────────────────
       else if (skillExt.pierce) {
         const base = actor.stats.strength;
         const rawDmg = Math.max(1, Math.floor(base * 2 * (skill.power ?? 1.0)));
-        const isHighDef = target.stats.defense >= CombatSystem.PIERCE_HIGH_DEF_THRESHOLD;
-        const pierceMultiplier = isHighDef ? 3.0 : 1.0;
-        dmg = Math.max(1, Math.floor(rawDmg * pierceMultiplier * weaknessMultiplier));
-        if (isHighDef) {
-          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} — PIERCE! ${dmg} damage! (high-DEF triple)`);
-        } else {
-          this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (pierce).`);
-        }
+        dmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+        this.addLog(`${actor.name} uses ${skill.name} on ${target.name} for ${dmg} damage (pierce).`);
       }
       // ── Standard physical or magic ──────────────────────────────────────────
       else {
@@ -741,55 +750,66 @@ export class CombatSystem {
       const weaknessMultiplier = isWeakness ? 2.0 : 1.0;
       const moveName = moveDef.name;
 
-      // Elemental absorption: if skill's element matches target's element, heal instead
-      if (moveElement && target.element === moveElement) {
-        const combinedMag = initiator.stats.magic + ally.stats.magic;
-        const healed = Math.max(1, Math.floor(combinedMag * 2 * power - target.stats.magicDefense));
-        this.applyHeal(target, healed);
-        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — ABSORBED! ${target.name} healed for ${healed} HP!`);
-      } else if (moveType === 'physical') {
-        const combinedStr = initiator.stats.strength + ally.stats.strength;
-        const rawDmg = Math.max(1, Math.floor(combinedStr * 2 * power - target.effectiveDefense()));
-        const comboDmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
-        target.applyDamage(comboDmg);
-        if (isWeakness) {
-          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — WEAKNESS! ${comboDmg} MASSIVE damage!`);
-        } else {
-          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE physical damage!`);
-        }
-        this.bus.emit('combat:damage', target, comboDmg);
-        this.checkDefeated(target);
-      } else if (moveType === 'magic') {
-        const combinedMag = initiator.stats.magic + ally.stats.magic;
-        const rawDmg = Math.max(1, Math.floor(combinedMag * 2 * power - target.stats.magicDefense));
-        const comboDmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
-        target.applyDamage(comboDmg);
-        if (isWeakness) {
-          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — WEAKNESS! ${comboDmg} MASSIVE magic damage!`);
-        } else {
-          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE magic damage!`);
-        }
-        this.bus.emit('combat:damage', target, comboDmg);
-        this.checkDefeated(target);
-      } else if (moveType === 'hybrid') {
-        const physPart = Math.max(1, Math.floor((initiator.stats.strength + ally.stats.strength) * power - target.effectiveDefense() / 2));
-        const magPart = Math.max(1, Math.floor((initiator.stats.magic + ally.stats.magic) * power - target.stats.magicDefense / 2));
-        const comboDmg = Math.max(1, Math.floor((physPart + magPart) * weaknessMultiplier));
-        target.applyDamage(comboDmg);
-        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE damage (physical+magic)!`);
-        this.bus.emit('combat:damage', target, comboDmg);
-        this.checkDefeated(target);
-      } else {
-        // Fallback: generic physical formula
-        const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
-        const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
-        target.applyDamage(comboDmg);
-        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE damage!`);
-        this.bus.emit('combat:damage', target, comboDmg);
-        this.checkDefeated(target);
+      // ── Miss check: physical/hybrid team moves have 75% hit chance; magic always hits. ─
+      const isMissableTeamMove = moveType === 'physical' || moveType === 'hybrid';
+      const teamMoveHit = !isMissableTeamMove || Math.random() < CombatSystem.PHYSICAL_HIT_CHANCE;
+
+      if (!teamMoveHit) {
+        this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} — misses ${target.name}!`);
+        this.bus.emit('combat:miss', ally, target);
       }
 
-      // Track team move use on the initiator for evolution.
+      if (teamMoveHit) {
+        // Elemental absorption: if skill's element matches target's element, heal instead
+        if (moveElement && target.element === moveElement) {
+          const combinedMag = initiator.stats.magic + ally.stats.magic;
+          const healed = Math.max(1, Math.floor(combinedMag * 2 * power - target.stats.magicDefense));
+          this.applyHeal(target, healed);
+          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — ABSORBED! ${target.name} healed for ${healed} HP!`);
+        } else if (moveType === 'physical') {
+          const combinedStr = initiator.stats.strength + ally.stats.strength;
+          const rawDmg = Math.max(1, Math.floor(combinedStr * 2 * power - target.effectiveDefense()));
+          const comboDmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+          target.applyDamage(comboDmg);
+          if (isWeakness) {
+            this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — WEAKNESS! ${comboDmg} MASSIVE damage!`);
+          } else {
+            this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE physical damage!`);
+          }
+          this.bus.emit('combat:damage', target, comboDmg);
+          this.checkDefeated(target);
+        } else if (moveType === 'magic') {
+          const combinedMag = initiator.stats.magic + ally.stats.magic;
+          const rawDmg = Math.max(1, Math.floor(combinedMag * 2 * power - target.stats.magicDefense));
+          const comboDmg = Math.max(1, Math.floor(rawDmg * weaknessMultiplier));
+          target.applyDamage(comboDmg);
+          if (isWeakness) {
+            this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} — WEAKNESS! ${comboDmg} MASSIVE magic damage!`);
+          } else {
+            this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE magic damage!`);
+          }
+          this.bus.emit('combat:damage', target, comboDmg);
+          this.checkDefeated(target);
+        } else if (moveType === 'hybrid') {
+          const physPart = Math.max(1, Math.floor((initiator.stats.strength + ally.stats.strength) * power - target.effectiveDefense() / 2));
+          const magPart = Math.max(1, Math.floor((initiator.stats.magic + ally.stats.magic) * power - target.stats.magicDefense / 2));
+          const comboDmg = Math.max(1, Math.floor((physPart + magPart) * weaknessMultiplier));
+          target.applyDamage(comboDmg);
+          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE damage (physical+magic)!`);
+          this.bus.emit('combat:damage', target, comboDmg);
+          this.checkDefeated(target);
+        } else {
+          // Fallback: generic physical formula
+          const comboBase = (initiator.stats.strength + ally.stats.strength) * 2;
+          const comboDmg = Math.max(1, Math.floor(comboBase * 2.0 - target.effectiveDefense()));
+          target.applyDamage(comboDmg);
+          this.addLog(`⚡ ${initiator.name} + ${ally.name} ${moveName} on ${target.name} for ${comboDmg} MASSIVE damage!`);
+          this.bus.emit('combat:damage', target, comboDmg);
+          this.checkDefeated(target);
+        }
+      }
+
+      // Track team move use on the initiator for evolution (even on miss).
       if (combo.teamMoveId) {
         const initiatorPlayer = initiator instanceof PlayerCombatant ? initiator : null;
         if (initiatorPlayer) {

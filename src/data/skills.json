@@ -373,12 +373,12 @@
       "target": "single_enemy",
       "mpCost": 0,
       "stmCost": 25,
-      "power": 3.0,
+      "power": 1.0,
       "pierce": true,
       "requiresAmmo": "gunAmmo",
       "selfStatus": "reloading",
       "speedModifier": 1.0,
-      "description": "A powerful flintlock shot. Pierce: triple damage vs high-DEF enemies (≥20 DEF). Consumes ammo. Must reload next turn (vulnerable while reloading)."
+      "description": "A flintlock shot that pierces armor — ignores enemy DEF entirely. Consumes ammo. Must reload next turn (vulnerable while reloading). 75% chance to hit."
     },
     {
       "id": "reload",
@@ -585,6 +585,16 @@
       "speedModifier": 1.8,
       "comboSpeedModifier": 2.3,
       "description": "A crashing wave summoned by two fighters. Water-elemental — double damage vs lightning foes. Moderately slow."
+    },
+    {
+      "id": "holyLight",
+      "name": "Holy Light",
+      "type": "magic",
+      "target": "single_enemy",
+      "mpCost": 10,
+      "power": 1.2,
+      "speedModifier": 1.1,
+      "description": "Channels divine energy into a radiant magic strike. Uses magic power. Always hits — holy energy never misses."
     }
   ]
 }
