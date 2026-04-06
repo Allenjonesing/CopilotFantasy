@@ -1998,3 +1998,94 @@ describe('Paladin Offensive Capability', () => {
     expect(aria.skills).toContain('cure');
   });
 });
+
+describe('Thief Steal Skill', () => {
+  beforeEach(() => {
+    GameState.getInstance().reset();
+    EventBus.getInstance().clear();
+  });
+
+  it('thief job grants steal skill', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'thief');
+    const aria = state.getCharacter('aria')!;
+    expect(aria.skills).toContain('steal');
+  });
+
+  it('steal adds an item to inventory when roll succeeds', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'thief');
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 50;
+    system.nextTurn();
+    const invBefore = state.data.inventory.reduce((sum, i) => sum + i.quantity, 0);
+    // Force Math.random to always succeed the steal roll
+    vi.spyOn(Math, 'random').mockReturnValue(0.0);
+    system.executeAction(aria, { type: 'skill', skillId: 'steal', target: slime });
+    vi.restoreAllMocks();
+    const invAfter = state.data.inventory.reduce((sum, i) => sum + i.quantity, 0);
+    // Slime has possibleDrops, so at least one item should have been stolen
+    expect(invAfter).toBeGreaterThan(invBefore);
+  });
+
+  it('steal costs stamina', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'thief');
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 50;
+    system.nextTurn();
+    vi.spyOn(Math, 'random').mockReturnValue(0.0);
+    system.executeAction(aria, { type: 'skill', skillId: 'steal', target: slime });
+    vi.restoreAllMocks();
+    // Steal should cost 20 STM
+    expect(aria.stats.stm).toBe(30);
+  });
+
+  it('steal yields nothing when roll fails', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'thief');
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 50;
+    system.nextTurn();
+    const invBefore = state.data.inventory.reduce((sum, i) => sum + i.quantity, 0);
+    // Force Math.random to always fail steal roll (>= 0.95)
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    system.executeAction(aria, { type: 'skill', skillId: 'steal', target: slime });
+    vi.restoreAllMocks();
+    const invAfter = state.data.inventory.reduce((sum, i) => sum + i.quantity, 0);
+    expect(invAfter).toBe(invBefore);
+  });
+
+  it('steal does not deal damage to the enemy', () => {
+    const state = GameState.getInstance();
+    state.applyJobToCharacter('aria', 'thief');
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    const slime = system.enemies[0];
+    aria.stats.stm = 50;
+    system.nextTurn();
+    const hpBefore = slime.stats.hp;
+    vi.spyOn(Math, 'random').mockReturnValue(0.0);
+    system.executeAction(aria, { type: 'skill', skillId: 'steal', target: slime });
+    vi.restoreAllMocks();
+    expect(slime.stats.hp).toBe(hpBefore);
+  });
+});
