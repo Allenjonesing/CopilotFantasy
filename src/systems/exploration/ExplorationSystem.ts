@@ -89,16 +89,42 @@ function bossTypeForDifficulty(difficulty: number): string {
 /** Scale multiplier applied to the floor boss on top of variant scale. */
 const BOSS_SCALE = 2.5;
 
-/** All possible shop item IDs — each visit picks a random subset. */
-const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 'smokeBomb', 'freezeBomb', 'mirrorShard', 'zombieDust', 'dispelHerb', 'gunAmmo'];
+/** All possible shop item IDs — base pool used for all parties. */
+const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 'smokeBomb', 'freezeBomb', 'mirrorShard', 'zombieDust', 'dispelHerb'];
 
-/** Generate a randomised shop inventory for each visit (3–5 items with possible duplicates). */
-function generateShopInventory(): string[] {
-  // Always include potions; randomly add others
-  const pool = [...ALL_SHOP_ITEMS];
-  const numItems = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 unique items
-  const shuffled = pool.sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, numItems);
+/** Jobs that primarily use arrows (rangers and healers who have arrowShot). */
+const ARROW_JOBS = ['ranger', 'healer'] as const;
+
+/** Fisher-Yates shuffle — unbiased in-place shuffle. */
+function shuffleArray<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Generate a randomised shop inventory for each visit (3–5 unique items).
+ * When party job IDs are provided, class-specific ammo is guaranteed to
+ * appear (if the party has gun or archer classes) and fills one slot;
+ * remaining slots come from the general pool.
+ */
+function generateShopInventory(partyJobs: string[] = []): string[] {
+  const hasGunClass = partyJobs.some((j) => (GUN_JOBS as readonly string[]).includes(j));
+  const hasArcherClass = partyJobs.some((j) => (ARROW_JOBS as readonly string[]).includes(j));
+
+  // Guaranteed class-specific items always appear first.
+  const guaranteed: string[] = [];
+  if (hasGunClass) guaranteed.push('gunAmmo');
+  if (hasArcherClass) guaranteed.push('arrow');
+
+  // Fill remaining slots from the shuffled general pool (excluding already-guaranteed items).
+  const numItems = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 items total
+  const remaining = numItems - guaranteed.length;
+  const pool = ALL_SHOP_ITEMS.filter((id) => !guaranteed.includes(id));
+  shuffleArray(pool);
+  return [...guaranteed, ...pool.slice(0, Math.max(0, remaining))];
 }
 
 export class ExplorationSystem {
@@ -454,7 +480,7 @@ export class ExplorationSystem {
     }
 
     // Fresh floor roll.
-    if (state.data.difficultyLevel < 2 || Math.random() >= 0.60) {
+    if (state.data.difficultyLevel < 2 || Math.random() >= 0.75) {
       state.data.pendingShopkeeper = false;
       return;
     }
@@ -482,7 +508,7 @@ export class ExplorationSystem {
       return;
     }
 
-    state.data.pendingShopkeeper = { x: tx, y: ty, inventory: generateShopInventory() };
+    state.data.pendingShopkeeper = { x: tx, y: ty, inventory: generateShopInventory(state.data.party.map((c) => c.job)) };
     this.placeShopkeeperSprite(tx, ty);
   }
 
@@ -831,7 +857,7 @@ export class ExplorationSystem {
     // Use the predetermined inventory stored when this shopkeeper was spawned so the
     // stock does not change on repeated visits within the same floor.
     const shopkeeper = state.data.pendingShopkeeper;
-    const inventory = shopkeeper ? shopkeeper.inventory : generateShopInventory();
+    const inventory = shopkeeper ? shopkeeper.inventory : generateShopInventory(state.data.party.map((c) => c.job));
     this.bus.emit('shop:open', { inventory });
   }
 

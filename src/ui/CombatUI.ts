@@ -739,14 +739,6 @@ export class CombatUI {
     this.menuTitle.setText(this.menuTitleBase);
     const actor = this.currentActor;
 
-    // ── Special case: actor must reload (forced action) ──────────────────────
-    if (actor?.hasStatus('reloading')) {
-      const tooltips = ['You must reload the flintlock before acting again. You are vulnerable this turn.'];
-      if (this.helpText.active) this.helpText.setText(tooltips[0]);
-      this.buildMenuItems(['⟳ Reload (forced)', ], [false], tooltips);
-      return;
-    }
-
     // Only count non-physical, non-hybrid skills (magic/heal/status) for the skill menu.
     const magicSkills = actor ? actor.skills.filter((s) => {
       if (s === 'attack') return false;
@@ -764,10 +756,18 @@ export class CombatUI {
       ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ITEM_STM_COST)
       : false;
 
-    // Attack always shows "..." — target selection (and physical skill sub-menu) always needed.
-    const labels = ['Attack...', `${skillLabel}...`, 'Item...', 'Defend [VF]', 'Rest [+STM]', 'Flee'];
+    // When the gun needs reloading, the attack sub-menu label is updated to hint at reload.
+    const needsReload = actor?.hasStatus('reloading') ?? false;
+    const attackLabel = needsReload ? '⟳ Reload / Team Move...' : 'Attack...';
+    const attackTooltip = needsReload
+      ? '⚠ Gun needs reloading! Choose Reload to reload the flintlock, or use Team Move. Other actions are still available this turn.'
+      : (isOutOfStm
+        ? '⚠ Out of Stamina! Cannot perform physical attacks. Rest or use an item first.'
+        : 'Attack the enemy — choose a physical attack or special move (costs STM).');
+
+    const labels = [attackLabel, `${skillLabel}...`, 'Item...', 'Defend [VF]', 'Rest [+STM]', 'Flee'];
     const disabled = [
-      isOutOfStm,                         // Attack disabled when out of STM
+      !needsReload && isOutOfStm,           // Attack: disabled only when out of STM (reload is never disabled)
       !hasSkills,
       !hasItems || isItemStmDepleted,
       false,
@@ -775,9 +775,7 @@ export class CombatUI {
       this.isBossBattle,
     ];
     const tooltips = [
-      isOutOfStm
-        ? '⚠ Out of Stamina! Cannot perform physical attacks. Rest or use an item first.'
-        : 'Attack the enemy — choose a physical attack or special move (costs STM).',
+      attackTooltip,
       `Use ${actor?.name ?? 'the character'}'s ${skillLabel.toLowerCase()} abilities (costs MP).`,
       isItemStmDepleted
         ? `⚠ Not enough Stamina to use an item (costs ${CombatSystem.ITEM_STM_COST} STM).`
@@ -786,7 +784,7 @@ export class CombatUI {
       'Rest to recover 50% of Stamina. Uses your turn.',
       'Attempt to flee from the battle. Cannot flee from bosses.',
     ];
-    if (this.helpText.active) this.helpText.setText(HELP_TEXT_DEFAULT);
+    if (this.helpText.active) this.helpText.setText(needsReload ? attackTooltip : HELP_TEXT_DEFAULT);
     this.buildMenuItems(labels, disabled, tooltips);
     // Restore this character's remembered cursor position (if the saved option is
     // still enabled — e.g. Skills may have become unavailable since last turn).
@@ -912,20 +910,27 @@ export class CombatUI {
     const tooltips: string[] = [];
 
     if (hasGunPrimary) {
-      // Gunsmith: Flintlock Shot replaces Regular Strike as the primary attack option
-      const flintDef = skillsData.skills.find((s) => s.id === 'flintlockShot');
-      const stmCost = (flintDef as { stmCost?: number } | undefined)?.stmCost ?? 25;
-      const ammoCount = inv.find((i) => i.id === 'gunAmmo')?.quantity ?? 0;
-      const notEnoughStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < stmCost) : false;
-      const missingAmmo = ammoCount <= 0;
-      labels.push(`Flintlock Shot  STM:${stmCost}  [AMMO:${ammoCount}]`);
-      disabled.push(notEnoughStm || missingAmmo);
-      if (missingAmmo) {
-        tooltips.push('⚠ No Flintlock Ammo! Acquire ammo to fire again.');
-      } else if (notEnoughStm) {
-        tooltips.push(`⚠ Not enough Stamina (need ${stmCost} STM).`);
+      // When the gun is reloading, replace the Flintlock Shot with a forced reload option.
+      if (actor?.hasStatus('reloading')) {
+        labels.push('⟳ Reload (forced)');
+        disabled.push(false);
+        tooltips.push('The flintlock needs reloading. Select to reload and ready the gun for the next shot. You are vulnerable while reloading.');
       } else {
-        tooltips.push(flintDef?.description ?? 'Fire the flintlock. Must reload next turn.');
+        // Gunsmith: Flintlock Shot replaces Regular Strike as the primary attack option
+        const flintDef = skillsData.skills.find((s) => s.id === 'flintlockShot');
+        const stmCost = (flintDef as { stmCost?: number } | undefined)?.stmCost ?? 25;
+        const ammoCount = inv.find((i) => i.id === 'gunAmmo')?.quantity ?? 0;
+        const notEnoughStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < stmCost) : false;
+        const missingAmmo = ammoCount <= 0;
+        labels.push(`Flintlock Shot  STM:${stmCost}  [AMMO:${ammoCount}]`);
+        disabled.push(notEnoughStm || missingAmmo);
+        if (missingAmmo) {
+          tooltips.push('⚠ No Flintlock Ammo! Acquire ammo to fire again.');
+        } else if (notEnoughStm) {
+          tooltips.push(`⚠ Not enough Stamina (need ${stmCost} STM).`);
+        } else {
+          tooltips.push(flintDef?.description ?? 'Fire the flintlock. Must reload next turn.');
+        }
       }
     } else {
       // Standard characters: Regular Strike (basic attack)
@@ -1898,7 +1903,14 @@ export class CombatUI {
       }
     }
     if (this.menuState === 'attack-sub' && this.currentActor) {
-      if (idx === 0) return 1.0; // Regular strike uses default speed
+      if (idx === 0) {
+        // When the gun is reloading, the first slot is "Reload (forced)" — show reload speed.
+        if (this.actorUsesGunAsPrimary(this.currentActor) && this.currentActor.hasStatus('reloading')) {
+          const reloadDef = skillsData.skills.find((s) => s.id === 'reload');
+          return (reloadDef as { speedModifier?: number } | undefined)?.speedModifier ?? 1.3;
+        }
+        return 1.0; // Regular strike or Flintlock Shot use default speed
+      }
       const physicalSkillIds = this.currentActor.skills.filter((s) => {
         if (s === 'attack') return false;
         const def = skillsData.skills.find((sk) => sk.id === s);
@@ -2117,20 +2129,15 @@ export class CombatUI {
     if (!this.currentActor) return null;
     const idx = this.selectedMenuIndex;
 
-    // ── Forced reload (actor has reloading status) ───────────────────────────
-    if (this.menuState === 'main' && this.currentActor.hasStatus('reloading')) {
-      return { type: 'reload' };
-    }
-
     if (this.menuState === 'main') {
       if (this.menuDisabled[idx]) return null;
-      // Main menu options: Attack..., Skill..., Item..., Defend, Rest, Flee
+      // Main menu options: Attack.../Reload, Skill..., Item..., Defend, Rest, Flee
       const mainOptions = ['attack', 'skill', 'item', 'defend', 'rest', 'flee'] as const;
       const choice = mainOptions[idx];
       // Persist this choice so the cursor returns here on the character's next turn.
       this.lastMainMenuIndex.set(this.currentActor.id, idx);
       if (choice === 'attack') {
-        // Attack always opens the attack sub-menu (target selection always needed).
+        // Always open the attack sub-menu (reload or Team Move options shown there).
         this.menuState = 'attack-sub';
         this.buildAttackSubMenu();
         return null;
@@ -2156,6 +2163,11 @@ export class CombatUI {
       if (this.menuDisabled[idx]) return null;
       if (idx === 0) {
         const actor = this.currentActor;
+        // Gunsmith reloading: the first slot is "Reload (forced)" — execute reload directly.
+        if (this.actorUsesGunAsPrimary(actor) && actor.hasStatus('reloading')) {
+          this.menuState = 'main';
+          return { type: 'reload' };
+        }
         // Gunsmith: primary attack is Flintlock Shot, not a basic strike
         if (this.actorUsesGunAsPrimary(actor)) {
           this.menuState = 'main';

@@ -595,6 +595,17 @@
       "power": 1.2,
       "speedModifier": 1.1,
       "description": "Channels divine energy into a radiant magic strike. Uses magic power. Always hits — holy energy never misses."
+    },
+    {
+      "id": "steal",
+      "name": "Steal",
+      "type": "steal",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "stmCost": 20,
+      "power": 0,
+      "speedModifier": 0.8,
+      "description": "Attempt to steal an item from the target enemy. Higher chance of rare loot than normal drops. Costs Stamina."
     }
   ]
 }

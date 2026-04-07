@@ -7,6 +7,7 @@ import { EventBus } from '../../core/events/EventBus';
 import { GameState } from '../../core/state/GameState';
 import skillsData from '../../data/skills.json';
 import itemsData from '../../data/items.json';
+import enemiesData from '../../data/enemies.json';
 
 export type ActionType = 'attack' | 'skill' | 'item' | 'defend' | 'flee' | 'rest' | 'reload' | 'team-move';
 
@@ -260,6 +261,10 @@ export class CombatSystem {
   static readonly ATTACK_STM_COST = 15;
   /** Probability that a physical attack successfully hits. Magic always hits (1.0). */
   static readonly PHYSICAL_HIT_CHANCE = 0.75;
+  /** Per-item chance multiplier applied when a thief uses Steal (2× the normal drop chance). */
+  static readonly STEAL_BOOST = 2.0;
+  /** Maximum per-item steal chance regardless of boost (caps the chance at 95%). */
+  static readonly MAX_STEAL_CHANCE = 0.95;
 
   private physicalAttack(actor: CombatEntity, target: CombatEntity): void {
     this.bus.emit('combat:attackStart', actor, target);
@@ -352,10 +357,10 @@ export class CombatSystem {
     if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply' || skill.type === 'hybrid') {
       this.bus.emit('combat:spellStart', actor, animTarget, animElement, skill.name);
     }
-    // Physical/hybrid skills use an attack-move animation; only fire it for single-target
+    // Physical/hybrid/steal skills use an attack-move animation; only fire it for single-target
     // skills to avoid the misleading visual of moving toward one enemy while all
     // enemies take damage (e.g. Ground Slam).
-    if ((skill.type === 'physical' || skill.type === 'hybrid') && targets.length === 1) {
+    if ((skill.type === 'physical' || skill.type === 'hybrid' || skill.type === 'steal') && targets.length === 1) {
       this.bus.emit('combat:attackStart', actor, targets[0]);
     }
     targets.forEach((t) => this.applySkillEffect(actor, skill, t));
@@ -542,6 +547,28 @@ export class CombatSystem {
     } else if (skill.type === 'status_remove') {
       target.statusEffects.forEach((eff) => this.statusSystem.remove(target, eff));
       this.addLog(`${actor.name} cures ${target.name}'s status effects.`);
+    } else if (skill.type === 'steal') {
+      // Steal: look up enemy's possibleDrops and roll with a boosted chance.
+      if (target instanceof EnemyCombatant) {
+        type EnemyDropDef = { id: string; chance: number };
+        type EnemyDataDef = { id: string; possibleDrops?: EnemyDropDef[] };
+        const enemyDef = (enemiesData.enemies as EnemyDataDef[]).find((e) => e.id === target.enemyId);
+        const possibleDrops = enemyDef?.possibleDrops ?? [];
+        // Steal gives a boosted chance for each drop (better odds at rare loot).
+        const stolenItems = possibleDrops
+          .filter((drop) => Math.random() < Math.min(drop.chance * CombatSystem.STEAL_BOOST, CombatSystem.MAX_STEAL_CHANCE))
+          .map((drop) => drop.id);
+        if (stolenItems.length > 0) {
+          const state = GameState.getInstance();
+          stolenItems.forEach((id) => state.addItem(id, 1));
+          this.addLog(`${actor.name} steals from ${target.name} and gains: ${stolenItems.join(', ')}!`);
+          this.bus.emit('combat:steal', actor, target, stolenItems);
+        } else {
+          this.addLog(`${actor.name} tries to steal from ${target.name} but finds nothing useful!`);
+        }
+      } else {
+        this.addLog(`${actor.name} can only steal from enemies!`);
+      }
     }
   }
 

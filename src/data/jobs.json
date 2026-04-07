@@ -126,7 +126,7 @@
         "agility": 15,
         "luck": 12
       },
-      "skills": ["attack", "quickHit", "drain"],
+      "skills": ["attack", "quickHit", "drain", "steal"],
       "levelUpStats": { "hp": 5, "mp": 3, "stm": 4, "strength": 1, "magic": 0, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 1 },
       "levelSkills": { "3": "venomStrike", "5": "hasteBell", "6": "smash", "8": "groundSlam" },
       "teamMoves": ["teamSwift"],
