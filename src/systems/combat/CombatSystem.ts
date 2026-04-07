@@ -146,9 +146,15 @@ export class CombatSystem {
         break;
       }
       case 'reload': {
-        // Forced reload after firing flintlock — remove reloading status
+        // Forced reload after firing flintlock — remove reloading status.
+        // Reloading is a breather: restore a small amount of stamina.
         actor.removeStatus('reloading');
         this.statusSystem.remove(actor, 'reloading');
+        if (actor.stats.maxStm > 0) {
+          const stmRestore = Math.ceil(actor.stats.maxStm * CombatSystem.PASSIVE_STM_RESTORE);
+          actor.restoreStm(stmRestore);
+          this.bus.emit('combat:stmChange', actor);
+        }
         this.addLog(`${actor.name} reloads the flintlock and is ready to fire again.`);
         this.bus.emit('status:removed', actor, 'reloading');
         break;
@@ -221,6 +227,8 @@ export class CombatSystem {
   static readonly ITEM_STM_COST = 5;
   /** Fraction of max STM restored by taking a defensive stance (half of Rest's restore). */
   static readonly DEFEND_STM_RESTORE = 0.25;
+  /** Fraction of max STM passively restored when taking a zero-cost action (magic, items, reload). */
+  static readonly PASSIVE_STM_RESTORE = 0.10;
   /** Speed penalty applied to the team-move initiator (slow — calling for help takes time). */
   static readonly TEAM_MOVE_INITIATOR_SPEED = 1.6;
   /** Speed penalty applied to BOTH participants after the combo executes (exhausted). */
@@ -260,7 +268,7 @@ export class CombatSystem {
   /** STM cost for a basic Attack action. */
   static readonly ATTACK_STM_COST = 15;
   /** Probability that a physical attack successfully hits. Magic always hits (1.0). */
-  static readonly PHYSICAL_HIT_CHANCE = 0.75;
+  static readonly PHYSICAL_HIT_CHANCE = 0.88;
   /** Per-item chance multiplier applied when a thief uses Steal (2× the normal drop chance). */
   static readonly STEAL_BOOST = 2.0;
   /** Maximum per-item steal chance regardless of boost (caps the chance at 95%). */
@@ -343,6 +351,13 @@ export class CombatSystem {
       actor.consumeStm(stmCost);
       this.bus.emit('combat:stmChange', actor);
     }
+    // Passive STM recovery: zero-cost actions (magic, heal, steal, etc.) slowly
+    // replenish stamina, letting players sustain combat without resting.
+    if (actor.stats.maxStm > 0 && stmCost === 0) {
+      const stmRestore = Math.ceil(actor.stats.maxStm * CombatSystem.PASSIVE_STM_RESTORE);
+      actor.restoreStm(stmRestore);
+      this.bus.emit('combat:stmChange', actor);
+    }
 
     // Resolve targets first so the primary target can be included in the spell animation.
     const targets = this.resolveTargets(actor, skill.target, target);
@@ -357,10 +372,12 @@ export class CombatSystem {
     if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply' || skill.type === 'hybrid') {
       this.bus.emit('combat:spellStart', actor, animTarget, animElement, skill.name);
     }
-    // Physical/hybrid/steal skills use an attack-move animation; only fire it for single-target
-    // skills to avoid the misleading visual of moving toward one enemy while all
-    // enemies take damage (e.g. Ground Slam).
-    if ((skill.type === 'physical' || skill.type === 'hybrid' || skill.type === 'steal') && targets.length === 1) {
+    // Ranged physical skills (ammo-based) get a projectile animation rather than
+    // a step-forward move — the actor stays put while a bullet/arrow flies to the target.
+    if (skillExt.requiresAmmo && targets.length === 1) {
+      this.bus.emit('combat:rangedStart', actor, targets[0], skillExt.requiresAmmo, skill.name);
+    } else if ((skill.type === 'physical' || skill.type === 'hybrid' || skill.type === 'steal') && targets.length === 1) {
+      // Non-ranged physical/hybrid/steal skills use the step-forward attack animation.
       this.bus.emit('combat:attackStart', actor, targets[0]);
     }
     targets.forEach((t) => this.applySkillEffect(actor, skill, t));
@@ -581,9 +598,11 @@ export class CombatSystem {
       this.addLog(`No ${item.name} left!`);
       return;
     }
-    // Using an item costs a small amount of stamina (reaching for a potion mid-battle).
+    // Using an item is a quick action that gives the actor a moment to breathe
+    // — restore a small amount of stamina instead of spending it.
     if (actor.stats.maxStm > 0) {
-      actor.consumeStm(CombatSystem.ITEM_STM_COST);
+      const stmRestore = Math.ceil(actor.stats.maxStm * CombatSystem.PASSIVE_STM_RESTORE);
+      actor.restoreStm(stmRestore);
       this.bus.emit('combat:stmChange', actor);
     }
     const t = target ?? actor;

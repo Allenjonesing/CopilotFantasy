@@ -843,23 +843,20 @@ describe('Stamina System', () => {
     expect(stmAfterDefend).toBeLessThan(stmAfterRest);
   });
 
-  it('using an item costs ITEM_STM_COST stamina', () => {
+  it('using an item passively restores a small amount of stamina', () => {
     const state = GameState.getInstance();
-    state.addItem('potion', 1);
+    state.addItem('ether', 1);
     const system = new CombatSystem(
       [new PlayerCombatant('aria')],
       [new EnemyCombatant('slime')],
     );
     const aria = system.players[0];
-    aria.stats.stm = 30;
-    aria.stats.hp = 1; // damage so heal is visible
+    aria.stats.stm = 0;
     system.nextTurn();
-    system.executeAction(aria, { type: 'item', itemId: 'potion', target: aria });
-    // After using item, stamina should increase (potion restores full STM),
-    // but the item use itself cost ITEM_STM_COST first.
-    // Final stm = maxStm (restored by potion), net cost visible via log.
-    // At minimum, confirm stm was reduced by ITEM_STM_COST before restore happened.
-    expect(aria.stats.stm).toBe(aria.stats.maxStm);
+    system.executeAction(aria, { type: 'item', itemId: 'ether', target: aria });
+    // Items now restore PASSIVE_STM_RESTORE (10%) stamina instead of costing STM.
+    const expected = Math.ceil(aria.stats.maxStm * CombatSystem.PASSIVE_STM_RESTORE);
+    expect(aria.stats.stm).toBe(expected);
   });
 
   it('using a healing item restores full stamina', () => {
@@ -905,6 +902,37 @@ describe('Stamina System', () => {
     system.nextTurn();
     system.executeAction(aria, { type: 'skill', skillId: 'smash', target: slime });
     expect(aria.stats.stm).toBeLessThanOrEqual(60 - 25);
+  });
+
+  it('zero-cost magic skill passively restores 10% stamina', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('kael')],
+      [new EnemyCombatant('slime')],
+    );
+    const kael = system.players[0];
+    const slime = system.enemies[0];
+    kael.stats.stm = 0;
+    system.nextTurn();
+    // fire is a magic skill with no stmCost — should restore PASSIVE_STM_RESTORE
+    system.executeAction(kael, { type: 'skill', skillId: 'fire', target: slime });
+    const expected = Math.ceil(kael.stats.maxStm * CombatSystem.PASSIVE_STM_RESTORE);
+    expect(kael.stats.stm).toBe(expected);
+  });
+
+  it('reload action restores passive stamina', () => {
+    const system = new CombatSystem(
+      [new PlayerCombatant('aria')],
+      [new EnemyCombatant('slime')],
+    );
+    const aria = system.players[0];
+    aria.stats.stm = 0;
+    // Simulate being in reloading state
+    aria.addStatus('reloading');
+    system.nextTurn();
+    system.executeAction(aria, { type: 'reload' });
+    const expected = Math.ceil(aria.stats.maxStm * CombatSystem.PASSIVE_STM_RESTORE);
+    expect(aria.stats.stm).toBe(expected);
+    expect(aria.hasStatus('reloading')).toBe(false);
   });
 });
 
@@ -1100,7 +1128,7 @@ describe('Flintlock / Pierce System', () => {
     vi.restoreAllMocks();
     const dmg = hpBefore - golem.stats.hp;
     // Pierce ignores DEF: damage = strength * 2 * power (no DEF subtracted, no triple multiplier)
-    const expected = Math.floor(aria.stats.strength * 2 * 1.0);
+    const expected = Math.floor(aria.stats.strength * 2 * 3.0);
     expect(dmg).toBe(expected);
   });
 });
@@ -1878,18 +1906,18 @@ describe('Physical Miss Chance', () => {
     expect(system.log.some((msg) => msg.includes('misses'))).toBe(true);
   });
 
-  it('PHYSICAL_HIT_CHANCE constant is 0.75', () => {
-    expect(CombatSystem.PHYSICAL_HIT_CHANCE).toBe(0.75);
+  it('PHYSICAL_HIT_CHANCE constant is 0.88', () => {
+    expect(CombatSystem.PHYSICAL_HIT_CHANCE).toBe(0.88);
   });
 });
 
-describe('Gunsmith Damage Nerf', () => {
+describe('Gunsmith Damage', () => {
   beforeEach(() => {
     GameState.getInstance().reset();
     EventBus.getInstance().clear();
   });
 
-  it('flintlockShot power is 1.0 (nerfed from 3.0)', () => {
+  it('flintlockShot power is 3.0 (high-damage sniper)', () => {
     const state = GameState.getInstance();
     state.addItem('gunAmmo', 5);
     state.applyJobToCharacter('aria', 'gunsmith');
@@ -1907,8 +1935,8 @@ describe('Gunsmith Damage Nerf', () => {
     system.executeAction(aria, { type: 'skill', skillId: 'flintlockShot', target: golem });
     vi.restoreAllMocks();
     const dmg = hpBefore - golem.stats.hp;
-    // With power=1.0 and pierce (no DEF): damage = strength * 2 * 1.0 = 36
-    const expected = Math.floor(aria.stats.strength * 2 * 1.0);
+    // With power=3.0 and pierce (no DEF): damage = strength * 2 * 3.0 = 108
+    const expected = Math.floor(aria.stats.strength * 2 * 3.0);
     expect(dmg).toBe(expected);
   });
 
@@ -1916,11 +1944,11 @@ describe('Gunsmith Damage Nerf', () => {
     const state = GameState.getInstance();
     state.applyJobToCharacter('aria', 'gunsmith');
 
-    // Shoot a low-DEF enemy (stoneTroll has enough HP to survive the hit)
+    // Shoot a low-DEF enemy — use floor 4 so stoneTroll has full HP and survives the shot
     state.addItem('gunAmmo', 5);
     const sysLow = new CombatSystem(
       [new PlayerCombatant('aria')],
-      [new EnemyCombatant('stoneTroll', 1.0, undefined, 1)],
+      [new EnemyCombatant('stoneTroll', 1.0, undefined, 4)],
     );
     const ariaLow = sysLow.players[0];
     const lowDefEnemy = sysLow.enemies[0];
