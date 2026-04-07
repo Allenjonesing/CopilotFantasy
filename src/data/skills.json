@@ -378,7 +378,7 @@
       "requiresAmmo": "gunAmmo",
       "selfStatus": "reloading",
       "speedModifier": 1.0,
-      "description": "A flintlock shot that pierces armor — ignores enemy DEF entirely. Consumes ammo. Must reload next turn (vulnerable while reloading). High chance to hit."
+      "description": "A flintlock shot that pierces armor — ignores enemy DEF entirely. Consumes ammo. Must reload next turn (vulnerable while reloading). 88% chance to hit."
     },
     {
       "id": "reload",

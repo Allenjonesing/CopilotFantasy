@@ -1544,10 +1544,7 @@ export class CombatUI {
       x: targetPos.x,
       y: targetPos.y,
       duration: travelMs,
-      ease: 'Power2',
-      onComplete: () => {
-        proj.destroy();
-        // Small impact burst at the target.
+      ease: 'Power2.easeOut',
         const impact = this.scene.add.circle(targetPos.x, targetPos.y, 6, isGun ? 0xffdd44 : 0x88bb44, 0.8);
         impact.setDepth(57);
         this.scene.tweens.add({
@@ -1579,8 +1576,7 @@ export class CombatUI {
       y: pos.y - 70,
       alpha: 0,
       duration: 1200,
-      ease: 'Power1',
-      onComplete: () => missText.destroy(),
+      ease: 'Power1.easeOut',
     });
   }
 
