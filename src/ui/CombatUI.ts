@@ -188,6 +188,8 @@ export class CombatUI {
   private navObjects: Phaser.GameObjects.GameObject[] = [];
   // Spell animation handler reference (for cleanup)
   private onCombatSpellStart!: (actor: unknown, target: unknown, element: unknown, name: unknown) => void;
+  private onCombatRangedStart!: (actor: unknown, target: unknown, ammoType: unknown, name: unknown) => void;
+  private onCombatMiss!: (actor: unknown, target: unknown) => void;
   // State
   private currentActor: CombatEntity | null = null;
   private bus: EventBus;
@@ -1293,6 +1295,16 @@ export class CombatUI {
     this.bus.on('combat:attackStart', this.onCombatAttackStart);
     this.bus.on('combat:spellStart', this.onCombatSpellStart);
 
+    this.onCombatRangedStart = (actor, target, ammoType, _name) => {
+      this.playRangedAnimation(actor as CombatEntity, target as CombatEntity, ammoType as string);
+    };
+    this.bus.on('combat:rangedStart', this.onCombatRangedStart);
+
+    this.onCombatMiss = (_actor, target) => {
+      this.playMissAnimation(target as CombatEntity);
+    };
+    this.bus.on('combat:miss', this.onCombatMiss);
+
     this.onStatusApplied = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
     this.onStatusRemoved = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
     this.onStatusDot = (entity, _effectId, dmg) => {
@@ -1483,6 +1495,88 @@ export class CombatUI {
           ease: 'Power2.easeIn',
         });
       },
+    });
+  }
+
+  /**
+   * Ranged attack animation: a projectile (bullet or arrow) flies from the
+   * actor to the target instead of the actor moving forward.  A damage-display
+   * delay is stored so the damage number appears when the projectile arrives.
+   */
+  private playRangedAnimation(actor: CombatEntity, target: CombatEntity, ammoType: string): void {
+    const actorPos = this.entityScreenPos(actor);
+    const targetPos = this.entityScreenPos(target);
+
+    const isGun = ammoType === 'gunAmmo';
+    const travelMs = isGun ? 160 : 220;
+
+    // Delay the damage pop-up until the projectile visually arrives.
+    this.pendingDamageDelay.set(target.id, travelMs);
+
+    // Muzzle flash at the actor position.
+    const flash = this.scene.add.circle(actorPos.x, actorPos.y, isGun ? 7 : 5, 0xffffaa, 0.9);
+    flash.setDepth(58);
+    this.scene.tweens.add({
+      targets: flash,
+      scaleX: 2.5,
+      scaleY: 2.5,
+      alpha: 0,
+      duration: 120,
+      ease: 'Power2.easeOut',
+      onComplete: () => flash.destroy(),
+    });
+
+    let proj: Phaser.GameObjects.Arc | Phaser.GameObjects.Rectangle;
+    if (isGun) {
+      // Bullet: small dark-gold circle
+      proj = this.scene.add.circle(actorPos.x, actorPos.y, 5, 0xddbb44, 1);
+    } else {
+      // Arrow: thin rectangle angled toward the target
+      const angleDeg =
+        Math.atan2(targetPos.y - actorPos.y, targetPos.x - actorPos.x) * (180 / Math.PI);
+      proj = this.scene.add.rectangle(actorPos.x, actorPos.y, 22, 4, 0x88bb44, 1);
+      proj.setAngle(angleDeg);
+    }
+    proj.setDepth(58);
+
+    this.scene.tweens.add({
+      targets: proj,
+      x: targetPos.x,
+      y: targetPos.y,
+      duration: travelMs,
+      ease: 'Power2.easeOut',
+        const impact = this.scene.add.circle(targetPos.x, targetPos.y, 6, isGun ? 0xffdd44 : 0x88bb44, 0.8);
+        impact.setDepth(57);
+        this.scene.tweens.add({
+          targets: impact,
+          scaleX: 4,
+          scaleY: 4,
+          alpha: 0,
+          duration: 280,
+          ease: 'Power2.easeOut',
+          onComplete: () => impact.destroy(),
+        });
+      },
+    });
+  }
+
+  /** Show a floating "MISS!" indicator above the target when an attack fails to connect. */
+  private playMissAnimation(target: CombatEntity): void {
+    const pos = this.entityScreenPos(target);
+    const missText = this.scene.add.text(pos.x, pos.y, 'MISS!', {
+      fontSize: '20px',
+      color: '#ccccff',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(52);
+
+    this.scene.tweens.add({
+      targets: missText,
+      y: pos.y - 70,
+      alpha: 0,
+      duration: 1200,
+      ease: 'Power1.easeOut',
     });
   }
 
@@ -2396,6 +2490,8 @@ export class CombatUI {
     this.bus.off('combat:turnStart', this.onCombatTurnStart);
     this.bus.off('combat:attackStart', this.onCombatAttackStart);
     this.bus.off('combat:spellStart', this.onCombatSpellStart);
+    this.bus.off('combat:rangedStart', this.onCombatRangedStart);
+    this.bus.off('combat:miss', this.onCombatMiss);
     this.bus.off('status:applied', this.onStatusApplied);
     this.bus.off('status:removed', this.onStatusRemoved);
     this.bus.off('status:dot', this.onStatusDot);
