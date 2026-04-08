@@ -1545,6 +1545,8 @@ export class CombatUI {
       y: targetPos.y,
       duration: travelMs,
       ease: 'Power2.easeOut',
+      onComplete: () => {
+        proj.destroy();
         const impact = this.scene.add.circle(targetPos.x, targetPos.y, 6, isGun ? 0xffdd44 : 0x88bb44, 0.8);
         impact.setDepth(57);
         this.scene.tweens.add({
