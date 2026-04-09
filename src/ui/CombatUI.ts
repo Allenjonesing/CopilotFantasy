@@ -332,12 +332,21 @@ export class CombatUI {
     this.system.players.forEach((p, idx) => {
       const x = this.PLAYER_BASE_X + idx * Math.floor(this.PLAYER_SPREAD / Math.max(pCount, 1));
       const y = this.playerRowY;
+      // Resolve job for sprite and label (declared once, used for both)
+      const charState = GameState.getInstance().getCharacter(p.id);
+      const jobId = charState?.job ?? '';
       let icon: EntityIcon;
       if (this.scene.textures.exists('player')) {
-        // Use character-specific texture if available (player_kael, player_lyra), else 'player'
-        const charTex = this.scene.textures.exists(`player_${p.id}`) ? `player_${p.id}` : 'player';
+        // Use job-specific texture if available (job_warrior, job_mage, etc.),
+        // then character-specific (player_kael, player_lyra), then default 'player'
+        let tex = 'player';
+        if (jobId && this.scene.textures.exists(`job_${jobId}`)) {
+          tex = `job_${jobId}`;
+        } else if (this.scene.textures.exists(`player_${p.id}`)) {
+          tex = `player_${p.id}`;
+        }
         icon = this.scene.add
-          .image(x, y, charTex)
+          .image(x, y, tex)
           .setDisplaySize(PLAYER_ICON_W, PLAYER_ICON_H)
           .setDepth(5);
       } else {
@@ -347,8 +356,6 @@ export class CombatUI {
       icon.on('pointerdown', () => this.onEntityTap(p));
 
       // ── Job label above the player sprite ────────────────────────────────
-      const charState = GameState.getInstance().getCharacter(p.id);
-      const jobId = charState?.job ?? '';
       const jobName = jobId ? (jobId.charAt(0).toUpperCase() + jobId.slice(1)) : '';
       const jobColor = JOB_LABEL_COLORS[jobId] ?? '#aaaaaa';
       if (jobName) {
@@ -736,6 +743,16 @@ export class CombatUI {
     return actor.skills.includes('flintlockShot') && !actor.skills.includes('attack');
   }
 
+  /**
+   * Returns true if the given entity uses a bow (arrowShot) as their primary attack,
+   * meaning they have arrowShot in their skills but no generic 'attack' skill.
+   * Used to swap out "Regular Strike" for "Arrow Shot" in the attack sub-menu.
+   */
+  private actorUsesArrowAsPrimary(actor: CombatEntity | null): boolean {
+    if (!actor) return false;
+    return actor.skills.includes('arrowShot') && !actor.skills.includes('attack');
+  }
+
   private buildMainMenu(): void {
     this.menuTitleBase = 'ACTION';
     this.menuTitle.setText(this.menuTitleBase);
@@ -897,12 +914,16 @@ export class CombatUI {
     // Check if this character uses a gun as their primary attack (e.g. Gunsmith —
     // has flintlockShot in skills but no generic 'attack' skill).
     const hasGunPrimary = this.actorUsesGunAsPrimary(actor);
+    // Check if this character uses a bow as their primary attack (e.g. Ranger —
+    // has arrowShot in skills but no generic 'attack' skill).
+    const hasArrowPrimary = this.actorUsesArrowAsPrimary(actor);
 
     // Collect all physical/hybrid skills the actor has (excluding basic 'attack' which is always first,
-    // and excluding flintlockShot when it is the primary attack to avoid showing it twice).
+    // and excluding the primary ranged skill when it is shown as the primary attack).
     const physicalSkillIds = actor ? actor.skills.filter((s) => {
       if (s === 'attack') return false;
       if (hasGunPrimary && s === 'flintlockShot') return false; // shown as primary instead
+      if (hasArrowPrimary && s === 'arrowShot') return false;   // shown as primary instead
       const def = skillsData.skills.find((sk) => sk.id === s);
       return def && (def.type === 'physical' || def.type === 'hybrid');
     }) : [];
@@ -934,6 +955,22 @@ export class CombatUI {
           tooltips.push(flintDef?.description ?? 'Fire the flintlock. Must reload next turn.');
         }
       }
+    } else if (hasArrowPrimary) {
+      // Ranger: Arrow Shot replaces Regular Strike as the primary attack option
+      const arrowDef = skillsData.skills.find((s) => s.id === 'arrowShot');
+      const stmCost = (arrowDef as { stmCost?: number } | undefined)?.stmCost ?? 20;
+      const arrowCount = inv.find((i) => i.id === 'arrow')?.quantity ?? 0;
+      const notEnoughStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < stmCost) : false;
+      const missingAmmo = arrowCount <= 0;
+      labels.push(`Arrow Shot  STM:${stmCost}  [ARROWS:${arrowCount}]`);
+      disabled.push(notEnoughStm || missingAmmo);
+      if (missingAmmo) {
+        tooltips.push('⚠ No Arrows! Acquire arrows from a shop to fire again.');
+      } else if (notEnoughStm) {
+        tooltips.push(`⚠ Not enough Stamina (need ${stmCost} STM).`);
+      } else {
+        tooltips.push(arrowDef?.description ?? 'Fire an arrow. Inflicts Bleed on hit.');
+      }
     } else {
       // Standard characters: Regular Strike (basic attack)
       labels.push(`Regular Strike  STM:${CombatSystem.ATTACK_STM_COST}`);
@@ -960,18 +997,23 @@ export class CombatUI {
       tooltips.push(def.description ?? '');
     });
 
-    // ── Team Move: only available if there is at least one living ally with enough STM ──
+    // ── Team Move: only available if the actor has team moves and there is at least one living ally with enough STM ──
+    const actorPlayer = actor instanceof PlayerCombatant ? actor : null;
+    const actorCharState = actorPlayer ? GameState.getInstance().getCharacter(actorPlayer.characterId) : null;
+    const actorHasTeamMoves = (actorCharState?.teamMoves?.length ?? 0) > 0;
     const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
     const hasAlly = livingAllies.length > 0;
     const actorHasStm = actor && (actor.stats.maxStm === 0 || actor.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST);
     const anyAllyHasStm = livingAllies.some(
       (p) => p.stats.maxStm === 0 || p.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST,
     );
-    const teamMoveAvailable = hasAlly && actorHasStm && anyAllyHasStm;
+    const teamMoveAvailable = actorHasTeamMoves && hasAlly && actorHasStm && anyAllyHasStm;
     labels.push('Team Move...');
     disabled.push(!teamMoveAvailable);
     let teamMoveTip: string;
-    if (!hasAlly) {
+    if (!actorHasTeamMoves) {
+      teamMoveTip = 'No Team Moves learned yet. Level up to unlock your first Team Move!';
+    } else if (!hasAlly) {
       teamMoveTip = 'No living allies available for a Team Move.';
     } else if (!actorHasStm) {
       teamMoveTip = `Not enough Stamina (need ${CombatSystem.TEAM_MOVE_STM_COST} STM).`;
@@ -2005,10 +2047,19 @@ export class CombatUI {
           const reloadDef = skillsData.skills.find((s) => s.id === 'reload');
           return (reloadDef as { speedModifier?: number } | undefined)?.speedModifier ?? 1.3;
         }
+        // Arrow primary: use arrowShot's speedModifier (0.9 — fast)
+        if (this.actorUsesArrowAsPrimary(this.currentActor)) {
+          const arrowDef = skillsData.skills.find((s) => s.id === 'arrowShot');
+          return (arrowDef as { speedModifier?: number } | undefined)?.speedModifier ?? 1.0;
+        }
         return 1.0; // Regular strike or Flintlock Shot use default speed
       }
+      const hasGunPrimary = this.actorUsesGunAsPrimary(this.currentActor);
+      const hasArrowPrimary = this.actorUsesArrowAsPrimary(this.currentActor);
       const physicalSkillIds = this.currentActor.skills.filter((s) => {
         if (s === 'attack') return false;
+        if (hasGunPrimary && s === 'flintlockShot') return false;
+        if (hasArrowPrimary && s === 'arrowShot') return false;
         const def = skillsData.skills.find((sk) => sk.id === s);
         return def && (def.type === 'physical' || def.type === 'hybrid');
       });
@@ -2254,7 +2305,7 @@ export class CombatUI {
       }
     }
 
-    // ── Attack sub-menu (Regular Strike / Flintlock Shot + physical/hybrid skills + Team Move) ─
+    // ── Attack sub-menu (Regular Strike / Flintlock Shot / Arrow Shot + physical/hybrid skills + Team Move) ─
     if (this.menuState === 'attack-sub') {
       if (this.menuDisabled[idx]) return null;
       if (idx === 0) {
@@ -2271,6 +2322,13 @@ export class CombatUI {
           this.enterTargetMode('skill');
           return null;
         }
+        // Ranger: primary attack is Arrow Shot, not a basic strike
+        if (this.actorUsesArrowAsPrimary(actor)) {
+          this.menuState = 'main';
+          this.pendingSkillId = 'arrowShot';
+          this.enterTargetMode('skill');
+          return null;
+        }
         // Regular strike — go to target selection for basic attack
         this.menuState = 'main'; // reset so backMenu works properly
         this.enterTargetMode('attack');
@@ -2278,9 +2336,11 @@ export class CombatUI {
       } else {
         // A physical/hybrid skill — collect physical skills in the same order as buildAttackSubMenu
         const hasGunPrimary = this.actorUsesGunAsPrimary(this.currentActor);
+        const hasArrowPrimary = this.actorUsesArrowAsPrimary(this.currentActor);
         const physicalSkillIds = this.currentActor.skills.filter((s) => {
           if (s === 'attack') return false;
           if (hasGunPrimary && s === 'flintlockShot') return false;
+          if (hasArrowPrimary && s === 'arrowShot') return false;
           const def = skillsData.skills.find((sk) => sk.id === s);
           return def && (def.type === 'physical' || def.type === 'hybrid');
         });

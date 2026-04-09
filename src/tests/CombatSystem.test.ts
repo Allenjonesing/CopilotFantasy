@@ -673,6 +673,9 @@ describe('Speed modifier system', () => {
   });
 
   it('quickHit skill (speedModifier=0.6) sets lower ctbValue for aria after acting', () => {
+    const state = GameState.getInstance();
+    // quickHit is earned at level 3 for warrior — push it directly for this test
+    state.getCharacter('aria')!.skills.push('quickHit');
     const system = new CombatSystem(
       [new PlayerCombatant('aria')],
       [new EnemyCombatant('slime')],
@@ -1267,6 +1270,8 @@ describe('Skill Evolution System', () => {
   it('quickHit evolves to hasteBell after 15 uses', () => {
     const state = GameState.getInstance();
     const aria = state.getCharacter('aria')!;
+    // quickHit is earned at level 3 for warrior — push it directly for this test
+    aria.skills.push('quickHit');
     expect(aria.skills).toContain('quickHit');
     for (let i = 0; i < 15; i++) state.recordSkillUse('aria', 'quickHit');
     expect(aria.skills).toContain('hasteBell');
@@ -1441,21 +1446,21 @@ describe('Team Move Types', () => {
     EventBus.getInstance().clear();
   });
 
-  it('characters start with job-defined team moves', () => {
+  it('characters start with no team moves (earned through level-up)', () => {
     const state = GameState.getInstance();
     const aria = state.getCharacter('aria')!;
     const kael = state.getCharacter('kael')!;
     const lyra = state.getCharacter('lyra')!;
-    // Warrior starts with physical team move
-    expect(aria.teamMoves).toContain('teamStrike');
-    // Mage starts with magic team move
-    expect(kael.teamMoves).toContain('teamSpell');
-    // Healer starts with both
-    expect(lyra.teamMoves).toContain('teamStrike');
-    expect(lyra.teamMoves).toContain('teamSpell');
+    // All jobs start with no team moves — they are earned through level-up
+    expect(aria.teamMoves).toEqual([]);
+    expect(kael.teamMoves).toEqual([]);
+    expect(lyra.teamMoves).toEqual([]);
   });
 
   it('physical team move uses combined strength for damage', () => {
+    const state = GameState.getInstance();
+    // Grant teamStrike to aria for this test (normally earned at level 2)
+    state.getCharacter('aria')!.teamMoves.push('teamStrike');
     const system = new CombatSystem(
       [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
       [new EnemyCombatant('slime')],
@@ -1480,6 +1485,8 @@ describe('Team Move Types', () => {
     const state = GameState.getInstance();
     // Give Kael enough STM to participate (his base is 30, below the 40 cost)
     state.getCharacter('kael')!.stats.stm = 50;
+    // Grant teamSpell to aria for this test (normally earned at level 2 for mage)
+    state.getCharacter('aria')!.teamMoves.push('teamSpell');
     const system = new CombatSystem(
       [new PlayerCombatant('aria'), new PlayerCombatant('kael')],
       [new EnemyCombatant('slime')],
@@ -1522,6 +1529,9 @@ describe('Team Move Types', () => {
   });
 
   it('team move uses comboSpeedModifier from move definition', () => {
+    const state = GameState.getInstance();
+    // Grant teamStrike to aria for this test (normally earned at level 2)
+    state.getCharacter('aria')!.teamMoves.push('teamStrike');
     const system = new CombatSystem(
       [new PlayerCombatant('aria'), new PlayerCombatant('lyra')],
       [new EnemyCombatant('slime')],
@@ -1565,6 +1575,8 @@ describe('Team Move Types', () => {
   it('team move physical (teamStrike) evolves after 5 uses via recordTeamMoveUse', () => {
     const state = GameState.getInstance();
     const aria = state.getCharacter('aria')!;
+    // Grant teamStrike to aria for this test (normally earned at level 2)
+    aria.teamMoves.push('teamStrike');
     expect(aria.teamMoves).toContain('teamStrike');
 
     for (let i = 0; i < 5; i++) state.recordTeamMoveUse('aria', 'teamStrike');
@@ -1576,6 +1588,8 @@ describe('Team Move Types', () => {
   it('team move evolves further (teamStrikeII → teamStrikeIII at 10 uses)', () => {
     const state = GameState.getInstance();
     const aria = state.getCharacter('aria')!;
+    // Grant teamStrike to aria for this test (normally earned at level 2)
+    aria.teamMoves.push('teamStrike');
     // Evolve to tier 2 first
     for (let i = 0; i < 5; i++) state.recordTeamMoveUse('aria', 'teamStrike');
     expect(aria.teamMoves).toContain('teamStrikeII');
@@ -1691,10 +1705,13 @@ describe('Gunsmith Job', () => {
     expect(aria.skills).not.toContain('attack');
   });
 
-  it('gunsmith job has teamStrike team move', () => {
+  it('gunsmith starts with no team moves (unlocked at level 2)', () => {
     const state = GameState.getInstance();
     state.applyJobToCharacter('aria', 'gunsmith');
     const aria = state.getCharacter('aria')!;
+    // Gunsmith earns teamStrike at level 2, not at start
+    expect(aria.teamMoves).toEqual([]);
+    while (state.data.level < 2) state.gainExp(10000);
     expect(aria.teamMoves).toContain('teamStrike');
   });
 
@@ -1989,16 +2006,21 @@ describe('Paladin Offensive Capability', () => {
     EventBus.getInstance().clear();
   });
 
-  it('paladin job grants holyLight as an offensive skill', () => {
+  it('paladin earns holyLight at level 2 (not at start)', () => {
     const state = GameState.getInstance();
     state.applyJobToCharacter('aria', 'paladin');
     const aria = state.getCharacter('aria')!;
+    // Paladin starts with just attack — holyLight is earned at level 2
+    expect(aria.skills).not.toContain('holyLight');
+    while (state.data.level < 2) state.gainExp(10000);
     expect(aria.skills).toContain('holyLight');
   });
 
   it('holyLight is a magic skill that always hits', () => {
     const state = GameState.getInstance();
     state.applyJobToCharacter('aria', 'paladin');
+    // holyLight is earned at level 2 — push it for this test
+    state.getCharacter('aria')!.skills.push('holyLight');
     const system = new CombatSystem(
       [new PlayerCombatant('aria')],
       [new EnemyCombatant('slime')],
@@ -2016,15 +2038,20 @@ describe('Paladin Offensive Capability', () => {
     expect(slime.stats.hp).toBeLessThan(hpBefore);
   });
 
-  it('paladin has both offensive (attack, holyLight) skills at start; gains smash and cure on level-up', () => {
+  it('paladin starts with attack only; gains holyLight at level 2 and cure at level 3', () => {
     const state = GameState.getInstance();
     state.applyJobToCharacter('aria', 'paladin');
     const aria = state.getCharacter('aria')!;
+    // Paladin starts with just one specialized skill
     expect(aria.skills).toContain('attack');
-    expect(aria.skills).toContain('holyLight');
-    // smash and cure are unlocked via level-up, not available at start
+    expect(aria.skills).not.toContain('holyLight');
     expect(aria.skills).not.toContain('smash');
     expect(aria.skills).not.toContain('cure');
+    // holyLight is unlocked at level 2, cure at level 3
+    while (state.data.level < 2) state.gainExp(10000);
+    expect(aria.skills).toContain('holyLight');
+    while (state.data.level < 3) state.gainExp(10000);
+    expect(aria.skills).toContain('cure');
   });
 });
 

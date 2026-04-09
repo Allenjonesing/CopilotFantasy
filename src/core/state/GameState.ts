@@ -5,10 +5,10 @@ import jobsData from '../../data/jobs.json';
 
 /** Default stamina for characters whose definition does not specify stm/maxStm. */
 const DEFAULT_STAMINA = 50;
-/** Default team move for characters who have no job-defined team moves. */
-const DEFAULT_TEAM_MOVE = 'teamStrike';
 /** Job IDs that use guns as primary weapon. Used to gate ammo drops and starting inventory. */
 export const GUN_JOBS = ['gunsmith'] as const;
+/** Job IDs that use a bow (arrows) as primary weapon. Used to gate ammo drops and starting inventory. */
+export const ARROW_JOBS = ['ranger'] as const;
 
 export interface CharacterStats {
   hp: number;
@@ -173,7 +173,7 @@ export class GameState {
     const party: CharacterState[] = charactersData.characters.map((c) => {
       const jobId = c.class.toLowerCase();
       const jobDef = (jobsData.jobs as Array<Record<string, unknown>>).find((j) => j['id'] === jobId);
-      const startingTeamMoves = (jobDef?.['teamMoves'] as string[] | undefined) ?? [DEFAULT_TEAM_MOVE];
+      const startingTeamMoves = (jobDef?.['teamMoves'] as string[] | undefined) ?? [];
       return {
         id: c.id,
         name: c.name,
@@ -541,8 +541,7 @@ export class GameState {
     char.skillUseCounts = {};
     // Set team moves from the new job.
     const teamMoves = jobDef['teamMoves'] as string[] | undefined;
-    if (teamMoves) char.teamMoves = [...teamMoves];
-    else if (!char.teamMoves) char.teamMoves = [DEFAULT_TEAM_MOVE];
+    char.teamMoves = teamMoves ? [...teamMoves] : [];
     char.teamMoveUseCounts = {};
   }
 

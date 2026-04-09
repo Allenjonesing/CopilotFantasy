@@ -17,10 +17,10 @@
         "agility": 6,
         "luck": 5
       },
-      "skills": ["attack", "quickHit", "smash"],
+      "skills": ["attack"],
       "startingItems": [],
       "levelUpStats": { "hp": 8, "mp": 2, "stm": 5, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" }
+      "levelSkills": { "2": "smash", "3": "quickHit", "4": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" }
     },
     {
       "id": "kael",
@@ -39,7 +39,7 @@
         "agility": 9,
         "luck": 5
       },
-      "skills": ["attack", "fire", "thunder", "blizzard", "water", "magicStrike"],
+      "skills": ["fire"],
       "startingItems": [],
       "levelUpStats": { "hp": 5, "mp": 10, "stm": 3, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
       "levelSkills": {}
@@ -61,10 +61,10 @@
         "agility": 12,
         "luck": 6
       },
-      "skills": ["attack", "cure", "arrowShot"],
+      "skills": ["cure"],
       "startingItems": [],
       "levelUpStats": { "hp": 6, "mp": 8, "stm": 4, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" }
+      "levelSkills": { "2": "arrowShot", "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" }
     }
   ]
 }

@@ -30,6 +30,15 @@ function generateTextures(scene: Phaser.Scene): void {
   makePlayerSprite(scene);
   makeKaelSprite(scene);
   makeLyraSprite(scene);
+  // Job-class sprites (one per playable job — used in combat to reflect the chosen class)
+  makeJobWarriorSprite(scene);
+  makeJobMageSprite(scene);
+  makeJobHealerSprite(scene);
+  makeJobGunsmithSprite(scene);
+  makeJobRangerSprite(scene);
+  makeJobThiefSprite(scene);
+  makeJobPaladinSprite(scene);
+  makeJobBerserkerSprite(scene);
   makeSlimeSprite(scene);
   makeGoblinSprite(scene);
   makeShadowWispSprite(scene);
@@ -350,8 +359,505 @@ function makeLyraSprite(scene: Phaser.Scene): void {
   g.destroy();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Job-class sprites: one 28×28 sprite per playable job.
+// These are displayed in combat when the character's chosen class should be
+// shown, rather than a fixed character portrait.
+// ─────────────────────────────────────────────────────────────────────────────
 
-function makeSlimeSprite(scene: Phaser.Scene): void {
+/** 28×28 Warrior job sprite — red-armoured sword fighter. */
+function makeJobWarriorSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Hair — short dark auburn
+  g.fillStyle(0x551a00);
+  g.fillRect(8, 1, 12, 5);
+  // Helmet crest
+  g.fillStyle(0xcc2200);
+  g.fillRect(10, 0, 8, 3);
+  // Head (skin)
+  g.fillStyle(0xf5a875);
+  g.fillRect(9, 4, 10, 8);
+  // Eyes
+  g.fillStyle(0x1a1a3a);
+  g.fillRect(10, 7, 3, 2);
+  g.fillRect(15, 7, 3, 2);
+  // Body — red plate armour
+  g.fillStyle(0xaa1100);
+  g.fillRect(7, 12, 14, 10);
+  g.fillStyle(0xdd3322);
+  g.fillRect(9, 13, 10, 5);
+  // Shoulder pads
+  g.fillStyle(0xcc2200);
+  g.fillRect(5, 12, 4, 4);
+  g.fillRect(19, 12, 4, 4);
+  // Belt
+  g.fillStyle(0x7a4010);
+  g.fillRect(7, 22, 14, 2);
+  g.fillStyle(0xddaa00);
+  g.fillRect(12, 22, 4, 2);
+  // Arms
+  g.fillStyle(0xaa1100);
+  g.fillRect(2, 12, 4, 8);
+  g.fillRect(22, 12, 4, 8);
+  // Hands
+  g.fillStyle(0xf5a875);
+  g.fillRect(1, 20, 5, 3);
+  g.fillRect(22, 20, 5, 3);
+  // Sword
+  g.fillStyle(0xaaaacc);
+  g.fillRect(26, 10, 2, 10);
+  g.fillStyle(0xddaa00);
+  g.fillRect(25, 18, 4, 2);
+  // Legs
+  g.fillStyle(0x881100);
+  g.fillRect(7, 24, 6, 4);
+  g.fillRect(15, 24, 6, 4);
+  g.fillStyle(0x3a1a00);
+  g.fillRect(6, 26, 8, 2);
+  g.fillRect(14, 26, 8, 2);
+  g.generateTexture('job_warrior', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 Mage job sprite — dark-robed arcane caster with glowing staff. */
+function makeJobMageSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Hair — black with blue highlight
+  g.fillStyle(0x111122);
+  g.fillRect(8, 1, 12, 6);
+  g.fillStyle(0x2233aa);
+  g.fillRect(9, 1, 10, 2);
+  // Head (pale, scholarly)
+  g.fillStyle(0xf0d0b0);
+  g.fillRect(9, 5, 10, 8);
+  // Eyes (glowing arcane blue)
+  g.fillStyle(0x0044ff);
+  g.fillRect(10, 8, 3, 2);
+  g.fillRect(15, 8, 3, 2);
+  // Robe body (dark navy with purple trim)
+  g.fillStyle(0x111133);
+  g.fillRect(7, 13, 14, 11);
+  g.fillStyle(0x6622aa);
+  g.fillRect(7, 13, 14, 2);
+  g.fillRect(7, 22, 14, 2);
+  g.fillRect(7, 13, 2, 11);
+  g.fillRect(19, 13, 2, 11);
+  // Belt
+  g.fillStyle(0x4411aa);
+  g.fillRect(7, 19, 14, 3);
+  // Arms
+  g.fillStyle(0x111133);
+  g.fillRect(2, 13, 6, 9);
+  g.fillRect(20, 13, 6, 9);
+  // Hands
+  g.fillStyle(0xf0d0b0);
+  g.fillRect(2, 21, 4, 3);
+  g.fillRect(22, 21, 4, 3);
+  // Robe skirt
+  g.fillStyle(0x0d0d22);
+  g.fillRect(6, 24, 6, 4);
+  g.fillRect(16, 24, 6, 4);
+  g.fillRect(10, 24, 8, 2);
+  // Staff
+  g.fillStyle(0x8855aa);
+  g.fillRect(0, 5, 3, 22);
+  g.fillStyle(0x4499ff);
+  g.fillRect(0, 3, 3, 4);
+  g.fillStyle(0xaaddff);
+  g.fillRect(1, 3, 1, 2);
+  g.generateTexture('job_mage', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 Healer job sprite — white-robed healer with healing sceptre. */
+function makeJobHealerSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Hair — long golden
+  g.fillStyle(0xddaa22);
+  g.fillRect(8, 1, 12, 6);
+  g.fillRect(18, 6, 4, 8);
+  g.fillStyle(0xffee88);
+  g.fillRect(10, 1, 6, 2);
+  // Head
+  g.fillStyle(0xf8c899);
+  g.fillRect(9, 5, 10, 8);
+  // Eyes (gentle green)
+  g.fillStyle(0x22aa44);
+  g.fillRect(10, 8, 3, 2);
+  g.fillRect(15, 8, 3, 2);
+  // Smile
+  g.fillStyle(0xcc9966);
+  g.fillRect(11, 11, 6, 1);
+  // Robe body (white/ivory with green trim)
+  g.fillStyle(0xeeeedd);
+  g.fillRect(7, 13, 14, 11);
+  // Holy symbol on chest
+  g.fillStyle(0xffee88);
+  g.fillRect(13, 14, 2, 6);
+  g.fillRect(11, 16, 6, 2);
+  // Robe trim (emerald green)
+  g.fillStyle(0x118833);
+  g.fillRect(7, 13, 14, 2);
+  g.fillRect(7, 22, 14, 2);
+  g.fillRect(7, 13, 2, 11);
+  g.fillRect(19, 13, 2, 11);
+  // Arms
+  g.fillStyle(0xeeeedd);
+  g.fillRect(2, 13, 6, 9);
+  g.fillRect(20, 13, 6, 9);
+  g.fillStyle(0x118833);
+  g.fillRect(2, 20, 6, 2);
+  g.fillRect(20, 20, 6, 2);
+  // Hands
+  g.fillStyle(0xf8c899);
+  g.fillRect(2, 21, 4, 3);
+  g.fillRect(22, 21, 4, 3);
+  // Robe skirt
+  g.fillStyle(0xddddc8);
+  g.fillRect(6, 24, 6, 4);
+  g.fillRect(16, 24, 6, 4);
+  g.fillRect(10, 24, 8, 2);
+  // Sceptre
+  g.fillStyle(0xccaa66);
+  g.fillRect(25, 7, 3, 20);
+  g.fillStyle(0xffee44);
+  g.fillRect(23, 5, 5, 5);
+  g.fillStyle(0x44ff88);
+  g.fillCircle(26, 5, 3);
+  g.generateTexture('job_healer', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 Gunsmith job sprite — leather-clad marksman with a flintlock pistol. */
+function makeJobGunsmithSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Hair — short brown
+  g.fillStyle(0x6a3810);
+  g.fillRect(8, 1, 12, 5);
+  // Wide-brim hat
+  g.fillStyle(0x5a3010);
+  g.fillRect(6, 2, 16, 3);
+  g.fillRect(5, 1, 18, 2);
+  // Head (tanned skin)
+  g.fillStyle(0xe8a060);
+  g.fillRect(9, 5, 10, 8);
+  // Eyes (sharp, focused)
+  g.fillStyle(0x1a1a0a);
+  g.fillRect(10, 7, 3, 2);
+  g.fillRect(15, 7, 3, 2);
+  // Stubble/jaw
+  g.fillStyle(0xb07840);
+  g.fillRect(10, 11, 8, 2);
+  // Leather coat (dark brown)
+  g.fillStyle(0x5a3010);
+  g.fillRect(7, 13, 14, 11);
+  // Coat lapels (lighter brown)
+  g.fillStyle(0x7a4820);
+  g.fillRect(9, 13, 4, 8);
+  g.fillRect(15, 13, 4, 8);
+  // Brass buttons
+  g.fillStyle(0xddaa22);
+  g.fillRect(13, 14, 2, 2);
+  g.fillRect(13, 18, 2, 2);
+  // Belt with ammo pouch
+  g.fillStyle(0x3a1a00);
+  g.fillRect(7, 24, 14, 2);
+  g.fillStyle(0x8a5030);
+  g.fillRect(8, 24, 5, 2);
+  // Arms
+  g.fillStyle(0x5a3010);
+  g.fillRect(2, 13, 5, 9);
+  g.fillRect(21, 13, 5, 9);
+  // Gloves
+  g.fillStyle(0x3a2010);
+  g.fillRect(2, 20, 5, 3);
+  g.fillRect(21, 20, 5, 3);
+  // Flintlock pistol (right hand, barrel pointing forward)
+  g.fillStyle(0x222222);
+  g.fillRect(22, 17, 6, 3);
+  // Pistol barrel
+  g.fillStyle(0x444444);
+  g.fillRect(24, 18, 5, 1);
+  // Pistol handle
+  g.fillStyle(0x5a3010);
+  g.fillRect(23, 19, 3, 3);
+  // Pistol flintlock mechanism (gold)
+  g.fillStyle(0xddaa22);
+  g.fillRect(22, 17, 2, 2);
+  // Boots
+  g.fillStyle(0x3a1a00);
+  g.fillRect(7, 26, 5, 2);
+  g.fillRect(16, 26, 5, 2);
+  g.generateTexture('job_gunsmith', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 Ranger job sprite — green-clad hunter with a longbow. */
+function makeJobRangerSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Hair — dark green-tinted brown
+  g.fillStyle(0x3a3010);
+  g.fillRect(8, 1, 12, 6);
+  // Hood (dark forest green)
+  g.fillStyle(0x1a4a1a);
+  g.fillRect(7, 0, 14, 6);
+  g.fillRect(6, 3, 2, 6);
+  g.fillRect(20, 3, 2, 6);
+  // Head (tanned, weathered)
+  g.fillStyle(0xd08850);
+  g.fillRect(9, 5, 10, 8);
+  // Eyes (keen, amber)
+  g.fillStyle(0x884400);
+  g.fillRect(10, 7, 3, 2);
+  g.fillRect(15, 7, 3, 2);
+  // Eye shine
+  g.fillStyle(0xffaa44);
+  g.fillRect(10, 7, 1, 1);
+  g.fillRect(15, 7, 1, 1);
+  // Leather tunic (forest green)
+  g.fillStyle(0x2a6a2a);
+  g.fillRect(7, 13, 14, 11);
+  // Tunic detail
+  g.fillStyle(0x1a5a1a);
+  g.fillRect(7, 13, 14, 2);
+  g.fillRect(7, 22, 14, 2);
+  // Quiver strap (brown)
+  g.fillStyle(0x6a4020);
+  g.fillRect(19, 13, 2, 10);
+  // Belt
+  g.fillStyle(0x4a2a00);
+  g.fillRect(7, 24, 14, 2);
+  // Arms (green sleeves)
+  g.fillStyle(0x2a6a2a);
+  g.fillRect(2, 13, 5, 9);
+  g.fillRect(21, 13, 5, 9);
+  // Bracers (brown leather)
+  g.fillStyle(0x6a4020);
+  g.fillRect(2, 18, 5, 4);
+  g.fillRect(21, 18, 5, 4);
+  // Hands
+  g.fillStyle(0xd08850);
+  g.fillRect(2, 21, 4, 3);
+  g.fillRect(22, 21, 4, 3);
+  // Longbow (left side, strung)
+  g.fillStyle(0x8a5a20);
+  g.fillRect(0, 2, 2, 24);
+  // Bow curve (top)
+  g.fillStyle(0x7a4a10);
+  g.fillRect(0, 2, 4, 2);
+  // Bow curve (bottom)
+  g.fillRect(0, 24, 4, 2);
+  // Bow string
+  g.fillStyle(0xeeeecc);
+  g.fillRect(1, 4, 1, 20);
+  // Arrow nocked (thin, brown shaft with yellow fletching)
+  g.fillStyle(0xaa7730);
+  g.fillRect(2, 11, 10, 1);
+  g.fillStyle(0xffee44);
+  g.fillRect(2, 10, 3, 3);
+  // Legs
+  g.fillStyle(0x2a5a2a);
+  g.fillRect(7, 26, 5, 2);
+  g.fillRect(16, 26, 5, 2);
+  g.generateTexture('job_ranger', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 Thief job sprite — dark-cloaked rogue with a dagger. */
+function makeJobThiefSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Hair — short black
+  g.fillStyle(0x111111);
+  g.fillRect(8, 1, 12, 6);
+  // Cloak hood (deep purple)
+  g.fillStyle(0x3a1a5a);
+  g.fillRect(6, 0, 16, 8);
+  g.fillRect(5, 2, 2, 8);
+  g.fillRect(21, 2, 2, 8);
+  // Head (pale, shadowed)
+  g.fillStyle(0xe8c898);
+  g.fillRect(9, 5, 10, 8);
+  // Eyes (sly, narrow)
+  g.fillStyle(0x221111);
+  g.fillRect(10, 7, 3, 2);
+  g.fillRect(15, 7, 3, 2);
+  // Smirk
+  g.fillStyle(0xc08860);
+  g.fillRect(11, 11, 6, 1);
+  g.fillRect(16, 10, 1, 1);
+  // Cloak body (dark purple with shadow)
+  g.fillStyle(0x2a1040);
+  g.fillRect(7, 13, 14, 11);
+  g.fillStyle(0x3a1a5a);
+  g.fillRect(7, 13, 3, 11);
+  g.fillRect(18, 13, 3, 11);
+  // Leather chest under cloak (visible strip)
+  g.fillStyle(0x3a2010);
+  g.fillRect(10, 14, 8, 8);
+  // Belt with coin pouches
+  g.fillStyle(0x221000);
+  g.fillRect(7, 24, 14, 2);
+  g.fillStyle(0x6a4020);
+  g.fillRect(9, 24, 4, 2);
+  g.fillRect(16, 24, 4, 2);
+  // Arms (cloaked)
+  g.fillStyle(0x2a1040);
+  g.fillRect(2, 13, 5, 10);
+  g.fillRect(21, 13, 5, 10);
+  // Hands (gloved, dark)
+  g.fillStyle(0x1a0a28);
+  g.fillRect(2, 21, 5, 3);
+  g.fillRect(21, 21, 5, 3);
+  // Dagger (right hand)
+  g.fillStyle(0x8899bb);
+  g.fillRect(24, 14, 2, 8);
+  g.fillStyle(0xddaa22);
+  g.fillRect(23, 20, 4, 1);
+  g.fillStyle(0x6a4020);
+  g.fillRect(23, 21, 4, 3);
+  // Legs (dark trousers)
+  g.fillStyle(0x1a1028);
+  g.fillRect(7, 26, 5, 2);
+  g.fillRect(16, 26, 5, 2);
+  g.generateTexture('job_thief', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 Paladin job sprite — gleaming gold-and-white holy knight. */
+function makeJobPaladinSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Helmet (gold)
+  g.fillStyle(0xddaa00);
+  g.fillRect(8, 0, 12, 6);
+  // Helmet visor (white glow)
+  g.fillStyle(0xffffcc);
+  g.fillRect(9, 4, 10, 4);
+  // Holy light behind visor
+  g.fillStyle(0xffffff);
+  g.fillRect(10, 5, 8, 2);
+  // Chin guard
+  g.fillStyle(0xcc9900);
+  g.fillRect(9, 8, 10, 4);
+  // Eyes (holy golden glow)
+  g.fillStyle(0xffdd44);
+  g.fillRect(10, 6, 3, 2);
+  g.fillRect(15, 6, 3, 2);
+  // Body — gleaming gold plate
+  g.fillStyle(0xddaa00);
+  g.fillRect(7, 12, 14, 12);
+  // Chest plate highlight
+  g.fillStyle(0xffdd66);
+  g.fillRect(9, 13, 10, 6);
+  // Holy symbol (cross) on chest
+  g.fillStyle(0xffffff);
+  g.fillRect(13, 13, 2, 7);
+  g.fillRect(10, 16, 8, 2);
+  // Shoulder guards (large)
+  g.fillStyle(0xcc9900);
+  g.fillRect(4, 11, 5, 6);
+  g.fillRect(19, 11, 5, 6);
+  // Belt (white leather)
+  g.fillStyle(0xeeeedd);
+  g.fillRect(7, 24, 14, 2);
+  // Arms (golden gauntlets)
+  g.fillStyle(0xddaa00);
+  g.fillRect(1, 12, 5, 9);
+  g.fillRect(22, 12, 5, 9);
+  // Shield (left arm, heraldic)
+  g.fillStyle(0x2244aa);
+  g.fillRect(0, 9, 3, 10);
+  g.fillStyle(0xddaa00);
+  g.fillRect(0, 10, 3, 2);
+  // Holy sword (right hand, glowing blade)
+  g.fillStyle(0xeeeeff);
+  g.fillRect(26, 6, 2, 14);
+  g.fillStyle(0xffffaa);
+  g.fillRect(26, 7, 2, 6);
+  // Sword crossguard
+  g.fillStyle(0xddaa00);
+  g.fillRect(24, 18, 6, 2);
+  // Legs (gold plate)
+  g.fillStyle(0xcc9900);
+  g.fillRect(7, 26, 6, 2);
+  g.fillRect(15, 26, 6, 2);
+  g.generateTexture('job_paladin', 28, 28);
+  g.destroy();
+}
+
+/** 28×28 Berserker job sprite — massive bare-armed warrior in fury. */
+function makeJobBerserkerSprite(scene: Phaser.Scene): void {
+  const g = scene.add.graphics();
+  // Wild hair — fierce red-brown
+  g.fillStyle(0x8a2200);
+  g.fillRect(6, 0, 16, 7);
+  g.fillRect(4, 2, 4, 5);
+  g.fillRect(20, 2, 4, 5);
+  // Head (fierce, large)
+  g.fillStyle(0xd08050);
+  g.fillRect(8, 5, 12, 9);
+  // Battle scars
+  g.fillStyle(0xaa5030);
+  g.fillRect(10, 7, 1, 3);
+  g.fillRect(17, 6, 2, 4);
+  // Eyes (burning red rage)
+  g.fillStyle(0xff2200);
+  g.fillRect(10, 7, 3, 2);
+  g.fillRect(15, 7, 3, 2);
+  // Eye glow
+  g.fillStyle(0xff6644);
+  g.fillRect(11, 7, 1, 1);
+  g.fillRect(16, 7, 1, 1);
+  // Furrowed brow (angry)
+  g.fillStyle(0x8a3010);
+  g.fillRect(9, 5, 10, 2);
+  // Mouth (snarl)
+  g.fillStyle(0x7a2a00);
+  g.fillRect(11, 12, 6, 1);
+  // Massive torso (bare-chested, battle-scarred)
+  g.fillStyle(0xc07040);
+  g.fillRect(5, 14, 18, 12);
+  // Chest hair / war paint (dark streaks)
+  g.fillStyle(0x8a3010);
+  g.fillRect(11, 15, 2, 8);
+  g.fillRect(15, 15, 2, 8);
+  // War tattoo (tribal, left chest)
+  g.fillStyle(0x4a0a00);
+  g.fillRect(6, 16, 4, 2);
+  g.fillRect(6, 20, 4, 2);
+  g.fillRect(6, 16, 2, 6);
+  // Tattered belt (dark)
+  g.fillStyle(0x2a1000);
+  g.fillRect(5, 26, 18, 2);
+  // Massive arms (bare)
+  g.fillStyle(0xc07040);
+  g.fillRect(0, 14, 5, 10);
+  g.fillRect(23, 14, 5, 10);
+  // Wrist wraps (leather strips)
+  g.fillStyle(0x5a3010);
+  g.fillRect(0, 20, 5, 4);
+  g.fillRect(23, 20, 5, 4);
+  // Hands (huge, clenched)
+  g.fillStyle(0xb06030);
+  g.fillRect(0, 23, 5, 3);
+  g.fillRect(23, 23, 5, 3);
+  // Great axe (right hand)
+  g.fillStyle(0x666688);
+  g.fillRect(26, 4, 2, 18);
+  // Axe head (massive, double-bit)
+  g.fillStyle(0x888899);
+  g.fillRect(24, 4, 4, 5);
+  g.fillRect(24, 7, 4, 5);
+  // Axe edge highlight
+  g.fillStyle(0xaaaacc);
+  g.fillRect(24, 4, 1, 4);
+  g.fillRect(24, 8, 1, 4);
+  // Legs (rough hide trousers)
+  g.fillStyle(0x4a2a00);
+  g.fillRect(5, 26, 7, 2);
+  g.fillRect(16, 26, 7, 2);
+  g.generateTexture('job_berserker', 28, 28);
+  g.destroy();
+}
   const g = scene.add.graphics();
   // Drop shadow
   g.fillStyle(0x220033, 0.5);
