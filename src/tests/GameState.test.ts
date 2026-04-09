@@ -264,14 +264,17 @@ describe('GameState', () => {
     const aria = state.getCharacter('aria')!;
     const kael = state.getCharacter('kael')!;
     const lyra = state.getCharacter('lyra')!;
+    // All jobs now start with no team moves — they are earned through level-up
     expect(aria.teamMoves).toBeInstanceOf(Array);
-    expect(aria.teamMoves.length).toBeGreaterThan(0);
-    expect(kael.teamMoves.length).toBeGreaterThan(0);
-    expect(lyra.teamMoves.length).toBeGreaterThan(0);
+    expect(aria.teamMoves.length).toBe(0);
+    expect(kael.teamMoves.length).toBe(0);
+    expect(lyra.teamMoves.length).toBe(0);
   });
 
   it('recordTeamMoveUse tracks usage and evolves team moves at threshold', () => {
     const aria = state.getCharacter('aria')!;
+    // Warrior unlocks teamStrike at level 2 — level up first
+    while (state.data.level < 2) state.gainExp(10000);
     expect(aria.teamMoves).toContain('teamStrike');
     for (let i = 0; i < 5; i++) state.recordTeamMoveUse('aria', 'teamStrike');
     expect(aria.teamMoves).toContain('teamStrikeII');
@@ -280,17 +283,21 @@ describe('GameState', () => {
 
   it('applyJobToCharacter sets team moves from new job', () => {
     const aria = state.getCharacter('aria')!;
-    // Aria is Warrior — should have teamStrike
-    expect(aria.teamMoves).toContain('teamStrike');
-    // Switch to Mage — should get teamSpell
+    // Aria is Warrior — starts with no team moves (earned via level-up)
+    expect(aria.teamMoves).toEqual([]);
+    // Switch to Mage — also starts with no team moves
     state.applyJobToCharacter('aria', 'mage');
-    expect(aria.teamMoves).toContain('teamSpell');
+    expect(aria.teamMoves).toEqual([]);
     expect(aria.teamMoveUseCounts).toEqual({});
   });
 
   it('level-up grants new team moves per job levelTeamMoves', () => {
     const aria = state.getCharacter('aria')!;
+    expect(aria.teamMoves).not.toContain('teamStrike');
     expect(aria.teamMoves).not.toContain('teamSwift');
+    // Level up to 2 (warrior unlocks teamStrike at 2)
+    while (state.data.level < 2) state.gainExp(10000);
+    expect(aria.teamMoves).toContain('teamStrike');
     // Level up to 3 (warrior unlocks teamSwift at 3)
     while (state.data.level < 3) state.gainExp(10000);
     expect(aria.teamMoves).toContain('teamSwift');
@@ -303,7 +310,8 @@ describe('GameState', () => {
     expect(aria.stats.strength).toBe(18);
     expect(aria.skills).toContain('flintlockShot');
     expect(aria.skills).not.toContain('attack');
-    expect(aria.teamMoves).toContain('teamStrike');
+    // Gunsmith starts with no team moves (earned at level 2)
+    expect(aria.teamMoves).toEqual([]);
   });
 
   it('warrior job does not include flintlockShot by default', () => {

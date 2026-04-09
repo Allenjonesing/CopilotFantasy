@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameState, GUN_JOBS } from '../core/state/GameState';
+import { GameState, GUN_JOBS, ARROW_JOBS } from '../core/state/GameState';
 import jobsData from '../data/jobs.json';
 import charactersData from '../data/characters.json';
 
@@ -228,6 +228,12 @@ export class JobSelectionScene extends Phaser.Scene {
     const gunClassCount = this.jobSelections.filter((idx) => (GUN_JOBS as readonly string[]).includes(this.jobs[idx].id)).length;
     if (gunClassCount > 0) {
       gs.addItem('gunAmmo', gunClassCount * 8);
+    }
+    // Grant starting arrows if any character chose a ranger/bow class.
+    // Give each ranger a supply of arrows to start: 10 arrows per ranger in the party.
+    const arrowClassCount = this.jobSelections.filter((idx) => (ARROW_JOBS as readonly string[]).includes(this.jobs[idx].id)).length;
+    if (arrowClassCount > 0) {
+      gs.addItem('arrow', arrowClassCount * 10);
     }
     this.scene.start('ExplorationScene');
   }
