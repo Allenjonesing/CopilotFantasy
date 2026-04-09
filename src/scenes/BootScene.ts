@@ -858,6 +858,9 @@ function makeJobBerserkerSprite(scene: Phaser.Scene): void {
   g.generateTexture('job_berserker', 28, 28);
   g.destroy();
 }
+
+/** 28×28 slime enemy sprite — purple pulsing blob. */
+function makeSlimeSprite(scene: Phaser.Scene): void {
   const g = scene.add.graphics();
   // Drop shadow
   g.fillStyle(0x220033, 0.5);
