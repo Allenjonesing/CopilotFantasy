@@ -16,9 +16,9 @@
         "agility": 6,
         "luck": 5
       },
-      "skills": ["attack", "quickHit", "smash"],
+      "skills": ["attack", "smash"],
       "levelUpStats": { "hp": 8, "mp": 2, "stm": 5, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" },
+      "levelSkills": { "2": "quickHit", "3": "drain", "5": "groundSlam", "7": "hasteBell", "9": "slowBell" },
       "teamMoves": ["teamStrike"],
       "levelTeamMoves": { "3": "teamSwift", "5": "teamBlaze", "7": "teamBolt" }
     },
@@ -38,9 +38,9 @@
         "agility": 9,
         "luck": 5
       },
-      "skills": ["attack", "fire", "thunder", "blizzard", "water", "magicStrike"],
+      "skills": ["attack", "fire"],
       "levelUpStats": { "hp": 5, "mp": 10, "stm": 3, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
-      "levelSkills": {},
+      "levelSkills": { "2": "thunder", "3": "blizzard", "4": "water", "6": "magicStrike" },
       "teamMoves": ["teamSpell"],
       "levelTeamMoves": { "3": "teamBlaze", "5": "teamBolt", "7": "teamFrost" }
     },
@@ -60,9 +60,9 @@
         "agility": 12,
         "luck": 6
       },
-      "skills": ["attack", "cure", "arrowShot"],
+      "skills": ["attack", "cure"],
       "levelUpStats": { "hp": 6, "mp": 8, "stm": 4, "strength": 0, "magic": 1, "defense": 1, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" },
+      "levelSkills": { "2": "arrowShot", "3": "esuna", "4": "raise", "6": "reraise", "7": "pray" },
       "teamMoves": ["teamStrike", "teamSpell"],
       "levelTeamMoves": { "4": "teamSwift", "6": "teamBolt", "8": "teamTide" }
     },
@@ -104,9 +104,9 @@
         "agility": 14,
         "luck": 8
       },
-      "skills": ["attack", "arrowShot", "quickHit"],
+      "skills": ["attack", "arrowShot"],
       "levelUpStats": { "hp": 6, "mp": 3, "stm": 4, "strength": 1, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 1, "luck": 1 },
-      "levelSkills": { "3": "hasteBell", "5": "venomStrike", "7": "slowBell", "9": "groundSlam" },
+      "levelSkills": { "2": "quickHit", "3": "hasteBell", "5": "venomStrike", "7": "slowBell", "9": "groundSlam" },
       "teamMoves": ["teamSwift"],
       "levelTeamMoves": { "3": "teamStrike", "5": "teamBolt", "7": "teamTide" }
     },
@@ -126,9 +126,9 @@
         "agility": 15,
         "luck": 12
       },
-      "skills": ["attack", "quickHit", "drain", "steal"],
+      "skills": ["attack", "steal"],
       "levelUpStats": { "hp": 5, "mp": 3, "stm": 4, "strength": 1, "magic": 0, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 1 },
-      "levelSkills": { "3": "venomStrike", "5": "hasteBell", "6": "smash", "8": "groundSlam" },
+      "levelSkills": { "2": "quickHit", "4": "drain", "5": "venomStrike", "6": "hasteBell", "8": "smash", "9": "groundSlam" },
       "teamMoves": ["teamSwift"],
       "levelTeamMoves": { "4": "teamStrike", "6": "teamBolt", "8": "teamBlaze" }
     },
@@ -148,9 +148,9 @@
         "agility": 5,
         "luck": 6
       },
-      "skills": ["attack", "holyLight", "cure", "smash"],
+      "skills": ["attack", "holyLight"],
       "levelUpStats": { "hp": 10, "mp": 4, "stm": 5, "strength": 1, "magic": 1, "defense": 2, "magicDefense": 1, "agility": 0, "luck": 0 },
-      "levelSkills": { "2": "esuna", "4": "drain", "6": "pray", "8": "reraise" },
+      "levelSkills": { "2": "cure", "3": "esuna", "4": "smash", "5": "drain", "7": "pray", "8": "reraise" },
       "teamMoves": ["teamStrike", "teamSpell"],
       "levelTeamMoves": { "3": "teamBlaze", "6": "teamFrost", "8": "teamTide" }
     },
@@ -170,9 +170,9 @@
         "agility": 7,
         "luck": 4
       },
-      "skills": ["attack", "smash", "venomStrike"],
+      "skills": ["attack", "smash"],
       "levelUpStats": { "hp": 9, "mp": 1, "stm": 6, "strength": 2, "magic": 0, "defense": 1, "magicDefense": 0, "agility": 1, "luck": 0 },
-      "levelSkills": { "2": "quickHit", "4": "groundSlam", "6": "hasteBell", "8": "slowBell" },
+      "levelSkills": { "2": "quickHit", "3": "venomStrike", "4": "groundSlam", "6": "hasteBell", "8": "slowBell" },
       "teamMoves": ["teamStrike"],
       "levelTeamMoves": { "3": "teamBolt", "5": "teamBlaze", "7": "teamSwift" }
     }

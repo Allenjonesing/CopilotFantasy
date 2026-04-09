@@ -216,7 +216,7 @@ export class GameState {
       difficultyLevel: 1,
       level: 1,
       exp: 0,
-      expToNext: 50,
+      expToNext: 150,
       currentMap: 'overworld',
       playerX: 2,
       playerY: 2,
