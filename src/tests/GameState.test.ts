@@ -83,7 +83,7 @@ describe('GameState', () => {
   });
 
   it('gainExp returns levelUp when threshold crossed', () => {
-    const result = state.gainExp(100);
+    const result = state.gainExp(200);
     expect(result.leveledUp).toBe(true);
     expect(result.newLevel).toBe(2);
   });

@@ -1365,7 +1365,7 @@ describe('Stamina Scales With Level', () => {
     const state = GameState.getInstance();
     const aria = state.getCharacter('aria')!;
     const maxStmBefore = aria.stats.maxStm;
-    state.gainExp(100);
+    state.gainExp(200);
     expect(aria.stats.maxStm).toBeGreaterThan(maxStmBefore);
   });
 
@@ -1373,7 +1373,7 @@ describe('Stamina Scales With Level', () => {
     const state = GameState.getInstance();
     const kael = state.getCharacter('kael')!;
     const maxStmBefore = kael.stats.maxStm;
-    state.gainExp(100);
+    state.gainExp(200);
     expect(kael.stats.maxStm).toBeGreaterThan(maxStmBefore);
   });
 
@@ -1381,7 +1381,7 @@ describe('Stamina Scales With Level', () => {
     const state = GameState.getInstance();
     const lyra = state.getCharacter('lyra')!;
     const maxStmBefore = lyra.stats.maxStm;
-    state.gainExp(100);
+    state.gainExp(200);
     expect(lyra.stats.maxStm).toBeGreaterThan(maxStmBefore);
   });
 });
@@ -2016,14 +2016,15 @@ describe('Paladin Offensive Capability', () => {
     expect(slime.stats.hp).toBeLessThan(hpBefore);
   });
 
-  it('paladin has both offensive (attack, holyLight, smash) and healing (cure) skills', () => {
+  it('paladin has both offensive (attack, holyLight) skills at start; gains smash and cure on level-up', () => {
     const state = GameState.getInstance();
     state.applyJobToCharacter('aria', 'paladin');
     const aria = state.getCharacter('aria')!;
     expect(aria.skills).toContain('attack');
     expect(aria.skills).toContain('holyLight');
-    expect(aria.skills).toContain('smash');
-    expect(aria.skills).toContain('cure');
+    // smash and cure are unlocked via level-up, not available at start
+    expect(aria.skills).not.toContain('smash');
+    expect(aria.skills).not.toContain('cure');
   });
 });
 
