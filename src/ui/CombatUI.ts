@@ -753,6 +753,112 @@ export class CombatUI {
     return actor.skills.includes('arrowShot') && !actor.skills.includes('attack');
   }
 
+  /**
+   * Given a disabled array and a starting index, find the nearest enabled option.
+   * Scans forward from startIdx first, then backward. Returns -1 if all are disabled.
+   */
+  private findNearestEnabled(disabled: boolean[], startIdx: number): number {
+    if (startIdx < 0 || startIdx >= disabled.length) return -1;
+    if (!disabled[startIdx]) return startIdx;
+    for (let i = startIdx + 1; i < disabled.length; i++) {
+      if (!disabled[i]) return i;
+    }
+    for (let i = startIdx - 1; i >= 0; i--) {
+      if (!disabled[i]) return i;
+    }
+    return -1;
+  }
+
+  /**
+   * Returns true if ALL options in the attack sub-menu would be disabled for this actor.
+   * Used to grey out "Attack..." in the main menu only when no attack is actually possible.
+   */
+  private areAllAttackSubOptionsDisabled(actor: CombatEntity | null): boolean {
+    if (!actor) return true;
+    // If reloading, the Reload option is always available — never fully disabled.
+    if (actor.hasStatus('reloading')) return false;
+
+    const inv = GameState.getInstance().data.inventory;
+    const hasGunPrimary = this.actorUsesGunAsPrimary(actor);
+    const hasArrowPrimary = this.actorUsesArrowAsPrimary(actor);
+
+    // Check primary attack slot
+    if (hasGunPrimary) {
+      const flintDef = skillsData.skills.find((s) => s.id === 'flintlockShot');
+      const stmCost = (flintDef as { stmCost?: number } | undefined)?.stmCost ?? 25;
+      const ammoCount = inv.find((i) => i.id === 'gunAmmo')?.quantity ?? 0;
+      const primaryOk = ammoCount > 0 && !(actor.stats.maxStm > 0 && actor.stats.stm < stmCost);
+      if (primaryOk) return false;
+    } else if (hasArrowPrimary) {
+      const arrowDef = skillsData.skills.find((s) => s.id === 'arrowShot');
+      const stmCost = (arrowDef as { stmCost?: number } | undefined)?.stmCost ?? 20;
+      const arrowCount = inv.find((i) => i.id === 'arrow')?.quantity ?? 0;
+      const primaryOk = arrowCount > 0 && !(actor.stats.maxStm > 0 && actor.stats.stm < stmCost);
+      if (primaryOk) return false;
+    } else {
+      // Regular strike: only disabled when out of STM
+      if (!(actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST)) return false;
+    }
+
+    // Check physical/hybrid skills
+    const physicalSkillIds = actor.skills.filter((s) => {
+      if (s === 'attack') return false;
+      if (hasGunPrimary && s === 'flintlockShot') return false;
+      if (hasArrowPrimary && s === 'arrowShot') return false;
+      const def = skillsData.skills.find((sk) => sk.id === s);
+      return def && (def.type === 'physical' || def.type === 'hybrid');
+    });
+    for (const id of physicalSkillIds) {
+      const def = skillsData.skills.find((s) => s.id === id);
+      if (!def) continue;
+      const notEnoughMp = actor.stats.mp < def.mpCost;
+      const stmCost = (def as { stmCost?: number }).stmCost ?? 0;
+      const notEnoughStm = actor.stats.maxStm > 0 && stmCost > 0 && actor.stats.stm < stmCost;
+      const requiresAmmo = (def as { requiresAmmo?: string }).requiresAmmo;
+      const missingAmmo = requiresAmmo ? !inv.some((i) => i.id === requiresAmmo && i.quantity > 0) : false;
+      if (!notEnoughMp && !notEnoughStm && !missingAmmo) return false;
+    }
+
+    // Check team move availability
+    const actorPlayer = actor instanceof PlayerCombatant ? actor : null;
+    const actorCharState = actorPlayer ? GameState.getInstance().getCharacter(actorPlayer.characterId) : null;
+    const actorHasTeamMoves = (actorCharState?.teamMoves?.length ?? 0) > 0;
+    const livingAllies = this.system.players.filter((p) => !p.isDefeated && p !== actor);
+    const hasAlly = livingAllies.length > 0;
+    const actorHasStm = actor.stats.maxStm === 0 || actor.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST;
+    const anyAllyHasStm = livingAllies.some(
+      (p) => p.stats.maxStm === 0 || p.stats.stm >= CombatSystem.TEAM_MOVE_STM_COST,
+    );
+    if (actorHasTeamMoves && hasAlly && actorHasStm && anyAllyHasStm) return false;
+
+    return true;
+  }
+
+  /**
+   * Returns true if ALL options in the skill sub-menu would be disabled for this actor.
+   * Used to grey out "Skills..." in the main menu when no skill can currently be used.
+   */
+  private areAllSkillSubOptionsDisabled(actor: CombatEntity | null): boolean {
+    if (!actor) return true;
+    const skillIds = actor.skills.filter((s) => {
+      if (s === 'attack') return false;
+      const def = skillsData.skills.find((sk) => sk.id === s);
+      return def && def.type !== 'physical' && def.type !== 'hybrid' && def.type !== 'reload';
+    });
+    if (skillIds.length === 0) return true;
+    const inv = GameState.getInstance().data.inventory;
+    return skillIds.every((id) => {
+      const def = skillsData.skills.find((s) => s.id === id);
+      if (!def) return true;
+      if (actor.stats.mp < def.mpCost) return true;
+      const stmCost = (def as { stmCost?: number }).stmCost ?? 0;
+      if (actor.stats.maxStm > 0 && stmCost > 0 && actor.stats.stm < stmCost) return true;
+      const requiresAmmo = (def as { requiresAmmo?: string }).requiresAmmo;
+      if (requiresAmmo && !inv.some((i) => i.id === requiresAmmo && i.quantity > 0)) return true;
+      return false;
+    });
+  }
+
   private buildMainMenu(): void {
     this.menuTitleBase = 'ACTION';
     this.menuTitle.setText(this.menuTitleBase);
@@ -770,25 +876,23 @@ export class CombatUI {
       return def && def.type !== 'ammo'; // hide ammo from item menu
     }).length > 0;
     const skillLabel = this.skillMenuLabel();
-    const isOutOfStm = actor ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ATTACK_STM_COST) : false;
-    const isItemStmDepleted = actor
-      ? (actor.stats.maxStm > 0 && actor.stats.stm < CombatSystem.ITEM_STM_COST)
-      : false;
 
     // When the gun needs reloading, the attack sub-menu label is updated to hint at reload.
     const needsReload = actor?.hasStatus('reloading') ?? false;
+    const allAttackDisabled = this.areAllAttackSubOptionsDisabled(actor);
+    const allSkillsDisabled = !hasSkills || this.areAllSkillSubOptionsDisabled(actor);
     const attackLabel = needsReload ? '⟳ Reload / Team Move...' : 'Attack...';
     const attackTooltip = needsReload
       ? '⚠ Gun needs reloading! Choose Reload to reload the flintlock, or use Team Move. Other actions are still available this turn.'
-      : (isOutOfStm
-        ? '⚠ Out of Stamina! Cannot perform physical attacks. Rest or use an item first.'
+      : (allAttackDisabled
+        ? '⚠ No attacks available. All attacks are out of resources. Rest to restore stamina.'
         : 'Attack the enemy — choose a physical attack or special move (costs STM).');
 
     const labels = [attackLabel, `${skillLabel}...`, 'Item...', 'Defend [VF]', 'Rest [+STM]', 'Flee'];
     const disabled = [
-      !needsReload && isOutOfStm,           // Attack: disabled only when out of STM (reload is never disabled)
-      !hasSkills,
-      !hasItems || isItemStmDepleted,
+      allAttackDisabled,         // Attack: disabled only when all sub-options are disabled
+      allSkillsDisabled,         // Skills: disabled when no skills or all skills are out of resources
+      !hasItems,                 // Items: disabled only when no consumable items (no STM check)
       false,
       false,
       this.isBossBattle,
@@ -796,24 +900,25 @@ export class CombatUI {
     const tooltips = [
       attackTooltip,
       `Use ${actor?.name ?? 'the character'}'s ${skillLabel.toLowerCase()} abilities (costs MP).`,
-      isItemStmDepleted
-        ? `⚠ Not enough Stamina to use an item (costs ${CombatSystem.ITEM_STM_COST} STM).`
-        : `Use an item from your inventory (costs ${CombatSystem.ITEM_STM_COST} STM).`,
+      `Use an item from your inventory.`,
       `Take a defensive stance. Reduces incoming damage, restores ~25% Stamina. Advances your next turn [VF].`,
       'Rest to recover 50% of Stamina. Uses your turn.',
       'Attempt to flee from the battle. Cannot flee from bosses.',
     ];
     if (this.helpText.active) this.helpText.setText(needsReload ? attackTooltip : HELP_TEXT_DEFAULT);
     this.buildMenuItems(labels, disabled, tooltips);
-    // Restore this character's remembered cursor position (if the saved option is
-    // still enabled — e.g. Skills may have become unavailable since last turn).
+    // Restore this character's remembered cursor position. If the saved option is
+    // now disabled, find the nearest available option (forward first, then backward).
     if (actor) {
       const savedIdx = this.lastMainMenuIndex.get(actor.id);
-      if (savedIdx !== undefined && savedIdx < this.fullMenuItems.length && !this.menuDisabled[savedIdx]) {
-        this.selectedMenuIndex = savedIdx;
-        this.updateMenuHighlight();
-        const tip = this.menuTooltips[savedIdx];
-        if (tip && this.helpText.active) this.helpText.setText(tip);
+      if (savedIdx !== undefined && savedIdx < this.fullMenuItems.length) {
+        const targetIdx = this.findNearestEnabled(this.menuDisabled, savedIdx);
+        if (targetIdx >= 0) {
+          this.selectedMenuIndex = targetIdx;
+          this.updateMenuHighlight();
+          const tip = this.menuTooltips[targetIdx];
+          if (tip && this.helpText.active) this.helpText.setText(tip);
+        }
       }
     }
     // Show timeline preview for the initially selected option.
@@ -860,14 +965,24 @@ export class CombatUI {
       this.helpText.setText(HELP_TEXT_SKILL);
     }
     this.buildMenuItems(items, disabled, tooltips);
-    // Restore this character's remembered skill cursor (if valid and not disabled).
+    // Safety: if all skill options are disabled, go back to the main menu.
+    if (this.menuDisabled.length > 0 && this.menuDisabled.every((d) => d)) {
+      this.menuState = 'main';
+      this.buildMainMenu();
+      return;
+    }
+    // Restore this character's remembered skill cursor. If the saved option is
+    // now disabled, find the nearest available option (forward first, then backward).
     if (actor) {
       const savedIdx = this.lastSkillMenuIndex.get(actor.id);
-      if (savedIdx !== undefined && savedIdx < this.fullMenuItems.length && !this.menuDisabled[savedIdx]) {
-        this.selectedMenuIndex = savedIdx;
-        this.updateMenuHighlight();
-        const tip = this.menuTooltips[savedIdx];
-        if (tip && this.helpText.active) this.helpText.setText(tip);
+      if (savedIdx !== undefined && savedIdx < this.fullMenuItems.length) {
+        const targetIdx = this.findNearestEnabled(this.menuDisabled, savedIdx);
+        if (targetIdx >= 0) {
+          this.selectedMenuIndex = targetIdx;
+          this.updateMenuHighlight();
+          const tip = this.menuTooltips[targetIdx];
+          if (tip && this.helpText.active) this.helpText.setText(tip);
+        }
       }
     }
     // Show timeline preview for the initially selected skill.
@@ -1025,6 +1140,11 @@ export class CombatUI {
     tooltips.push(teamMoveTip);
 
     this.buildMenuItems(labels, disabled, tooltips);
+    // Safety: if all attack sub-options are disabled, go back to the main menu.
+    if (this.menuDisabled.length > 0 && this.menuDisabled.every((d) => d)) {
+      this.menuState = 'main';
+      this.buildMainMenu();
+    }
   }
 
   /** Build the ally-selection menu for initiating a team move. */
