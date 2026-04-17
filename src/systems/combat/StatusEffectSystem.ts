@@ -26,6 +26,7 @@ export class StatusEffectSystem {
     if (!def) return;
     // Skip application if the entity is immune to this status effect.
     if (entity.statusImmunities.has(effectId)) {
+      this.bus.emit('status:immune', entity, effectId);
       this.bus.emit('combat:log', `${entity.name} is immune to ${def.name ?? effectId}!`);
       return;
     }
