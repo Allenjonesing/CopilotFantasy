@@ -204,6 +204,7 @@ export class CombatUI {
   private onStatusApplied!: (entity: unknown, effectId: unknown) => void;
   private onStatusRemoved!: (entity: unknown, effectId: unknown) => void;
   private onStatusDot!: (entity: unknown, effectId: unknown, dmg: unknown) => void;
+  private onStatusImmune!: (entity: unknown, effectId: unknown) => void;
   private onCombatTimelineShift!: (actor: unknown, beforeOrder: unknown, afterOrder: unknown, speedModifier: unknown) => void;
 
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
@@ -216,6 +217,8 @@ export class CombatUI {
    *  AoE spells pass `null` as the animation target, so no entry is recorded and
    *  each target's damage number appears immediately (no misleading grouping). */
   private pendingDamageDelay: Map<string, number> = new Map();
+  /** Status-effect sprite overlays keyed by entity id → effectId → list of GameObjects. */
+  private entityStatusOverlays: Map<string, Map<string, Phaser.GameObjects.GameObject[]>> = new Map();
 
   constructor(scene: Phaser.Scene, system: CombatSystem, battleType: import('../systems/combat/CombatSystem').BattleType = 'normal', isBossBattle = false) {
     this.scene = scene;
@@ -1472,9 +1475,13 @@ export class CombatUI {
     this.onStatusDot = (entity, _effectId, dmg) => {
       this.playPoisonDotAnimation(entity as CombatEntity, dmg as number);
     };
+    this.onStatusImmune = (entity) => {
+      this.playImmuneAnimation(entity as CombatEntity);
+    };
     this.bus.on('status:applied', this.onStatusApplied);
     this.bus.on('status:removed', this.onStatusRemoved);
     this.bus.on('status:dot', this.onStatusDot);
+    this.bus.on('status:immune', this.onStatusImmune);
 
     this.onCombatTimelineShift = (actor, beforeOrder, afterOrder, speedModifier) => {
       this.animateTimelineShift(
@@ -1589,6 +1596,8 @@ export class CombatUI {
     }
     // Always sync the status label when entity display is refreshed.
     this.refreshStatusDisplay(entity);
+    // Hide overlays when defeated so they don't linger on dimmed sprites.
+    this.setStatusOverlaysVisible(entity.id, !entity.isDefeated);
   }
 
   /** Short icons shown for each status effect in the battlefield. */
@@ -1601,6 +1610,24 @@ export class CombatUI {
     reloading: '⟳RLD',
     powerDown: '↓STR',
     provoked: '😡PRV',
+    zombie: '💀ZMB',
+    reflect: '◈REF',
+  };
+
+  /** Visual overlay configuration for each status effect. Overlays are semi-transparent
+   *  coloured washes + symbol badges applied directly on top of the entity sprite. */
+  private static readonly STATUS_OVERLAY_CONFIG: Record<string, {
+    color: number; alpha: number; symbols: string[]; pulse: boolean;
+  }> = {
+    zombie:    { color: 0x004422, alpha: 0.55, symbols: ['💀', '✖', '💀'], pulse: true  },
+    poison:    { color: 0x228800, alpha: 0.42, symbols: ['☠', '◉', '☠'],  pulse: true  },
+    haste:     { color: 0xff7700, alpha: 0.38, symbols: ['↑', '↑', '↑'],  pulse: false },
+    slow:      { color: 0x001199, alpha: 0.48, symbols: ['↓', '↓', '↓'],  pulse: false },
+    bleed:     { color: 0x880000, alpha: 0.48, symbols: ['●', '✦', '●'],  pulse: true  },
+    reraise:   { color: 0xaa44ff, alpha: 0.32, symbols: ['✨', '◎', '✨'], pulse: true  },
+    reflect:   { color: 0x0088cc, alpha: 0.36, symbols: ['◇', '◈', '◇'],  pulse: false },
+    powerDown: { color: 0x442200, alpha: 0.42, symbols: ['↓', '⬇', '↓'],  pulse: false },
+    provoked:  { color: 0xcc2200, alpha: 0.42, symbols: ['!', '⚡', '!'],  pulse: true  },
   };
 
   /** Refresh the status effect label for a player or enemy entity. */
@@ -1617,6 +1644,142 @@ export class CombatUI {
       const t = this.enemyStatusTexts.get(entity.id);
       if (t && t.active) t.setText(label);
     }
+    // Sync sprite overlays whenever status labels are refreshed.
+    this.syncStatusOverlays(entity);
+  }
+
+  /** Create a visual overlay on an entity's sprite for the given status effect. */
+  private addStatusOverlay(entity: CombatEntity, effectId: string): void {
+    const config = CombatUI.STATUS_OVERLAY_CONFIG[effectId];
+    if (!config) return;
+    // Remove any stale overlay for this effect before creating a new one.
+    this.clearStatusOverlay(entity, effectId);
+
+    const isPlayer = entity instanceof PlayerCombatant;
+    const icon = isPlayer
+      ? this.playerIconRects.get(entity.id)
+      : this.enemyRects.get(entity.id);
+    if (!icon || !icon.active) return;
+
+    const cx = icon.x;
+    const cy = icon.y;
+    const w  = isPlayer ? PLAYER_ICON_W : ENEMY_W;
+    const h  = isPlayer ? PLAYER_ICON_H : ENEMY_H;
+
+    const objects: Phaser.GameObjects.GameObject[] = [];
+
+    // Semi-transparent colour wash over the sprite.
+    const overlay = this.scene.add.rectangle(cx, cy, w, h, config.color, config.alpha);
+    overlay.setDepth(6);
+    objects.push(overlay);
+
+    // Pulsing alpha animation for debuffs/dramatic effects.
+    if (config.pulse) {
+      this.scene.tweens.add({
+        targets: overlay,
+        alpha: { from: config.alpha, to: config.alpha * 0.4 },
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+
+    // Small symbol badges spread left-centre-right across the sprite.
+    const symFontSize = isPlayer ? '11px' : '13px';
+    const symPositions = [
+      { x: cx - w / 4, y: cy - h / 5 },
+      { x: cx,         y: cy + h / 5 },
+      { x: cx + w / 4, y: cy - h / 5 },
+    ];
+    config.symbols.forEach((sym, k) => {
+      if (k >= symPositions.length) return;
+      const pt = symPositions[k];
+      const symText = this.scene.add
+        .text(pt.x, pt.y, sym, {
+          fontSize: symFontSize,
+          color: '#ffffff',
+          fontFamily: 'monospace',
+          stroke: '#000000',
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(7);
+      objects.push(symText);
+    });
+
+    if (!this.entityStatusOverlays.has(entity.id)) {
+      this.entityStatusOverlays.set(entity.id, new Map());
+    }
+    this.entityStatusOverlays.get(entity.id)!.set(effectId, objects);
+  }
+
+  /** Destroy the sprite overlay for a specific status effect on an entity. */
+  private clearStatusOverlay(entity: CombatEntity, effectId: string): void {
+    const entityMap = this.entityStatusOverlays.get(entity.id);
+    if (!entityMap) return;
+    const objs = entityMap.get(effectId);
+    if (!objs) return;
+    objs.forEach((obj) => {
+      const go = obj as Phaser.GameObjects.GameObject & { active?: boolean; destroy?: () => void };
+      if (go.active && go.destroy) go.destroy();
+    });
+    entityMap.delete(effectId);
+  }
+
+  /** Ensure sprite overlays exactly match the entity's current set of status effects. */
+  private syncStatusOverlays(entity: CombatEntity): void {
+    const currentStatuses = entity.statusEffects;
+    const entityMap = this.entityStatusOverlays.get(entity.id) ?? new Map<string, Phaser.GameObjects.GameObject[]>();
+
+    // Destroy overlays for statuses that are no longer active.
+    for (const [effectId] of [...entityMap]) {
+      if (!currentStatuses.has(effectId)) {
+        this.clearStatusOverlay(entity, effectId);
+      }
+    }
+    // Create overlays for new statuses that don't have one yet.
+    for (const effectId of currentStatuses) {
+      if (!entityMap.has(effectId)) {
+        this.addStatusOverlay(entity, effectId);
+      }
+    }
+  }
+
+  /** Show or hide all status overlays for an entity (e.g. hide when defeated). */
+  private setStatusOverlaysVisible(entityId: string, visible: boolean): void {
+    const entityMap = this.entityStatusOverlays.get(entityId);
+    if (!entityMap) return;
+    entityMap.forEach((objs) => {
+      objs.forEach((obj) => {
+        const go = obj as Phaser.GameObjects.GameObject & { active?: boolean; setVisible?: (v: boolean) => void };
+        if (go.active && go.setVisible) go.setVisible(visible);
+      });
+    });
+  }
+
+  /** Floating "✦ IMMUNE! ✦" banner that rises above the target entity. */
+  private playImmuneAnimation(entity: CombatEntity): void {
+    const pos = this.entityScreenPos(entity);
+    const immuneText = this.scene.add
+      .text(pos.x, pos.y, '✦ IMMUNE! ✦', {
+        fontSize: '16px',
+        color: '#aaffff',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(52);
+
+    this.scene.tweens.add({
+      targets: immuneText,
+      y: pos.y - 70,
+      alpha: 0,
+      duration: 1400,
+      ease: 'Power1.easeOut',
+      onComplete: () => immuneText.destroy(),
+    });
   }
 
   /** Smooth move-toward-target animation for the attacking entity. */
@@ -2677,7 +2840,18 @@ export class CombatUI {
     this.bus.off('status:applied', this.onStatusApplied);
     this.bus.off('status:removed', this.onStatusRemoved);
     this.bus.off('status:dot', this.onStatusDot);
+    this.bus.off('status:immune', this.onStatusImmune);
     this.bus.off('combat:timelineShift', this.onCombatTimelineShift);
+    // Clean up all status-effect sprite overlays (tweens already stopped by killAll above).
+    this.entityStatusOverlays.forEach((entityMap) => {
+      entityMap.forEach((objs) => {
+        objs.forEach((obj) => {
+          const go = obj as Phaser.GameObjects.GameObject & { active?: boolean; destroy?: () => void };
+          if (go.active && go.destroy) go.destroy();
+        });
+      });
+    });
+    this.entityStatusOverlays.clear();
     this.menuContainer.destroy();
     this.timelineContainer.destroy();
     this.logStripBg.destroy();
