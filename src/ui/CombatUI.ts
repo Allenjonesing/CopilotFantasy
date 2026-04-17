@@ -70,6 +70,16 @@ const PLAYER_ICON_W = 62;
 const PLAYER_ICON_H = 62;
 const TURN_INDICATOR_PAD = 12; // px added around entity icon for the active-turn highlight ring
 
+// Status effect overlays
+/** Phaser depth for status-effect overlay graphics (rendered above sprites at depth 5). */
+const STATUS_OVERLAY_DEPTH = 8;
+/** Interval (ms) between overlay animation redraws. */
+const STATUS_OVERLAY_ANIMATION_DELAY = 250;
+/** Scroll speed in pixels per animation tick for flowing overlay effects (haste, slow, etc.). */
+const STATUS_OVERLAY_SCROLL_PX = 10;
+/** Duration (ms) of the floating "IMMUNE!" indicator animation. */
+const IMMUNE_ANIMATION_DURATION = 1200;
+
 // Attack movement animation
 const ATTACK_MOVE_MAX_PX = 70;
 const ATTACK_MOVE_RATIO = 0.45;
@@ -336,7 +346,7 @@ export class CombatUI {
       this.enemyStatusTexts.set(e.id, enemyStatusText);
       // Status effect overlay graphics (drawn on top of the sprite)
       const enemyOverlay = this.scene.add.graphics();
-      enemyOverlay.setDepth(8);
+      enemyOverlay.setDepth(STATUS_OVERLAY_DEPTH);
       this.statusOverlayGraphics.set(e.id, enemyOverlay);
       this.entityOverlayRects.set(e.id, { x, y, w: ENEMY_W, h: ENEMY_H });
     });
@@ -447,7 +457,7 @@ export class CombatUI {
       this.playerStatusTexts.set(p.id, statusText);
       // Status effect overlay graphics (drawn on top of the player sprite)
       const playerOverlay = this.scene.add.graphics();
-      playerOverlay.setDepth(8);
+      playerOverlay.setDepth(STATUS_OVERLAY_DEPTH);
       this.statusOverlayGraphics.set(p.id, playerOverlay);
       this.entityOverlayRects.set(p.id, { x, y, w: PLAYER_ICON_W, h: PLAYER_ICON_H });
     });
@@ -459,7 +469,7 @@ export class CombatUI {
     });
     // Start a repeating timer to animate status overlays (haste arrows, poison bubbles, etc.).
     this.overlayAnimTimer = this.scene.time.addEvent({
-      delay: 250,
+      delay: STATUS_OVERLAY_ANIMATION_DELAY,
       loop: true,
       callback: () => {
         this.overlayAnimTick++;
@@ -1740,7 +1750,7 @@ export class CombatUI {
         for (let i = 0; i < cols; i++) {
           const ax = left + (i + 0.5) * (w / cols);
           // Each column offset so they don't all move in sync
-          const rawVy = h - ((tick * 10 + i * Math.floor(h / cols)) % h);
+          const rawVy = h - ((tick * STATUS_OVERLAY_SCROLL_PX + i * Math.floor(h / cols)) % h);
           const vy = top + rawVy;
           const s = 5;
           g.beginPath();
@@ -1755,7 +1765,7 @@ export class CombatUI {
         const cols = 3;
         for (let i = 0; i < cols; i++) {
           const ax = left + (i + 0.5) * (w / cols);
-          const rawVy = (tick * 10 + i * Math.floor(h / cols)) % h;
+          const rawVy = (tick * STATUS_OVERLAY_SCROLL_PX + i * Math.floor(h / cols)) % h;
           const vy = top + rawVy;
           const s = 5;
           g.beginPath();
@@ -1855,7 +1865,7 @@ export class CombatUI {
       targets: immuneText,
       y: pos.y - 65,
       alpha: 0,
-      duration: 1200,
+      duration: IMMUNE_ANIMATION_DURATION,
       ease: 'Power1.easeOut',
       onComplete: () => immuneText.destroy(),
     });
