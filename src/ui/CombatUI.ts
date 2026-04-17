@@ -204,7 +204,16 @@ export class CombatUI {
   private onStatusApplied!: (entity: unknown, effectId: unknown) => void;
   private onStatusRemoved!: (entity: unknown, effectId: unknown) => void;
   private onStatusDot!: (entity: unknown, effectId: unknown, dmg: unknown) => void;
+  private onStatusImmune!: (entity: unknown, effectId: unknown) => void;
   private onCombatTimelineShift!: (actor: unknown, beforeOrder: unknown, afterOrder: unknown, speedModifier: unknown) => void;
+  /** Graphics overlays drawn on top of each entity sprite to visualise status effects. */
+  private statusOverlayGraphics: Map<string, Phaser.GameObjects.Graphics> = new Map();
+  /** Bounding box (world coords) for each entity's sprite, used to draw overlays. */
+  private entityOverlayRects: Map<string, { x: number; y: number; w: number; h: number }> = new Map();
+  /** Monotonically-increasing counter incremented by the overlay animation timer. */
+  private overlayAnimTick = 0;
+  /** Repeating timer that drives animated status-effect overlays (haste, slow, etc.). */
+  private overlayAnimTimer: Phaser.Time.TimerEvent | null = null;
 
   /** Called by CombatScene when a menu item is tapped — triggers confirmAction(). */
   onMenuTap?: () => void;
@@ -325,6 +334,11 @@ export class CombatUI {
         .setOrigin(0.5)
         .setDepth(6);
       this.enemyStatusTexts.set(e.id, enemyStatusText);
+      // Status effect overlay graphics (drawn on top of the sprite)
+      const enemyOverlay = this.scene.add.graphics();
+      enemyOverlay.setDepth(8);
+      this.statusOverlayGraphics.set(e.id, enemyOverlay);
+      this.entityOverlayRects.set(e.id, { x, y, w: ENEMY_W, h: ENEMY_H });
     });
 
     // ── Player icons (lower portion of battlefield, full-width spread) ───────
@@ -431,6 +445,42 @@ export class CombatUI {
         .setOrigin(0.5, 0)
         .setDepth(7);
       this.playerStatusTexts.set(p.id, statusText);
+      // Status effect overlay graphics (drawn on top of the player sprite)
+      const playerOverlay = this.scene.add.graphics();
+      playerOverlay.setDepth(8);
+      this.statusOverlayGraphics.set(p.id, playerOverlay);
+      this.entityOverlayRects.set(p.id, { x, y, w: PLAYER_ICON_W, h: PLAYER_ICON_H });
+    });
+
+    // ── Initial overlay draw + animation timer ────────────────────────────────
+    // Draw overlays for entities that start with statuses (e.g. zombieSlime).
+    [...this.system.enemies, ...this.system.players].forEach((entity) => {
+      this.updateStatusOverlay(entity);
+    });
+    // Start a repeating timer to animate status overlays (haste arrows, poison bubbles, etc.).
+    this.overlayAnimTimer = this.scene.time.addEvent({
+      delay: 250,
+      loop: true,
+      callback: () => {
+        this.overlayAnimTick++;
+        this.statusOverlayGraphics.forEach((g, entityId) => {
+          const entity = ([...this.system.players, ...this.system.enemies] as CombatEntity[]).find(
+            (en) => en.id === entityId,
+          );
+          if (!entity) return;
+          const rect = this.entityOverlayRects.get(entityId);
+          if (!rect) return;
+          this.drawStatusOverlayFor(
+            g,
+            Array.from(entity.statusEffects),
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            this.overlayAnimTick,
+          );
+        });
+      },
     });
 
     // ── Target cursor (hidden initially) ─────────────────────────────────────
@@ -1467,14 +1517,26 @@ export class CombatUI {
     };
     this.bus.on('combat:miss', this.onCombatMiss);
 
-    this.onStatusApplied = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
-    this.onStatusRemoved = (entity) => this.refreshStatusDisplay(entity as CombatEntity);
+    this.onStatusApplied = (entity) => {
+      const e = entity as CombatEntity;
+      this.refreshStatusDisplay(e);
+      this.updateStatusOverlay(e);
+    };
+    this.onStatusRemoved = (entity) => {
+      const e = entity as CombatEntity;
+      this.refreshStatusDisplay(e);
+      this.updateStatusOverlay(e);
+    };
     this.onStatusDot = (entity, _effectId, dmg) => {
       this.playPoisonDotAnimation(entity as CombatEntity, dmg as number);
+    };
+    this.onStatusImmune = (entity, _effectId) => {
+      this.playImmuneAnimation(entity as CombatEntity);
     };
     this.bus.on('status:applied', this.onStatusApplied);
     this.bus.on('status:removed', this.onStatusRemoved);
     this.bus.on('status:dot', this.onStatusDot);
+    this.bus.on('status:immune', this.onStatusImmune);
 
     this.onCombatTimelineShift = (actor, beforeOrder, afterOrder, speedModifier) => {
       this.animateTimelineShift(
@@ -1596,6 +1658,8 @@ export class CombatUI {
     haste: '⚡H',
     slow: '🐢S',
     reraise: '✨AL',
+    zombie: '🧟Z',
+    reflect: '🔮RF',
     poison: '☠P',
     bleed: '🩸BLD',
     reloading: '⟳RLD',
@@ -1617,6 +1681,184 @@ export class CombatUI {
       const t = this.enemyStatusTexts.get(entity.id);
       if (t && t.active) t.setText(label);
     }
+  }
+
+  /** Immediately redraw the status-effect overlay for the given entity. */
+  private updateStatusOverlay(entity: CombatEntity): void {
+    const g = this.statusOverlayGraphics.get(entity.id);
+    const rect = this.entityOverlayRects.get(entity.id);
+    if (!g || !rect) return;
+    this.drawStatusOverlayFor(
+      g,
+      Array.from(entity.statusEffects),
+      rect.x,
+      rect.y,
+      rect.w,
+      rect.h,
+      this.overlayAnimTick,
+    );
+  }
+
+  /**
+   * Draw all active status-effect overlays onto a Graphics object positioned at the world
+   * origin.  Called both from `updateStatusOverlay` (immediate redraw) and the animation
+   * timer (periodic animated redraw).
+   *
+   * Visual language:
+   *  haste    — red upward chevrons that scroll up (speed = energy)
+   *  slow     — blue downward chevrons that scroll down
+   *  poison   — green bubbles that float upward
+   *  zombie   — green X marks + green tint
+   *  bleed    — red drips falling down
+   *  reraise  — pulsing white border
+   *  reflect  — cyan ring around sprite
+   *  powerDown— orange downward arrow at base
+   *  provoked — red pulsing border
+   */
+  private drawStatusOverlayFor(
+    g: Phaser.GameObjects.Graphics,
+    statuses: string[],
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    tick: number,
+  ): void {
+    g.clear();
+    if (statuses.length === 0) return;
+
+    const left = cx - w / 2;
+    const top = cy - h / 2;
+
+    for (const status of statuses) {
+      if (status === 'reloading') continue; // handled elsewhere; skip overlay
+
+      if (status === 'haste') {
+        // Red upward chevrons that scroll toward the top over time.
+        g.lineStyle(2, 0xff4444, 0.85);
+        const cols = 3;
+        for (let i = 0; i < cols; i++) {
+          const ax = left + (i + 0.5) * (w / cols);
+          // Each column offset so they don't all move in sync
+          const rawVy = h - ((tick * 10 + i * Math.floor(h / cols)) % h);
+          const vy = top + rawVy;
+          const s = 5;
+          g.beginPath();
+          g.moveTo(ax - s, vy + s);
+          g.lineTo(ax, vy - s);
+          g.lineTo(ax + s, vy + s);
+          g.strokePath();
+        }
+      } else if (status === 'slow') {
+        // Blue downward chevrons that scroll toward the bottom over time.
+        g.lineStyle(2, 0x4488ff, 0.85);
+        const cols = 3;
+        for (let i = 0; i < cols; i++) {
+          const ax = left + (i + 0.5) * (w / cols);
+          const rawVy = (tick * 10 + i * Math.floor(h / cols)) % h;
+          const vy = top + rawVy;
+          const s = 5;
+          g.beginPath();
+          g.moveTo(ax - s, vy - s);
+          g.lineTo(ax, vy + s);
+          g.lineTo(ax + s, vy - s);
+          g.strokePath();
+        }
+      } else if (status === 'poison') {
+        // Green semi-transparent tint + bubbles floating upward.
+        g.fillStyle(0x44cc44, 0.12);
+        g.fillRect(left, top, w, h);
+        g.fillStyle(0x44cc44, 0.7);
+        const seeds = [0.2, 0.5, 0.8, 0.35, 0.65];
+        for (let i = 0; i < seeds.length; i++) {
+          const bx = left + seeds[i] * w;
+          const rawVy = h - ((tick * 8 + i * Math.floor(h / seeds.length)) % h);
+          const by = top + rawVy;
+          g.fillCircle(bx, by, 3);
+        }
+      } else if (status === 'zombie') {
+        // Green semi-transparent tint + X marks scattered across the sprite.
+        g.fillStyle(0x33cc44, 0.18);
+        g.fillRect(left, top, w, h);
+        g.lineStyle(2, 0x44ee44, 0.8);
+        const marks = 4;
+        for (let i = 0; i < marks; i++) {
+          const mx = left + (i + 0.5) * (w / marks);
+          const my = top + (i % 2 === 0 ? h * 0.3 : h * 0.7);
+          const s = 5;
+          g.beginPath();
+          g.moveTo(mx - s, my - s);
+          g.lineTo(mx + s, my + s);
+          g.strokePath();
+          g.beginPath();
+          g.moveTo(mx + s, my - s);
+          g.lineTo(mx - s, my + s);
+          g.strokePath();
+        }
+      } else if (status === 'bleed') {
+        // Red tint + drips falling downward.
+        g.fillStyle(0xaa2200, 0.12);
+        g.fillRect(left, top, w, h);
+        g.fillStyle(0xcc2200, 0.8);
+        const drips = [0.25, 0.5, 0.75];
+        for (let i = 0; i < drips.length; i++) {
+          const bx = left + drips[i] * w;
+          const rawVy = (tick * 8 + i * Math.floor(h / drips.length)) % h;
+          const by = top + rawVy;
+          g.fillRect(bx - 2, by, 4, 7);
+        }
+      } else if (status === 'reraise') {
+        // Pulsing white border.
+        const alpha = 0.4 + 0.4 * Math.sin(tick * 0.8);
+        g.lineStyle(2, 0xffffff, alpha);
+        g.strokeRect(left + 2, top + 2, w - 4, h - 4);
+      } else if (status === 'reflect') {
+        // Cyan ring around the sprite.
+        g.lineStyle(3, 0x44ddff, 0.75);
+        g.strokeCircle(cx, cy, Math.max(w, h) / 2 + 5);
+      } else if (status === 'powerDown') {
+        // Orange downward arrow at the bottom of the sprite.
+        g.lineStyle(3, 0xff8800, 0.85);
+        const ax = cx;
+        const ay = top + h * 0.75;
+        const s = 7;
+        g.beginPath();
+        g.moveTo(ax, ay + s);
+        g.lineTo(ax - s, ay - s);
+        g.moveTo(ax, ay + s);
+        g.lineTo(ax + s, ay - s);
+        g.strokePath();
+      } else if (status === 'provoked') {
+        // Pulsing red border.
+        const alpha = 0.3 + 0.5 * Math.abs(Math.sin(tick * 0.9));
+        g.lineStyle(3, 0xff4400, alpha);
+        g.strokeRect(left, top, w, h);
+      }
+    }
+  }
+
+  /** Show a floating "IMMUNE!" indicator above the entity when a status is blocked. */
+  private playImmuneAnimation(entity: CombatEntity): void {
+    const pos = this.entityScreenPos(entity);
+    const immuneText = this.scene.add
+      .text(pos.x, pos.y, 'IMMUNE!', {
+        fontSize: '18px',
+        color: '#ffcc44',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(55);
+
+    this.scene.tweens.add({
+      targets: immuneText,
+      y: pos.y - 65,
+      alpha: 0,
+      duration: 1200,
+      ease: 'Power1.easeOut',
+      onComplete: () => immuneText.destroy(),
+    });
   }
 
   /** Smooth move-toward-target animation for the attacking entity. */
@@ -2710,6 +2952,14 @@ export class CombatUI {
     });
     this.playerStatusTexts.forEach((t) => t.destroy());
     this.enemyStatusTexts.forEach((t) => t.destroy());
+    // Stop the overlay animation timer and destroy overlay graphics.
+    if (this.overlayAnimTimer) {
+      this.overlayAnimTimer.remove(false);
+      this.overlayAnimTimer = null;
+    }
+    this.statusOverlayGraphics.forEach((g) => g.destroy());
+    this.statusOverlayGraphics.clear();
+    this.bus.off('status:immune', this.onStatusImmune);
   }
 }
 
