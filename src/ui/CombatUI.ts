@@ -1619,15 +1619,15 @@ export class CombatUI {
   private static readonly STATUS_OVERLAY_CONFIG: Record<string, {
     color: number; alpha: number; symbols: string[]; pulse: boolean;
   }> = {
-    zombie:    { color: 0x004422, alpha: 0.55, symbols: ['💀', '✖', '💀'], pulse: true  },
-    poison:    { color: 0x228800, alpha: 0.42, symbols: ['☠', '◉', '☠'],  pulse: true  },
+    zombie:    { color: 0x004422, alpha: 0.55, symbols: ['💀', '✖', '💀'], pulse: true },
+    poison:    { color: 0x228800, alpha: 0.42, symbols: ['☠', '◉', '☠'],  pulse: true },
     haste:     { color: 0xff7700, alpha: 0.38, symbols: ['↑', '↑', '↑'],  pulse: false },
     slow:      { color: 0x001199, alpha: 0.48, symbols: ['↓', '↓', '↓'],  pulse: false },
-    bleed:     { color: 0x880000, alpha: 0.48, symbols: ['●', '✦', '●'],  pulse: true  },
-    reraise:   { color: 0xaa44ff, alpha: 0.32, symbols: ['✨', '◎', '✨'], pulse: true  },
+    bleed:     { color: 0x880000, alpha: 0.48, symbols: ['●', '✦', '●'],  pulse: true },
+    reraise:   { color: 0xaa44ff, alpha: 0.32, symbols: ['✨', '◎', '✨'], pulse: true },
     reflect:   { color: 0x0088cc, alpha: 0.36, symbols: ['◇', '◈', '◇'],  pulse: false },
     powerDown: { color: 0x442200, alpha: 0.42, symbols: ['↓', '⬇', '↓'],  pulse: false },
-    provoked:  { color: 0xcc2200, alpha: 0.42, symbols: ['!', '⚡', '!'],  pulse: true  },
+    provoked:  { color: 0xcc2200, alpha: 0.42, symbols: ['!', '⚡', '!'],  pulse: true },
   };
 
   /** Refresh the status effect label for a player or enemy entity. */
@@ -1692,9 +1692,9 @@ export class CombatUI {
       { x: cx,         y: cy + h / 5 },
       { x: cx + w / 4, y: cy - h / 5 },
     ];
-    config.symbols.forEach((sym, k) => {
-      if (k >= symPositions.length) return;
-      const pt = symPositions[k];
+    config.symbols.forEach((sym, symbolIndex) => {
+      if (symbolIndex >= symPositions.length) return;
+      const pt = symPositions[symbolIndex];
       const symText = this.scene.add
         .text(pt.x, pt.y, sym, {
           fontSize: symFontSize,
@@ -1733,7 +1733,7 @@ export class CombatUI {
     const entityMap = this.entityStatusOverlays.get(entity.id) ?? new Map<string, Phaser.GameObjects.GameObject[]>();
 
     // Destroy overlays for statuses that are no longer active.
-    for (const [effectId] of [...entityMap]) {
+    for (const [effectId] of entityMap) {
       if (!currentStatuses.has(effectId)) {
         this.clearStatusOverlay(entity, effectId);
       }
