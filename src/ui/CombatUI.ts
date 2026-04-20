@@ -1804,6 +1804,7 @@ export class CombatUI {
       // Subtle orange glow + floating embers rising
       g.fillStyle(0xff5500, 0.07);
       g.fillRect(left, top, w, h);
+      // X-positions (0–1 fraction of w) spread embers across the sprite width
       const seeds = [0.15, 0.4, 0.65, 0.85, 0.3];
       for (let i = 0; i < seeds.length; i++) {
         const bx = left + seeds[i] * w;
@@ -1818,6 +1819,7 @@ export class CombatUI {
       g.fillStyle(0x88ddff, 0.10);
       g.fillRect(left, top, w, h);
       g.lineStyle(1, 0xaaeeff, 0.85);
+      // X-positions (0–1 fraction of w) spread crystals across the sprite width
       const crystals = [0.2, 0.5, 0.8, 0.35, 0.65];
       for (let i = 0; i < crystals.length; i++) {
         const bx = left + crystals[i] * w;
@@ -1836,6 +1838,7 @@ export class CombatUI {
       // Occasional yellow electric sparks — only flash on certain ticks
       if (tick % 2 === 0) {
         g.lineStyle(1, 0xffff44, 0.9);
+        // X-positions (0–1 fraction of w) for staggered spark columns
         const sparks = [0.2, 0.55, 0.8];
         for (let i = 0; i < sparks.length; i++) {
           if ((tick + i) % 3 !== 0) continue; // stagger sparks
@@ -1855,6 +1858,7 @@ export class CombatUI {
       g.fillStyle(0x4488ff, 0.09);
       g.fillRect(left, top, w, h);
       g.fillStyle(0x6699ff, 0.75);
+      // X-positions (0–1 fraction of w) for three evenly spaced drop columns
       const drops = [0.2, 0.5, 0.8];
       for (let i = 0; i < drops.length; i++) {
         const bx = left + drops[i] * w;
