@@ -90,7 +90,11 @@ function bossTypeForDifficulty(difficulty: number): string {
 const BOSS_SCALE = 2.5;
 
 /** All possible shop item IDs — base pool used for all parties. */
-const ALL_SHOP_ITEMS = ['potion', 'hiPotion', 'ether', 'phoenix', 'antidote', 'smokeBomb', 'freezeBomb', 'mirrorShard', 'zombieDust', 'dispelHerb'];
+const ALL_SHOP_ITEMS = [
+  'potion', 'hiPotion', 'ether', 'hiEther', 'phoenix', 'antidote',
+  'smokeBomb', 'freezeBomb', 'bleedBomb', 'powerDownDust',
+  'mirrorShard', 'zombieDust', 'dispelHerb', 'staminaPotion', 'elixir',
+];
 
 /** Jobs that primarily use arrows (rangers and healers who have arrowShot). */
 const ARROW_JOBS = ['ranger', 'healer'] as const;
@@ -423,20 +427,23 @@ export class ExplorationSystem {
         if (!placed) continue;
         occupied.add(`${tx},${ty}`);
 
-        // 70% coin (gold), 30% chest (item or bigger gold)
-        const isChest = Math.random() < 0.30;
+        // 60% coin (gold), 40% chest (item or bigger gold)
+        const isChest = Math.random() < 0.40;
         const kind: 'coin' | 'chest' = isChest ? 'chest' : 'coin';
         const gold = isChest
           ? (5 + Math.floor(Math.random() * 20)) * difficulty
           : (2 + Math.floor(Math.random() * 8)) * difficulty;
-        // Chests sometimes contain an item. Gun-class parties find ammo readily.
+        // Chests almost always contain an item. Gun-class parties find ammo readily.
         const partyHasGunClass = state.data.party.some((c) => (GUN_JOBS as readonly string[]).includes(c.job));
-        const itemPool = ['potion', 'ether', 'antidote'];
+        const itemPool = ['potion', 'potion', 'ether', 'antidote', 'smokeBomb', 'freezeBomb', 'staminaPotion'];
+        if (difficulty >= 3) itemPool.push('hiPotion', 'dispelHerb', 'bleedBomb', 'powerDownDust');
+        if (difficulty >= 5) itemPool.push('hiPotion', 'hiEther', 'mirrorShard', 'zombieDust');
+        if (difficulty >= 8) itemPool.push('elixir', 'phoenix');
         if (partyHasGunClass) {
           // ~50% of chests for gun-class parties contain ammo (high find rate).
           itemPool.push('gunAmmo', 'gunAmmo', 'gunAmmo');
         }
-        const itemId = isChest && Math.random() < 0.5 ? itemPool[Math.floor(Math.random() * itemPool.length)] : undefined;
+        const itemId = isChest && Math.random() < 0.75 ? itemPool[Math.floor(Math.random() * itemPool.length)] : undefined;
 
         generated.push({ id: `pickup_${i}`, kind, gold, itemId, x: tx, y: ty });
       }

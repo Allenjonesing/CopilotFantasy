@@ -369,7 +369,7 @@ export class CombatSystem {
     // animation (expanding rings at caster) plays instead of a misleading
     // single-target projectile.  For single-target skills, point at the target.
     const animTarget = targets.length === 1 ? targets[0] : null;
-    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply' || skill.type === 'hybrid') {
+    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply' || skill.type === 'hybrid' || skill.type === 'instant_death') {
       this.bus.emit('combat:spellStart', actor, animTarget, animElement, skill.name);
     }
     // Ranged physical skills (ammo-based) get a projectile animation rather than
@@ -548,6 +548,13 @@ export class CombatSystem {
       }
       this.addLog(`${actor.name} uses ${skill.name} on ${target.name}, restoring ${healed} HP.`);
     } else if (skill.type === 'revive') {
+      if (target.hasStatus('zombie') && !target.isDefeated) {
+        // Reviving a zombified living character causes instant death.
+        target.stats.hp = 0;
+        this.addLog(`${skill.name} reacts with ${target.name}'s Zombie curse — they are slain instantly!`);
+        this.checkDefeated(target);
+        return;
+      }
       if (!target.isDefeated) {
         this.addLog(`${target.name} doesn't need reviving!`);
         // Refund MP
@@ -558,6 +565,18 @@ export class CombatSystem {
       target.stats.hp = hpRestore;
       this.addLog(`${actor.name} uses ${skill.name} — ${target.name} is revived with ${hpRestore} HP!`);
       this.bus.emit('combat:heal', target, hpRestore);
+    } else if (skill.type === 'instant_death') {
+      // Check death immunity first.
+      if (target.statusImmunities.has('death')) {
+        this.bus.emit('status:immune', target, 'death');
+        this.addLog(`${target.name} is immune to instant death!`);
+        return;
+      }
+      // Instant kill — sets HP to zero and triggers defeat logic.
+      target.stats.hp = 0;
+      this.addLog(`${actor.name} uses ${skill.name} — ${target.name} is instantly slain!`);
+      this.bus.emit('combat:damage', target, target.stats.maxHp);
+      this.checkDefeated(target);
     } else if (skill.type === 'status_apply' && skill.statusEffect) {
       this.statusSystem.apply(target, skill.statusEffect);
       this.addLog(`${actor.name} applies ${skill.name} to ${target.name}.`);
@@ -608,17 +627,22 @@ export class CombatSystem {
     const t = target ?? actor;
     const effect = item.effect as Record<string, unknown>;
     if (effect['revive'] === true) {
-      if (!t.isDefeated) {
+      if (!t.isDefeated && t.hasStatus('zombie')) {
+        // Reviving a zombified living character causes instant death.
+        t.stats.hp = 0;
+        this.addLog(`${item.name} reacts catastrophically with ${t.name}'s Zombie curse — they are slain instantly!`);
+        this.checkDefeated(t);
+      } else if (!t.isDefeated) {
         this.addLog(`${t.name} doesn't need reviving! (${item.name} wasted)`);
         // Item is already consumed — do NOT refund it. The turn is also consumed.
-        return;
+      } else {
+        const hpRestore = typeof effect['hpPercent'] === 'number'
+          ? Math.max(1, Math.floor(t.stats.maxHp * (effect['hpPercent'] as number)))
+          : typeof effect['hp'] === 'number' ? (effect['hp'] as number) : 1;
+        t.stats.hp = hpRestore; // directly set so defeated check clears
+        this.addLog(`${actor.name} uses ${item.name} — ${t.name} is revived with ${hpRestore} HP!`);
+        this.bus.emit('combat:heal', t, hpRestore);
       }
-      const hpRestore = typeof effect['hpPercent'] === 'number'
-        ? Math.max(1, Math.floor(t.stats.maxHp * (effect['hpPercent'] as number)))
-        : typeof effect['hp'] === 'number' ? (effect['hp'] as number) : 1;
-      t.stats.hp = hpRestore; // directly set so defeated check clears
-      this.addLog(`${actor.name} uses ${item.name} — ${t.name} is revived with ${hpRestore} HP!`);
-      this.bus.emit('combat:heal', t, hpRestore);
     } else if (typeof effect['applyStatus'] === 'string') {
       const statusId = effect['applyStatus'] as string;
       this.statusSystem.apply(t, statusId);
@@ -704,6 +728,8 @@ export class CombatSystem {
         // Emit heal so the UI re-renders the entity as alive.
         this.bus.emit('combat:heal', entity, hpRestore);
       } else {
+        // Clear all status effects when the entity dies.
+        [...entity.statusEffects].forEach((eff) => this.statusSystem.remove(entity, eff));
         this.addLog(`${entity.name} is defeated!`);
         this.bus.emit('combat:defeated', entity);
       }

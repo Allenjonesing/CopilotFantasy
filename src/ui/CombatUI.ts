@@ -1307,7 +1307,8 @@ export class CombatUI {
       effectiveTarget = skillDef?.target ?? 'single_enemy';
       preferAlly = effectiveTarget === 'single_ally' || effectiveTarget === 'all_allies'
         || effectiveTarget === 'single_dead_ally';
-      revivalSkill = effectiveTarget === 'single_dead_ally';
+      // Revival skills (type: 'revive') allow targeting living zombie characters too.
+      revivalSkill = (skillDef as { type?: string } | undefined)?.type === 'revive';
     }
 
     // Positive actions (heals, buffs, items on allies) use a green cursor;
@@ -1337,11 +1338,13 @@ export class CombatUI {
     }
 
     if (revivalItem || revivalSkill) {
-      // Revival actions only show KO'd allies as valid targets.
-      this.targetList = this.system.players.filter((p) => p.isDefeated);
+      // Revival actions show KO'd allies first (default target), then living allies.
+      // This allows using revival items on living Zombie-cursed characters (which kills them).
+      const deadAllies = this.system.players.filter((p) => p.isDefeated);
+      const livingAllies = this.system.players.filter((p) => !p.isDefeated);
+      this.targetList = [...deadAllies, ...livingAllies];
       if (this.targetList.length === 0) {
-        // No one to revive — fall back to living allies to avoid empty menu.
-        this.targetList = this.system.players.filter((p) => !p.isDefeated);
+        this.targetList = this.system.players;
       }
     } else {
       const allies = this.system.players.filter((p) => !p.isDefeated);

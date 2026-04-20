@@ -37,10 +37,10 @@
         "agility": 11,
         "luck": 5
       },
-      "skills": ["attack", "smash", "fire", "thunder"],
-      "signatureSkills": ["fire", "thunder"],
+      "skills": ["attack", "smash", "venomStrike", "fire", "thunder"],
+      "signatureSkills": ["fire", "thunder", "venomStrike"],
       "rewards": { "exp": 70, "gold": 28, "items": ["potion"] },
-      "possibleDrops": [{ "id": "ether", "chance": 0.45 }]
+      "possibleDrops": [{ "id": "ether", "chance": 0.50 }, { "id": "antidote", "chance": 0.35 }]
     },
     {
       "id": "ironGolem",
@@ -58,10 +58,10 @@
         "agility": 10,
         "luck": 4
       },
-      "skills": ["attack", "smash", "fire", "enemyCure"],
-      "signatureSkills": ["fire"],
+      "skills": ["attack", "smash", "bleedStrike", "fire", "slowBell", "enemyCure"],
+      "signatureSkills": ["fire", "bleedStrike", "slowBell"],
       "rewards": { "exp": 220, "gold": 95, "items": ["ether"] },
-      "possibleDrops": [{ "id": "hiPotion", "chance": 0.55 }]
+      "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }, { "id": "staminaPotion", "chance": 0.35 }]
     },
     {
       "id": "shadowWisp",
@@ -79,10 +79,10 @@
         "agility": 18,
         "luck": 9
       },
-      "skills": ["attack", "fire", "blizzard", "thunder", "water", "fira", "drain", "enemyCure"],
-      "signatureSkills": ["fire", "blizzard", "thunder", "water", "fira"],
+      "skills": ["attack", "fire", "blizzard", "thunder", "water", "fira", "drain", "venomStrike", "slowBell", "enemyCure"],
+      "signatureSkills": ["fire", "blizzard", "thunder", "water", "fira", "venomStrike"],
       "rewards": { "exp": 105, "gold": 48, "items": [] },
-      "possibleDrops": [{ "id": "ether", "chance": 0.55 }, { "id": "potion", "chance": 0.40 }]
+      "possibleDrops": [{ "id": "ether", "chance": 0.60 }, { "id": "potion", "chance": 0.45 }, { "id": "antidote", "chance": 0.30 }]
     },
     {
       "id": "caveBat",
@@ -121,9 +121,10 @@
         "agility": 6,
         "luck": 4
       },
-      "skills": ["attack", "smash", "enemyCure", "slowBell"],
+      "skills": ["attack", "smash", "bleedStrike", "enemyCure", "slowBell"],
+      "signatureSkills": ["bleedStrike", "slowBell"],
       "rewards": { "exp": 90, "gold": 40, "items": [] },
-      "possibleDrops": [{ "id": "hiPotion", "chance": 0.35 }]
+      "possibleDrops": [{ "id": "hiPotion", "chance": 0.40 }, { "id": "staminaPotion", "chance": 0.30 }]
     },
     {
       "id": "darkWraith",
@@ -141,10 +142,10 @@
         "agility": 16,
         "luck": 8
       },
-      "skills": ["attack", "drain", "blizzara", "thundara", "venomStrike", "enemyCure"],
-      "signatureSkills": ["blizzara", "thundara", "venomStrike"],
+      "skills": ["attack", "drain", "blizzara", "thundara", "venomStrike", "deathKnell", "enemyCure"],
+      "signatureSkills": ["blizzara", "thundara", "venomStrike", "deathKnell"],
       "rewards": { "exp": 175, "gold": 75, "items": [] },
-      "possibleDrops": [{ "id": "ether", "chance": 0.55 }, { "id": "antidote", "chance": 0.30 }]
+      "possibleDrops": [{ "id": "ether", "chance": 0.60 }, { "id": "antidote", "chance": 0.40 }, { "id": "dispelHerb", "chance": 0.20 }]
     },
     {
       "id": "voidDrake",
@@ -162,10 +163,10 @@
         "agility": 13,
         "luck": 10
       },
-      "skills": ["attack", "smash", "firaga", "blizzaga", "thundaga", "drain", "enemyCure", "enemyReflect"],
-      "signatureSkills": ["firaga", "blizzaga", "thundaga"],
+      "skills": ["attack", "smash", "firaga", "blizzaga", "thundaga", "drain", "deathKnell", "bleedStrike", "enemyCure", "enemyReflect"],
+      "signatureSkills": ["firaga", "blizzaga", "thundaga", "deathKnell"],
       "rewards": { "exp": 320, "gold": 130, "items": ["ether"] },
-      "possibleDrops": [{ "id": "hiPotion", "chance": 0.60 }, { "id": "ether", "chance": 0.40 }]
+      "possibleDrops": [{ "id": "hiPotion", "chance": 0.65 }, { "id": "ether", "chance": 0.50 }, { "id": "hiEther", "chance": 0.25 }]
     },
     {
       "id": "zombieSlime",
@@ -226,10 +227,10 @@
         "agility": 5,
         "luck": 4
       },
-      "skills": ["attack", "smash", "blizzard", "enemyReflect"],
-      "signatureSkills": ["blizzard"],
+      "skills": ["attack", "smash", "blizzard", "bleedStrike", "slowBell", "enemyReflect"],
+      "signatureSkills": ["blizzard", "bleedStrike", "slowBell"],
       "rewards": { "exp": 140, "gold": 60, "items": [] },
-      "possibleDrops": [{ "id": "mirrorShard", "chance": 0.40 }]
+      "possibleDrops": [{ "id": "mirrorShard", "chance": 0.45 }, { "id": "hiPotion", "chance": 0.30 }]
     },
     {
       "id": "healingWisp",

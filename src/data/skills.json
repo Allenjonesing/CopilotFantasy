@@ -20,8 +20,6 @@
       "stmCost": 20,
       "power": 1.5,
       "speedModifier": 0.25,
-      "evolvesTo": "hasteBell",
-      "evolvesAtUse": 15,
       "description": "A swift, precise strike that hits hard and advances your next turn dramatically. Costs MP."
     },
     {
@@ -33,8 +31,6 @@
       "stmCost": 25,
       "power": 1.8,
       "speedModifier": 1.3,
-      "evolvesTo": "groundSlam",
-      "evolvesAtUse": 8,
       "description": "A powerful slam dealing heavy physical damage. Slower next turn."
     },
     {
@@ -606,6 +602,28 @@
       "power": 0,
       "speedModifier": 0.8,
       "description": "Attempt to steal an item from the target enemy. Higher chance of rare loot than normal drops. Costs Stamina."
+    },
+    {
+      "id": "deathKnell",
+      "name": "Death Knell",
+      "type": "instant_death",
+      "target": "single_enemy",
+      "mpCost": 30,
+      "power": 0,
+      "speedModifier": 1.2,
+      "description": "Calls upon dark forces to instantly slay a target. Bosses are immune to instant death."
+    },
+    {
+      "id": "bleedStrike",
+      "name": "Bleed Strike",
+      "type": "physical",
+      "target": "single_enemy",
+      "mpCost": 0,
+      "stmCost": 20,
+      "power": 1.2,
+      "applyStatus": "bleed",
+      "speedModifier": 1.1,
+      "description": "A vicious slash that causes the target to bleed (10% max HP per turn). Slightly slower next turn."
     }
   ]
 }

@@ -34,9 +34,9 @@
       "id": "phoenix",
       "name": "Revival Herb",
       "type": "consumable",
-      "target": "single_dead_ally",
+      "target": "single_ally",
       "effect": { "revive": true, "hpPercent": 0.5 },
-      "description": "Revives a KO'd ally with 50% HP.",
+      "description": "Revives a KO'd ally with 50% HP. If used on a Zombie-cursed living ally, it causes instant death instead.",
       "buyPrice": 200,
       "sellPrice": 100
     },
@@ -129,6 +129,46 @@
       "description": "Fully restores one ally's Stamina.",
       "buyPrice": 60,
       "sellPrice": 30
+    },
+    {
+      "id": "bleedBomb",
+      "name": "Serrated Shrapnel",
+      "type": "consumable",
+      "target": "single_enemy",
+      "effect": { "applyStatus": "bleed" },
+      "description": "Hurls jagged shrapnel that causes Bleed (10% max HP per turn) on one enemy.",
+      "buyPrice": 100,
+      "sellPrice": 50
+    },
+    {
+      "id": "powerDownDust",
+      "name": "Weakness Powder",
+      "type": "consumable",
+      "target": "single_enemy",
+      "effect": { "applyStatus": "powerDown" },
+      "description": "Throws a debilitating powder that halves one enemy's Strength (Power Down).",
+      "buyPrice": 120,
+      "sellPrice": 60
+    },
+    {
+      "id": "hiEther",
+      "name": "Potent Mana Brew",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "mp": 120 },
+      "description": "Restores 120 MP to one ally.",
+      "buyPrice": 250,
+      "sellPrice": 125
+    },
+    {
+      "id": "elixir",
+      "name": "Elixir",
+      "type": "consumable",
+      "target": "single_ally",
+      "effect": { "hp": 500, "mp": 100 },
+      "description": "Restores 500 HP and 100 MP to one ally.",
+      "buyPrice": 400,
+      "sellPrice": 200
     }
   ]
 }
