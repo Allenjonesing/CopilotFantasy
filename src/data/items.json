@@ -36,7 +36,7 @@
       "type": "consumable",
       "target": "single_ally",
       "effect": { "revive": true, "hpPercent": 0.5 },
-      "description": "Revives a KO'd ally with 50% HP. If used on a Zombie-cursed living ally, it causes instant death instead.",
+      "description": "Revives a KO'd ally with 50% HP. If used on a living ally with Zombie status, it causes instant death instead.",
       "buyPrice": 200,
       "sellPrice": 100
     },

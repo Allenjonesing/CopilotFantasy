@@ -369,7 +369,8 @@ export class CombatSystem {
     // animation (expanding rings at caster) plays instead of a misleading
     // single-target projectile.  For single-target skills, point at the target.
     const animTarget = targets.length === 1 ? targets[0] : null;
-    if (skill.type === 'magic' || skill.type === 'heal' || skill.type === 'revive' || skill.type === 'status_apply' || skill.type === 'hybrid' || skill.type === 'instant_death') {
+    const SPELL_ANIM_TYPES = new Set(['magic', 'heal', 'revive', 'status_apply', 'hybrid', 'instant_death']);
+    if (SPELL_ANIM_TYPES.has(skill.type)) {
       this.bus.emit('combat:spellStart', actor, animTarget, animElement, skill.name);
     }
     // Ranged physical skills (ammo-based) get a projectile animation rather than
@@ -627,14 +628,16 @@ export class CombatSystem {
     const t = target ?? actor;
     const effect = item.effect as Record<string, unknown>;
     if (effect['revive'] === true) {
-      if (!t.isDefeated && t.hasStatus('zombie')) {
-        // Reviving a zombified living character causes instant death.
-        t.stats.hp = 0;
-        this.addLog(`${item.name} reacts catastrophically with ${t.name}'s Zombie curse — they are slain instantly!`);
-        this.checkDefeated(t);
-      } else if (!t.isDefeated) {
-        this.addLog(`${t.name} doesn't need reviving! (${item.name} wasted)`);
-        // Item is already consumed — do NOT refund it. The turn is also consumed.
+      if (!t.isDefeated) {
+        if (t.hasStatus('zombie')) {
+          // Reviving a zombified living character causes instant death.
+          t.stats.hp = 0;
+          this.addLog(`${item.name} reacts catastrophically with ${t.name}'s Zombie curse — they are slain instantly!`);
+          this.checkDefeated(t);
+        } else {
+          this.addLog(`${t.name} doesn't need reviving! (${item.name} wasted)`);
+          // Item is already consumed — do NOT refund it. The turn is also consumed.
+        }
       } else {
         const hpRestore = typeof effect['hpPercent'] === 'number'
           ? Math.max(1, Math.floor(t.stats.maxHp * (effect['hpPercent'] as number)))
