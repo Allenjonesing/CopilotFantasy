@@ -32,7 +32,7 @@ interface EnemyDef {
 }
 
 /** Status effects that bosses are immune to (most debuffs). */
-const BOSS_STATUS_IMMUNITIES = ['poison', 'slow', 'powerDown', 'provoked', 'zombie', 'bleed', 'reloading'];
+const BOSS_STATUS_IMMUNITIES = ['poison', 'slow', 'powerDown', 'provoked', 'zombie', 'bleed', 'reloading', 'death'];
 
 export class EnemyCombatant extends CombatEntity {
   readonly enemyId: string;

@@ -128,7 +128,7 @@
       },
       "skills": ["steal"],
       "levelUpStats": { "hp": 5, "mp": 3, "stm": 4, "strength": 1, "magic": 0, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 1 },
-      "levelSkills": { "2": "quickHit", "4": "drain", "5": "venomStrike", "6": "hasteBell", "8": "smash", "9": "groundSlam" },
+      "levelSkills": { "3": "drain", "4": "quickHit", "5": "venomStrike", "7": "smash", "8": "hasteBell", "9": "groundSlam" },
       "teamMoves": [],
       "levelTeamMoves": { "2": "teamSwift", "4": "teamStrike", "6": "teamBolt", "8": "teamBlaze" }
     },
