@@ -133,6 +133,7 @@ export class CombatSystem {
         } else {
           this.addLog(`${actor.name} takes a defensive stance.`);
         }
+        this.bus.emit('combat:defend', actor);
         break;
       }
       case 'rest': {
@@ -143,6 +144,7 @@ export class CombatSystem {
           this.addLog(`${actor.name} rests and recovers ${stmRestore} Stamina.`);
           this.bus.emit('combat:stmChange', actor);
         }
+        this.bus.emit('combat:rest', actor);
         break;
       }
       case 'reload': {
@@ -157,6 +159,7 @@ export class CombatSystem {
         }
         this.addLog(`${actor.name} reloads the flintlock and is ready to fire again.`);
         this.bus.emit('status:removed', actor, 'reloading');
+        this.bus.emit('combat:reload', actor);
         break;
       }
       case 'team-move': {

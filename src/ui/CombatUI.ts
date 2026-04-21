@@ -26,9 +26,11 @@ const MENU_ITEM_H = 26;
 /** Speed modifier for the Defend action — mirrors CombatSystem.DEFEND_SPEED_MODIFIER. */
 const DEFEND_SPEED_MODIFIER = 0.5;
 
-const HELP_TEXT_DEFAULT = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Tap to target';
-const HELP_TEXT_SKILL    = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Hover skill for details';
-const HELP_TEXT_ITEM     = '▲▼◄► Navigate   OK Confirm   BACK Cancel   Hover item for details';
+const HELP_TEXT_DEFAULT = '▲▼ Navigate  OK Select  BACK Cancel';
+const HELP_TEXT_SKILL    = '▲▼ Navigate  OK Cast  BACK Cancel  |  Hover: spell info';
+const HELP_TEXT_ITEM     = '▲▼ Navigate  OK Use  BACK Cancel  |  Hover: item info';
+/** Maximum tooltip character length displayed in the help strip — long strings are truncated. */
+const HELP_TOOLTIP_MAX_LEN = 90;
 
 /** Element emoji indicators shown next to enemy names. */
 const ELEMENT_ICONS: Record<string, string> = {
@@ -61,6 +63,14 @@ const ELEMENT_COLORS: Record<string, number> = {
   slow: 0x8844cc,
   reraise: 0xaaaaff,
   hybrid: 0xff88ff,
+};
+
+/** Ambient element overlay colors for enemy elemental affinity effects. */
+const ELEMENT_AMBIENT_COLORS: Record<string, number> = {
+  fire: 0xff5500,
+  ice: 0x88eeff,
+  lightning: 0xffee44,
+  water: 0x4499ff,
 };
 
 // Entity icon sizes (fixed pixel sizes)
@@ -200,6 +210,10 @@ export class CombatUI {
   private onCombatSpellStart!: (actor: unknown, target: unknown, element: unknown, name: unknown) => void;
   private onCombatRangedStart!: (actor: unknown, target: unknown, ammoType: unknown, name: unknown) => void;
   private onCombatMiss!: (actor: unknown, target: unknown) => void;
+  private onCombatDefend!: (actor: unknown) => void;
+  private onCombatRest!: (actor: unknown) => void;
+  private onCombatReload!: (actor: unknown) => void;
+  private onCombatSteal!: (actor: unknown, target: unknown, items: unknown) => void;
   // State
   private currentActor: CombatEntity | null = null;
   private bus: EventBus;
@@ -480,6 +494,7 @@ export class CombatUI {
           if (!entity) return;
           const rect = this.entityOverlayRects.get(entityId);
           if (!rect) return;
+          const element = entity instanceof EnemyCombatant ? entity.element : null;
           this.drawStatusOverlayFor(
             g,
             Array.from(entity.statusEffects),
@@ -488,6 +503,7 @@ export class CombatUI {
             rect.w,
             rect.h,
             this.overlayAnimTick,
+            element,
           );
         });
       },
@@ -559,9 +575,15 @@ export class CombatUI {
     // ── Help text — just above the nav button strip at the bottom ────────────
     // Must be initialized BEFORE buildMainMenu() is called, because that method
     // accesses this.helpText immediately.
+    // A dark background rectangle prevents the help text from visually bleeding
+    // into the menu item area when wrapping.
+    const helpBgH = 28;
+    this.scene.add
+      .rectangle(this.W / 2, this.H - NAV_BTN_H - helpBgH / 2 - 2, this.W, helpBgH, 0x0a0a1a, 0.92)
+      .setDepth(24);
     this.helpText = this.scene.add
       .text(this.W / 2, this.H - NAV_BTN_H - 4, HELP_TEXT_DEFAULT, {
-        fontSize: '14px',
+        fontSize: '11px',
         color: '#ffe066',
         fontFamily: 'monospace',
         wordWrap: { width: this.W - 16 },
@@ -702,7 +724,10 @@ export class CombatUI {
     // Store full lists for scroll window rendering
     this.fullMenuItems = [...items];
     this.menuDisabled = disabled.length === items.length ? [...disabled] : items.map(() => false);
-    this.menuTooltips = tooltips.length === items.length ? [...tooltips] : items.map(() => '');
+    // Truncate very long tooltips so the help strip stays on one line.
+    this.menuTooltips = (tooltips.length === items.length ? [...tooltips] : items.map(() => '')).map((tip) =>
+      tip.length > HELP_TOOLTIP_MAX_LEN ? tip.substring(0, HELP_TOOLTIP_MAX_LEN - 1) + '…' : tip,
+    );
     this.menuScrollOffset = 0;
     // If index 0 is disabled, advance to the first enabled option so the cursor
     // never rests on a greyed-out item after the menu is (re)built.
@@ -1530,10 +1555,31 @@ export class CombatUI {
     };
     this.bus.on('combat:miss', this.onCombatMiss);
 
-    this.onStatusApplied = (entity) => {
+    this.onCombatDefend = (actor) => {
+      this.playDefendAnimation(actor as CombatEntity);
+    };
+    this.bus.on('combat:defend', this.onCombatDefend);
+
+    this.onCombatRest = (actor) => {
+      this.playRestAnimation(actor as CombatEntity);
+    };
+    this.bus.on('combat:rest', this.onCombatRest);
+
+    this.onCombatReload = (actor) => {
+      this.playReloadAnimation(actor as CombatEntity);
+    };
+    this.bus.on('combat:reload', this.onCombatReload);
+
+    this.onCombatSteal = (actor, target, items) => {
+      this.playStealAnimation(actor as CombatEntity, target as CombatEntity, items as string[]);
+    };
+    this.bus.on('combat:steal', this.onCombatSteal);
+
+    this.onStatusApplied = (entity, effectId) => {
       const e = entity as CombatEntity;
       this.refreshStatusDisplay(e);
       this.updateStatusOverlay(e);
+      this.playStatusAppliedAnimation(e, effectId as string);
     };
     this.onStatusRemoved = (entity) => {
       const e = entity as CombatEntity;
@@ -1701,6 +1747,7 @@ export class CombatUI {
     const g = this.statusOverlayGraphics.get(entity.id);
     const rect = this.entityOverlayRects.get(entity.id);
     if (!g || !rect) return;
+    const element = entity instanceof EnemyCombatant ? entity.element : null;
     this.drawStatusOverlayFor(
       g,
       Array.from(entity.statusEffects),
@@ -1709,6 +1756,7 @@ export class CombatUI {
       rect.w,
       rect.h,
       this.overlayAnimTick,
+      element,
     );
   }
 
@@ -1727,6 +1775,12 @@ export class CombatUI {
    *  reflect  — cyan ring around sprite
    *  powerDown— orange downward arrow at base
    *  provoked — red pulsing border
+   *
+   * Element ambient effects (drawn first as a background layer):
+   *  fire      — orange embers rising upward
+   *  ice       — light blue snowflake crystals drifting downward
+   *  lightning — occasional yellow electric sparks
+   *  water     — blue droplets flowing down
    */
   private drawStatusOverlayFor(
     g: Phaser.GameObjects.Graphics,
@@ -1736,12 +1790,87 @@ export class CombatUI {
     w: number,
     h: number,
     tick: number,
+    element?: string | null,
   ): void {
     g.clear();
-    if (statuses.length === 0) return;
+    const hasContent = statuses.length > 0 || (element != null && element in ELEMENT_AMBIENT_COLORS);
+    if (!hasContent) return;
 
     const left = cx - w / 2;
     const top = cy - h / 2;
+
+    // ── Element ambient overlay (drawn first, underneath status effects) ──────
+    if (element === 'fire') {
+      // Subtle orange glow + floating embers rising
+      g.fillStyle(0xff5500, 0.07);
+      g.fillRect(left, top, w, h);
+      // X-positions (0–1 fraction of w) spread embers across the sprite width
+      const seeds = [0.15, 0.4, 0.65, 0.85, 0.3];
+      for (let i = 0; i < seeds.length; i++) {
+        const bx = left + seeds[i] * w;
+        const rawVy = h - ((tick * 14 + i * Math.floor(h / seeds.length)) % h);
+        const by = top + rawVy;
+        const sz = 2 + (i % 3);
+        g.fillStyle(i % 2 === 0 ? 0xff6600 : 0xff3300, 0.75);
+        g.fillCircle(bx, by, sz);
+      }
+    } else if (element === 'ice') {
+      // Subtle blue tint + floating snowflake crystals drifting down slowly
+      g.fillStyle(0x88ddff, 0.10);
+      g.fillRect(left, top, w, h);
+      g.lineStyle(1, 0xaaeeff, 0.85);
+      // X-positions (0–1 fraction of w) spread crystals across the sprite width
+      const crystals = [0.2, 0.5, 0.8, 0.35, 0.65];
+      for (let i = 0; i < crystals.length; i++) {
+        const bx = left + crystals[i] * w;
+        // Drift downward slowly
+        const rawVy = (tick * 5 + i * Math.floor(h / crystals.length)) % h;
+        const by = top + rawVy;
+        const s = 4;
+        // X axis
+        g.beginPath(); g.moveTo(bx - s, by - s); g.lineTo(bx + s, by + s); g.strokePath();
+        g.beginPath(); g.moveTo(bx + s, by - s); g.lineTo(bx - s, by + s); g.strokePath();
+        // + axis
+        g.beginPath(); g.moveTo(bx, by - s); g.lineTo(bx, by + s); g.strokePath();
+        g.beginPath(); g.moveTo(bx - s, by); g.lineTo(bx + s, by); g.strokePath();
+      }
+    } else if (element === 'lightning') {
+      // Occasional yellow electric sparks — only flash on certain ticks
+      if (tick % 2 === 0) {
+        g.lineStyle(1, 0xffff44, 0.9);
+        // X-positions (0–1 fraction of w) for staggered spark columns
+        const sparks = [0.2, 0.55, 0.8];
+        for (let i = 0; i < sparks.length; i++) {
+          if ((tick + i) % 3 !== 0) continue; // stagger sparks
+          const bx = left + sparks[i] * w;
+          const by = top + ((tick * 7 + i * 19) % h);
+          const s = 5;
+          // Jagged lightning bolt shape
+          g.beginPath();
+          g.moveTo(bx, by - s);
+          g.lineTo(bx + 3, by);
+          g.lineTo(bx - 2, by + s);
+          g.strokePath();
+        }
+      }
+    } else if (element === 'water') {
+      // Subtle blue tint + droplets flowing down
+      g.fillStyle(0x4488ff, 0.09);
+      g.fillRect(left, top, w, h);
+      g.fillStyle(0x6699ff, 0.75);
+      // X-positions (0–1 fraction of w) for three evenly spaced drop columns
+      const drops = [0.2, 0.5, 0.8];
+      for (let i = 0; i < drops.length; i++) {
+        const bx = left + drops[i] * w;
+        const rawVy = (tick * 9 + i * Math.floor(h / drops.length)) % h;
+        const by = top + rawVy;
+        g.fillCircle(bx, by, 3);
+        // Teardrop tail above
+        g.fillStyle(0x4488ff, 0.5);
+        g.fillRect(bx - 1, by - 6, 2, 5);
+        g.fillStyle(0x6699ff, 0.75);
+      }
+    }
 
     for (const status of statuses) {
       if (status === 'reloading') continue; // handled elsewhere; skip overlay
@@ -2373,6 +2502,245 @@ export class CombatUI {
     }
   }
 
+  /** Floating status name indicator when a status is first applied to an entity. */
+  private playStatusAppliedAnimation(entity: CombatEntity, effectId: string): void {
+    const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+      poison:    { label: '☠ Poison',     color: '#88ff44' },
+      bleed:     { label: '🩸 Bleed',     color: '#ff4444' },
+      slow:      { label: '🐢 Slow',      color: '#88aaff' },
+      haste:     { label: '⚡ Haste',     color: '#ffff44' },
+      zombie:    { label: '🧟 Zombie',    color: '#44ee44' },
+      reraise:   { label: '✨ Reraise',   color: '#ddddff' },
+      reflect:   { label: '🔮 Reflect',   color: '#44ddff' },
+      powerDown: { label: '↓ Power Down', color: '#ffaa44' },
+      provoked:  { label: '😡 Provoked',  color: '#ff6600' },
+      reloading: { label: '⟳ Reloading', color: '#ffcc44' },
+    };
+    const entry = STATUS_LABELS[effectId];
+    if (!entry) return;
+    const pos = this.entityScreenPos(entity);
+    const banner = this.scene.add.text(pos.x, pos.y + 10, entry.label, {
+      fontSize: '14px',
+      color: entry.color,
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(54).setAlpha(0);
+    this.scene.tweens.add({
+      targets: banner,
+      alpha: { from: 0, to: 1 },
+      y: pos.y - 30,
+      duration: 250,
+      ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.time.delayedCall(700, () => {
+          this.scene.tweens.add({
+            targets: banner,
+            alpha: 0,
+            y: pos.y - 55,
+            duration: 400,
+            onComplete: () => banner.destroy(),
+          });
+        });
+      },
+    });
+  }
+
+  /** Shield-burst visual when a player takes a Defend stance. */
+  private playDefendAnimation(actor: CombatEntity): void {
+    const pos = this.entityCenter(actor);
+    // Expanding blue shield ring
+    const ring = this.scene.add.rectangle(pos.x, pos.y, 14, 14, 0x4488ff, 0.7);
+    ring.setDepth(56);
+    this.scene.tweens.add({
+      targets: ring,
+      scaleX: 5,
+      scaleY: 5,
+      alpha: 0,
+      duration: 500,
+      ease: 'Power2.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+    // "DEFEND" floating text
+    const txt = this.scene.add.text(pos.x, pos.y - 20, '🛡 DEFEND', {
+      fontSize: '15px',
+      color: '#88aaff',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(57).setAlpha(0);
+    this.scene.tweens.add({
+      targets: txt,
+      alpha: { from: 0, to: 1 },
+      y: pos.y - 50,
+      duration: 350,
+      ease: 'Power1.easeOut',
+      onComplete: () => {
+        this.scene.time.delayedCall(500, () => {
+          this.scene.tweens.add({
+            targets: txt,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => txt.destroy(),
+          });
+        });
+      },
+    });
+  }
+
+  /** Restorative sparkle visual when a player Rests. */
+  private playRestAnimation(actor: CombatEntity): void {
+    const pos = this.entityCenter(actor);
+    // "REST" floating text with warm gold colour
+    const txt = this.scene.add.text(pos.x, pos.y - 10, '💤 REST', {
+      fontSize: '15px',
+      color: '#ffdd66',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(57).setAlpha(0);
+    this.scene.tweens.add({
+      targets: txt,
+      alpha: { from: 0, to: 1 },
+      y: pos.y - 48,
+      duration: 350,
+      ease: 'Power1.easeOut',
+      onComplete: () => {
+        this.scene.time.delayedCall(600, () => {
+          this.scene.tweens.add({
+            targets: txt,
+            alpha: 0,
+            duration: 350,
+            onComplete: () => txt.destroy(),
+          });
+        });
+      },
+    });
+    // A few rising sparkles
+    const SPARKS = 5;
+    for (let k = 0; k < SPARKS; k++) {
+      this.scene.time.delayedCall(k * 70, () => {
+        const sx = pos.x + (Math.random() - 0.5) * 28;
+        const sy = pos.y + (Math.random() - 0.5) * 16;
+        const spark = this.scene.add.circle(sx, sy, 3, 0xffee88, 0.9);
+        spark.setDepth(56);
+        this.scene.tweens.add({
+          targets: spark,
+          y: sy - 24 - Math.random() * 14,
+          alpha: 0,
+          duration: 550 + Math.random() * 200,
+          ease: 'Power1',
+          onComplete: () => spark.destroy(),
+        });
+      });
+    }
+  }
+
+  /** Smoke-and-spark visual when the gunsmith reloads. */
+  private playReloadAnimation(actor: CombatEntity): void {
+    const pos = this.entityCenter(actor);
+    const txt = this.scene.add.text(pos.x, pos.y - 10, '⟳ RELOAD', {
+      fontSize: '14px',
+      color: '#ffcc44',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(57).setAlpha(0);
+    this.scene.tweens.add({
+      targets: txt,
+      alpha: { from: 0, to: 1 },
+      y: pos.y - 44,
+      duration: 300,
+      ease: 'Power1.easeOut',
+      onComplete: () => {
+        this.scene.time.delayedCall(550, () => {
+          this.scene.tweens.add({
+            targets: txt,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => txt.destroy(),
+          });
+        });
+      },
+    });
+    // A few grey smoke puffs
+    const PUFFS = 4;
+    for (let k = 0; k < PUFFS; k++) {
+      this.scene.time.delayedCall(k * 80, () => {
+        const px = pos.x + (Math.random() - 0.5) * 22;
+        const py = pos.y + (Math.random() - 0.5) * 12;
+        const puff = this.scene.add.circle(px, py, 5 + Math.random() * 4, 0xaaaaaa, 0.55);
+        puff.setDepth(55);
+        this.scene.tweens.add({
+          targets: puff,
+          scaleX: 2.5,
+          scaleY: 2.5,
+          alpha: 0,
+          y: py - 18 - Math.random() * 12,
+          duration: 500 + Math.random() * 200,
+          ease: 'Power1',
+          onComplete: () => puff.destroy(),
+        });
+      });
+    }
+  }
+
+  /** Gold coin particles fly from the target to the actor when Steal succeeds. */
+  private playStealAnimation(actor: CombatEntity, target: CombatEntity, items: string[]): void {
+    const actorPos = this.entityCenter(actor);
+    const targetPos = this.entityCenter(target);
+    const COINS = Math.min(items.length + 2, 6);
+    for (let k = 0; k < COINS; k++) {
+      const delay = k * 55;
+      this.scene.time.delayedCall(delay, () => {
+        const coin = this.scene.add.circle(
+          targetPos.x + (Math.random() - 0.5) * 20,
+          targetPos.y + (Math.random() - 0.5) * 14,
+          5,
+          0xffdd44,
+          1,
+        );
+        coin.setDepth(58);
+        this.scene.tweens.add({
+          targets: coin,
+          x: actorPos.x,
+          y: actorPos.y,
+          scaleX: 0.5,
+          scaleY: 0.5,
+          alpha: 0,
+          duration: 450,
+          ease: 'Power2.easeIn',
+          onComplete: () => coin.destroy(),
+        });
+      });
+    }
+    // "STEAL!" floating text above the target
+    const txt = this.scene.add.text(targetPos.x, targetPos.y - 20, '🪙 STEAL!', {
+      fontSize: '16px',
+      color: '#ffee66',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(57).setAlpha(0);
+    this.scene.tweens.add({
+      targets: txt,
+      alpha: { from: 0, to: 1 },
+      y: targetPos.y - 52,
+      duration: 320,
+      ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.time.delayedCall(600, () => {
+          this.scene.tweens.add({
+            targets: txt,
+            alpha: 0,
+            duration: 350,
+            onComplete: () => txt.destroy(),
+          });
+        });
+      },
+    });
+  }
+
   /** Return the approximate screen position for an entity (used for floating damage numbers). */
   private entityScreenPos(entity: CombatEntity): { x: number; y: number } {
     if (entity instanceof PlayerCombatant) {
@@ -2929,6 +3297,10 @@ export class CombatUI {
     this.bus.off('combat:spellStart', this.onCombatSpellStart);
     this.bus.off('combat:rangedStart', this.onCombatRangedStart);
     this.bus.off('combat:miss', this.onCombatMiss);
+    this.bus.off('combat:defend', this.onCombatDefend);
+    this.bus.off('combat:rest', this.onCombatRest);
+    this.bus.off('combat:reload', this.onCombatReload);
+    this.bus.off('combat:steal', this.onCombatSteal);
     this.bus.off('status:applied', this.onStatusApplied);
     this.bus.off('status:removed', this.onStatusRemoved);
     this.bus.off('status:dot', this.onStatusDot);
