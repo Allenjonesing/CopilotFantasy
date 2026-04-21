@@ -40,7 +40,7 @@
       },
       "skills": ["fire", "blizzard", "thunder", "water"],
       "levelUpStats": { "hp": 5, "mp": 10, "stm": 3, "strength": 0, "magic": 1, "defense": 0, "magicDefense": 1, "agility": 1, "luck": 0 },
-      "levelSkills": { "3": "drain", "4": "reflectCast", "5": "magicStrike", "7": "groundSlam", "9": "deathKnell" },
+      "levelSkills": { "3": "drain", "4": "reflectCast", "5": "magicStrike", "7": "zombify", "9": "deathKnell" },
       "teamMoves": [],
       "levelTeamMoves": { "2": "teamSpell", "3": "teamBlaze", "5": "teamBolt", "7": "teamFrost" }
     },
