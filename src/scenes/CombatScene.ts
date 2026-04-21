@@ -233,6 +233,33 @@ export class CombatScene extends Phaser.Scene {
       return;
     }
 
+    // ── Support AI: heal and buff allies (including the boss) ─────────────────
+    const aliveEnemies = this.system.enemies.filter((e) => !e.isDefeated);
+
+    // Use Pray (all-ally heal) when any enemy ally is below 70% HP.
+    if (actor.skills.includes('pray') && actor.stats.mp >= 24) {
+      const anyInjured = aliveEnemies.some((e) => e.stats.hp / e.stats.maxHp < 0.70);
+      if (anyInjured) {
+        const consumed = this.system.executeAction(actor, { type: 'skill', skillId: 'pray', target: actor });
+        if (consumed) return;
+      }
+    }
+
+    // Use Haste Bell to buff the first unhasted ally (prioritises the boss).
+    if (actor.skills.includes('hasteBell') && actor.stats.mp >= 18) {
+      const needsHaste = aliveEnemies.find((e) => !e.hasStatus('haste'));
+      if (needsHaste) {
+        const consumed = this.system.executeAction(actor, { type: 'skill', skillId: 'hasteBell', target: needsHaste });
+        if (consumed) return;
+      }
+    }
+
+    // Elemental self-buff: use Speed Surge (enemyHaste) on self if not already hasted.
+    if (actor.skills.includes('enemyHaste') && !actor.hasStatus('haste') && actor.stats.mp >= 15) {
+      const consumed = this.system.executeAction(actor, { type: 'skill', skillId: 'enemyHaste', target: actor });
+      if (consumed) return;
+    }
+
     // ── Choose target ────────────────────────────────────────────────────────
     // 50% chance to target the player with the highest max HP (perceived threat),
     // 50% chance to target randomly.
@@ -266,7 +293,7 @@ export class CombatScene extends Phaser.Scene {
     }
 
     // ── Choose action ─────────────────────────────────────────────────────────
-    // Elemental enemies prefer their element spell (~60% chance if MP available).
+    // Elemental enemies heavily prefer their element spell (~75% chance if MP available).
     // Otherwise choose randomly from available non-elemental offensive skills or basic attack.
     const elementalSkillIds: Record<string, string[]> = {
       fire: ['firaga', 'fira', 'fire'],
@@ -279,7 +306,7 @@ export class CombatScene extends Phaser.Scene {
     const allElementalSkillIds = new Set(Object.values(elementalSkillIds).flat());
 
     const enemyElement = enemy.element;
-    if (enemyElement && Math.random() < 0.60) {
+    if (enemyElement && Math.random() < 0.75) {
       // Try to cast the highest-tier elemental spell the enemy knows that it can afford
       const preferredIds = elementalSkillIds[enemyElement] ?? [];
       for (const sid of preferredIds) {
@@ -290,11 +317,11 @@ export class CombatScene extends Phaser.Scene {
       }
     }
 
-    // Try any random offensive skill (not enemyCure/attack/drain) with 35% chance.
-    // For elemental enemies, skip any elemental spell that doesn't match their element
-    // to avoid the enemy using the wrong element.
+    // Try any random offensive skill (not attack/enemyCure/drain/hasteBell) with 35% chance.
+    // hasteBell is excluded here because it is handled in the support phase above with correct
+    // enemy-ally targeting. For elemental enemies, skip spells that don't match their element.
     const offensiveSkills = actor.skills.filter((s) => {
-      if (s === 'attack' || s === 'enemyCure' || s === 'drain') return false;
+      if (s === 'attack' || s === 'enemyCure' || s === 'drain' || s === 'hasteBell') return false;
       if (allElementalSkillIds.has(s) && enemyElement) {
         // Only keep elemental spells that match the enemy's own element
         return (elementalSkillIds[enemyElement] ?? []).includes(s);

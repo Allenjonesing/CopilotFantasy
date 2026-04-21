@@ -34,9 +34,9 @@
       "id": "phoenix",
       "name": "Revival Herb",
       "type": "consumable",
-      "target": "single_ally",
+      "target": "single_any",
       "effect": { "revive": true, "hpPercent": 0.5 },
-      "description": "Revives a KO'd ally with 50% HP. If used on a living ally with Zombie status, it causes instant death instead.",
+      "description": "Revives a KO'd ally with 50% HP. Used on any living target (ally or enemy) with Zombie status causes instant death — perfect for finishing off zombified foes.",
       "buyPrice": 200,
       "sellPrice": 100
     },

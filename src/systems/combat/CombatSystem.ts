@@ -711,6 +711,9 @@ export class CombatSystem {
         return singleTarget ? [singleTarget] : _allies.slice(0, 1);
       case 'single_dead_ally':
         return singleTarget ? [singleTarget] : _deadAllies.slice(0, 1);
+      case 'single_any':
+        // Revival items usable on any entity — prioritise dead allies as default.
+        return singleTarget ? [singleTarget] : [..._deadAllies, ..._allies, ...foes].slice(0, 1);
       case 'all_enemies':
         return foes;
       case 'all_allies':

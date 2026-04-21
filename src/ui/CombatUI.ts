@@ -1362,6 +1362,27 @@ export class CombatUI {
       return;
     }
 
+    if (effectiveTarget === 'single_any') {
+      // Items that can target any entity: dead allies first (revival), then living
+      // allies (zombie kill on self), then living enemies (zombie kill on enemy).
+      const deadAllies = this.system.players.filter((p) => p.isDefeated);
+      const livingAllies = this.system.players.filter((p) => !p.isDefeated);
+      const livingEnemies = this.system.enemies.filter((e) => !e.isDefeated);
+      this.targetList = [...deadAllies, ...livingAllies, ...livingEnemies];
+      if (this.targetList.length === 0) this.targetList = this.system.players;
+      this.targetIsPositive = true; // green cursor — primary use is revival
+      this.menuTitleBase = 'TARGET [BACK: cancel]';
+      this.menuTitle.setText(this.menuTitleBase);
+      const anyLabels = this.targetList.map((t) => {
+        const isEnemy = !this.system.players.some((p) => p === t);
+        const deadMark = t.isDefeated ? ' ✝' : '';
+        return `${t.name} ${isEnemy ? '(foe)' : '(ally)'}${deadMark}`;
+      });
+      this.buildMenuItems(anyLabels);
+      this.updateTargetCursor();
+      return;
+    }
+
     if (revivalItem || revivalSkill) {
       // Revival actions show KO'd allies first (default target), then living allies.
       // This allows using revival items on living Zombie-cursed characters (which kills them).
