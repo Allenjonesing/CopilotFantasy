@@ -624,6 +624,17 @@
       "applyStatus": "bleed",
       "speedModifier": 1.1,
       "description": "A vicious slash that causes the target to bleed (10% max HP per turn). Slightly slower next turn."
+    },
+    {
+      "id": "enemyHaste",
+      "name": "Speed Surge",
+      "type": "status_apply",
+      "target": "self",
+      "mpCost": 15,
+      "power": 0,
+      "statusEffect": "haste",
+      "speedModifier": 1.1,
+      "description": "The enemy channels elemental energy, granting itself Haste."
     }
   ]
 }
